@@ -7,7 +7,7 @@
 
 ## 安装
 
-必须先执行安装脚本。安装脚本会把命令安装到 `~/.local/bin/tiger-tv.py`：
+可以直接在仓库中运行 `tiger-tv.py`；如果需要作为全局命令使用，再执行安装脚本。安装脚本会把命令安装到 `~/.local/bin/tiger-tv.py`：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/install.sh | bash
@@ -51,6 +51,7 @@ tiger-tv/
 ├── tiger-tv.py
 ├── uninstall.sh
 ├── README.md
+├── LICENSE
 └── API接口说明V2.txt
 ```
 

@@ -171,7 +171,7 @@ def print_fetch_result(vod_id, source, play_urls, down_urls):
 
 
 def print_quanx_result(api_domains, url_domains, m3u8_domains):
-    print("; API 域名")
+    print("; 资源站 API 域名")
     for domain in sorted(api_domains):
         print(f"host-suffix, {domain}, direct")
 
