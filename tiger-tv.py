@@ -144,7 +144,7 @@ def print_search_result(results):
         if not vods:
             continue
         for vod in vods:
-            print(f"{name}:")
+            print(f"source: {name}:")
             for field in fields:
                 value = vod.get(field, "")
                 print(f"  {field}: {value}")
