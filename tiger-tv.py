@@ -418,7 +418,7 @@ def exit_with_error(message):
 def main():
     """解析命令行参数并分发到对应子命令。"""
     main_parser = argparse.ArgumentParser(
-        description="小老虎爱看剧 (tiger-tv) 工具集",
+        description="小老虎爱看剧 (TigerTV)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 可用命令:
