@@ -7,27 +7,20 @@
 
 ## 安装
 
-可以直接在仓库中运行 `tiger-tv.py`；如果需要作为全局命令使用，再执行安装脚本。安装脚本会把命令安装到 `~/.local/bin/tiger-tv.py`：
+可以直接在仓库中运行 `tiger-tv.py`；如需作为全局命令使用，可执行安装脚本将其安装到 `~/.local/bin/tiger-tv.py`。安装脚本不会修改环境变量，可按下面方式一并完成安装和 `PATH` 配置：
 
 ```bash
+# 安装 tiger-tv.py 到 ~/.local/bin
 curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/install.sh | bash
+
+# bash 用户
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+
+# zsh 用户
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
-
-安装脚本不会修改你的环境变量。请确认 `~/.local/bin` 已加入 `PATH`。
-
-`bash` 用户可将以下内容加入 `~/.bashrc`：
-
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-`zsh` 用户可将以下内容加入 `~/.zshrc`：
-
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-配置完成后，重新打开终端，或执行 `source ~/.bashrc` / `source ~/.zshrc`。
 
 ## 当前能力
 
