@@ -6,6 +6,8 @@
 
 import argparse
 import json
+import os
+import re
 import sys
 import urllib.parse
 import urllib.request
@@ -37,11 +39,22 @@ class RequestError(Exception):
 # ============== 请求与基础工具 ==============
 
 
+def _encode_url(url):
+    """对 URL 中的非 ASCII 字符做 percent-encoding。"""
+    parsed = urllib.parse.urlparse(url)
+    encoded = parsed._replace(
+        path=urllib.parse.quote(parsed.path, safe="/%"),
+        query=urllib.parse.quote(parsed.query, safe="=&%"),
+    )
+    return urllib.parse.urlunparse(encoded)
+
+
 def _http_get(url, timeout=10):
     """发送 GET 请求并返回原始字节。
 
     统一附带 User-Agent，并限制单次响应体大小。
     """
+    url = _encode_url(url)
     req = urllib.request.Request(url)
     req.add_header("User-Agent", USER_AGENT)
     try:
@@ -66,10 +79,26 @@ def make_request(url, timeout=10):
         raise RequestError(f"响应解析失败: {e}")
 
 
-def load_config():
-    """加载远程配置，并筛出可用的视频来源。"""
+def _load_local_config():
+    """尝试从脚本同目录读取 config.json，不存在则返回 None。"""
     try:
-        config = make_request(CONFIG_URL)
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        local_path = os.path.join(script_dir, "config.json")
+        if os.path.isfile(local_path):
+            with open(local_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return None
+
+
+def load_config():
+    """加载配置，并筛出可用的视频来源。
+
+    优先从脚本同目录 config.json 读取，不存在则远程获取。
+    """
+    try:
+        config = _load_local_config() or make_request(CONFIG_URL)
         api_site = config.get("api_site", {})
         api_name_map = {}
         for value in api_site.values():
@@ -82,10 +111,45 @@ def load_config():
         raise ConfigError(f"加载配置失败: {e}")
 
 
+def check_response(data, context=""):
+    """检查 API 响应 code，非 1 时输出警告。返回 data 本身以便链式调用。"""
+    code = data.get("code") if isinstance(data, dict) else None
+    if code is not None and code != 1:
+        msg = data.get("msg", "未知错误")
+        print_warning(context or "API", f"code={code}, msg={msg}")
+    return data
+
+
 def ensure_api_sources(api_name_map):
     """确保配置中至少存在一个可用来源。"""
     if not api_name_map:
         raise ConfigError("未找到可用来源，请检查远程配置格式或过滤条件")
+
+
+def resolve_m3u8_urls(url, timeout=10):
+    """根据播放 URL 提取实际的 m3u8 地址列表。
+
+    三种情况：
+    1. URL 路径以 .m3u8 结尾 → 直接返回该 URL
+    2. 请求后内容以 #EXTM3U 开头 → 该 URL 本身就是 m3u8
+    3. 返回 HTML → 从页面中提取引号包裹的 .m3u8 路径并用 urljoin 拼接
+    """
+    parsed = urllib.parse.urlparse(url)
+    if parsed.path.endswith(".m3u8"):
+        return [url]
+
+    try:
+        content = _http_get(url, timeout).decode("utf-8", errors="replace")
+    except Exception as e:
+        print_warning("m3u8探测", f"请求失败: {e}")
+        return []
+
+    stripped = content.lstrip()
+    if stripped.startswith("#EXTM3U"):
+        return [url]
+
+    m3u8_paths = re.findall(r'["\']([^"\'\s]+\.m3u8)["\']', content)
+    return [urllib.parse.urljoin(url, p) for p in m3u8_paths]
 
 
 def clean_domain(url_or_domain):
@@ -205,7 +269,7 @@ def cmd_search(args, api_name_map):
             params = urllib.parse.urlencode(
                 {"wd": keyword, "ac": "list", "pagesize": 100}
             )
-            data = make_request(f"{api_url}?{params}")
+            data = check_response(make_request(f"{api_url}?{params}"), name)
             return name, data.get("list", [])
         except Exception as e:
             print_warning(name, f"搜索失败: {e}")
@@ -238,7 +302,7 @@ def cmd_fetch(args, api_name_map):
 
     try:
         params = urllib.parse.urlencode({"ids": vod_id, "ac": "detail"})
-        data = make_request(f"{api_url}?{params}")
+        data = check_response(make_request(f"{api_url}?{params}"), source)
         vod_list = data.get("list", [])
 
         if not vod_list:
@@ -355,7 +419,7 @@ def cmd_quanx(args, api_name_map):
             params = urllib.parse.urlencode(
                 {"wd": keyword, "ac": "list", "pagesize": 1}
             )
-            data = make_request(f"{api_url}?{params}")
+            data = check_response(make_request(f"{api_url}?{params}"), clean_domain(api_url))
 
             vod_list = data.get("list", [])
             if vod_list:
@@ -363,7 +427,9 @@ def cmd_quanx(args, api_name_map):
                 vod_id = vod.get("vod_id")
                 if vod_id:
                     params2 = urllib.parse.urlencode({"ids": vod_id, "ac": "detail"})
-                    detail_data = make_request(f"{api_url}?{params2}")
+                    detail_data = check_response(
+                        make_request(f"{api_url}?{params2}"), clean_domain(api_url)
+                    )
 
                     for v in detail_data.get("list", []):
                         for field in ("vod_play_url", "vod_down_url"):
@@ -373,14 +439,12 @@ def cmd_quanx(args, api_name_map):
                             for _, url in parse_first_play_url_per_group(raw):
                                 domain = clean_domain(url)
                                 local_url_domains.add(domain)
-                                parsed = urllib.parse.urlparse(url)
-                                if (
-                                    parsed.path.endswith(".m3u8")
-                                    and url not in seen_m3u8_urls
-                                ):
-                                    seen_m3u8_urls.add(url)
+                                for m3u8_url in resolve_m3u8_urls(url):
+                                    if m3u8_url in seen_m3u8_urls:
+                                        continue
+                                    seen_m3u8_urls.add(m3u8_url)
                                     m3u8 = fetch_m3u8_domains(
-                                        url,
+                                        m3u8_url,
                                         cache=m3u8_cache,
                                         cache_lock=m3u8_cache_lock,
                                     )
