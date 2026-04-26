@@ -7,27 +7,20 @@
 
 ## 安装
 
-必须先执行安装脚本。安装脚本会把命令安装到 `~/.local/bin/tiger-tv.py`：
+可以直接在仓库中运行 `tiger-tv.py`；如需作为全局命令使用，可执行安装脚本将其安装到 `~/.local/bin/tiger-tv.py`。安装脚本不会修改环境变量，可按下面方式一并完成安装和 `PATH` 配置：
 
 ```bash
+# 安装 tiger-tv.py 到 ~/.local/bin
 curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/install.sh | bash
+
+# bash 用户
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+
+# zsh 用户
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
-
-安装脚本不会修改你的环境变量。请确认 `~/.local/bin` 已加入 `PATH`。
-
-`bash` 用户可将以下内容加入 `~/.bashrc`：
-
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-`zsh` 用户可将以下内容加入 `~/.zshrc`：
-
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-配置完成后，重新打开终端，或执行 `source ~/.bashrc` / `source ~/.zshrc`。
 
 ## 当前能力
 
@@ -51,6 +44,7 @@ tiger-tv/
 ├── tiger-tv.py
 ├── uninstall.sh
 ├── README.md
+├── LICENSE
 └── API接口说明V2.txt
 ```
 
@@ -110,10 +104,11 @@ host-suffix, example.com, direct
 
 ## 实现要点
 
-- 来源配置通过 `CONFIG_URL` 从 GitHub RAW 远程加载，只保留名称包含 `🎬` 且不含 `_comment` 的来源。
+- 来源配置优先从脚本同目录 `config.json` 读取，不存在时从 `CONFIG_URL`（GitHub RAW）远程加载；只保留名称包含 `🎬` 且不含 `_comment` 的来源。
 - 所有请求统一经过 `_http_get()` / `make_request()`，默认超时 10 秒，单次响应体限制 10MB。
 - `search` 最多并发请求 20 个来源；`fetch` 通过 `ac=detail` 和 `ids=<vod_id>` 获取详情。
-- `quanx` 会收集 API 域名、播放/下载域名，以及最多递归 2 层解析得到的 m3u8 资源域名。
+- API 响应会检查 `code` 字段，非 1 时输出警告。
+- `quanx` 会收集 API 域名、播放/下载域名，以及最多递归 2 层解析得到的 m3u8 资源域名。对于路径不以 `.m3u8` 结尾的播放链接，会请求内容探测实际 m3u8 地址（直接 m3u8 响应或从 HTML 页面中提取）。
 
 ## 来源名称说明
 
@@ -143,7 +138,7 @@ A: `--source` 必须完整匹配配置中的 `name` 字段，包括其中的 emo
 A: 参数由 `argparse` 校验，非整数会直接报参数错误。
 
 **Q: `quanx` 输出里 m3u8 域名为空？**  
-A: 说明未解析到额外的 m3u8 资源域名，或对应请求超时、返回异常、链接并非以 `.m3u8` 结尾。
+A: 说明未解析到额外的 m3u8 资源域名，或对应请求超时、返回异常。
 
 **Q: 如何卸载？**  
 A: 执行仓库中的 `uninstall.sh`，或手动删除 `~/.local/bin/tiger-tv.py`。
