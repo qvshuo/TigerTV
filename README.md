@@ -54,61 +54,81 @@ tiger-tv/
 # 查看帮助
 tiger-tv.py --help
 
-# 搜索视频
+# 搜索视频（JSON 输出）
 tiger-tv.py search 逐玉
 
-# 获取播放/下载链接（source 需完整匹配）
+# 获取播放/下载链接（JSON 输出，source 需完整匹配）
 tiger-tv.py fetch --source "🎬-爱奇艺-" --vod_id 73480
 
-# 生成 Quantumult X 直连规则
+# 生成 Quantumult X 直连规则（纯文本输出）
 tiger-tv.py quanx 逐玉
+
+# 查看最近日志
+tiger-tv.py logs
+
+# 查看全部日志
+tiger-tv.py logs --full
+
+# 清空日志
+tiger-tv.py logs --clear
 ```
 
 ## 命令说明
 
 | 命令 | 参数 | 说明 |
 |---|---|---|
-| `search` | `<keyword>` | 搜索关键字，单源最多取 100 条 |
-| `fetch` | `--source <source> --vod_id <id>` | 精准匹配来源并获取播放/下载链接 |
-| `quanx` | `<keyword>` | 搜索并提取域名，输出 Quantumult X 直连规则 |
+| `search` | `<keyword>` | 搜索关键字，单源最多取 100 条，输出 JSON |
+| `fetch` | `--source <source> --vod_id <id>` | 精准匹配来源并获取播放/下载链接，输出 JSON |
+| `quanx` | `<keyword>` | 搜索并提取域名，输出 Quantumult X 直连规则（纯文本） |
+| `logs` | `[--full] [--clear]` | 查看最近 50 条日志，`--full` 显示全部，`--clear` 清空 |
 
 ## 输出约定
 
-### search
+- **`search` / `fetch`**：结果以 JSON 输出到 `stdout`，可直接被管道或脚本解析。
+- **`quanx`**：输出 Quantumult X 规则纯文本，可直接复制到配置中使用。
+- **日志**：所有运行日志（INFO/WARN/ERROR）写入 `/tmp/tiger-tv.log`，通过 `logs` 命令查看，不再混入 `stdout`/`stderr`。
 
-- 进度信息和总记录数输出到 `stderr`
-- 搜索结果输出到 `stdout`
-- 单个来源失败不会中断整体搜索，会输出 `警告 [来源]: 搜索失败: ...`
+### search JSON 示例
 
-### fetch
+```json
+{
+  "keyword": "逐玉",
+  "results": [
+    {"source": "🎬-爱奇艺-", "vod_id": 73480, "vod_name": "逐玉", "vod_time": "...", "vod_remarks": "全40集"}
+  ]
+}
+```
 
-- 成功时输出视频 ID、来源、播放链接、下载链接
-- `--source` 必须完整匹配远程配置中的 `name` 字段
-- 如果来源不存在，会在错误信息中列出全部可用来源
+### fetch JSON 示例
 
-### quanx
+```json
+{
+  "vod_id": 73480,
+  "source": "🎬-爱奇艺-",
+  "play_urls": [{"name": "第01集", "url": "https://..."}],
+  "down_urls": []
+}
+```
 
-按三段输出：
+### quanx 纯文本格式
 
 ```text
 ; 资源站 API 域名
+host-suffix, example.com, direct
 ; 播放/下载域名
+host-suffix, example.com, direct
 ; m3u8 域名
-```
-
-规则格式：
-
-```text
 host-suffix, example.com, direct
 ```
 
 ## 实现要点
 
 - 来源配置优先从脚本同目录 `config.json` 读取，不存在时从 `CONFIG_URL`（GitHub RAW）远程加载；只保留名称包含 `🎬` 且不含 `_comment` 的来源。
-- 所有请求统一经过 `_http_get()` / `make_request()`，默认超时 10 秒，单次响应体限制 10MB。
+- 所有请求统一经过 `_http_get()` / `make_request()`，默认超时 10 秒，单次响应体限制 10MB；URL 中的非 ASCII 字符自动 percent-encoding。
 - `search` 最多并发请求 20 个来源；`fetch` 通过 `ac=detail` 和 `ids=<vod_id>` 获取详情。
-- API 响应会检查 `code` 字段，非 1 时输出警告。
+- API 响应会检查 `code` 字段，非 1 时记录日志。
 - `quanx` 会收集 API 域名、播放/下载域名，以及最多递归 2 层解析得到的 m3u8 资源域名。对于路径不以 `.m3u8` 结尾的播放链接，会请求内容探测实际 m3u8 地址（直接 m3u8 响应或从 HTML 页面中提取）。
+- 日志统一写入 `/tmp/tiger-tv.log`，格式为 `时间戳 [级别] [来源]: 消息`，所有上下文统一使用来源名。
 
 ## 来源名称说明
 
