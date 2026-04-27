@@ -21,6 +21,8 @@ CONFIG_URL = "https://raw.githubusercontent.com/hafrey1/LunaTV-config/refs/heads
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15"
 MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10MB
 LOG_FILE = "/tmp/tiger-tv.log"
+LOG_MAX_LINES = 5000
+LOG_KEEP_LINES = 2000
 
 _log_lock = Lock()
 
@@ -52,6 +54,16 @@ def _log(level, context, message):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"{timestamp} [{level}] [{context}]: {message}\n"
     with _log_lock:
+        if os.path.isfile(LOG_FILE):
+            try:
+                with open(LOG_FILE, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                if len(lines) > LOG_MAX_LINES:
+                    lines = lines[-LOG_KEEP_LINES:]
+                    with open(LOG_FILE, "w", encoding="utf-8") as f:
+                        f.writelines(lines)
+            except Exception:
+                pass
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(line)
 
@@ -89,11 +101,14 @@ def make_request(url, timeout=10):
     """请求 JSON 接口并返回解析后的对象。"""
     try:
         content = _http_get(url, timeout)
-        return json.loads(content.decode("utf-8"))
+        data = json.loads(content.decode("utf-8"))
     except RequestError:
         raise
     except Exception as e:
         raise RequestError(f"{e}")
+    if not isinstance(data, dict):
+        raise RequestError(f"API 返回非对象类型: {type(data).__name__}")
+    return data
 
 
 def _load_local_config():
@@ -165,7 +180,7 @@ def resolve_m3u8_urls(url, context, timeout=10):
     if stripped.startswith("#EXTM3U"):
         return [url]
 
-    m3u8_paths = re.findall(r'["\']([^"\'\s]+\.m3u8)["\']', content)
+    m3u8_paths = re.findall(r'["\']([^"\'\s]+\.m3u8[^"\'\s]*)["\']', content)
     return [urllib.parse.urljoin(url, p) for p in m3u8_paths]
 
 
@@ -339,7 +354,7 @@ def fetch_m3u8_domains(m3u8_url, context, timeout=10, depth=0, cache=None, cache
             cache[m3u8_url] = domains
         return domains
     try:
-        content = _http_get(m3u8_url, timeout).decode("utf-8")
+        content = _http_get(m3u8_url, timeout).decode("utf-8", errors="replace")
         lines = content.split("\n")
 
         has_stream_inf = any("#EXT-X-STREAM-INF" in line for line in lines)
@@ -350,14 +365,9 @@ def fetch_m3u8_domains(m3u8_url, context, timeout=10, depth=0, cache=None, cache
                 if "#EXT-X-STREAM-INF" in line:
                     for j in range(i + 1, len(lines)):
                         stripped = lines[j].strip()
-                        if not stripped:
+                        if not stripped or stripped.startswith("#"):
                             continue
-                        if stripped.startswith("#EXT-X-MEDIA") or stripped.startswith(
-                            "#EXT-X-I-FRAME"
-                        ):
-                            continue
-                        if not stripped.startswith("#"):
-                            sub_urls.append(stripped)
+                        sub_urls.append(stripped)
                         break
             for sub_url in sub_urls[:3]:
                 sub_url = urllib.parse.urljoin(m3u8_url, sub_url)
@@ -431,6 +441,8 @@ def cmd_quanx(args, api_name_map):
                             if not raw:
                                 continue
                             for _, url in parse_first_play_url_per_group(raw):
+                                if not url:
+                                    continue
                                 domain = clean_domain(url)
                                 local_url_domains.add(domain)
                                 for m3u8_url in resolve_m3u8_urls(url, name):
@@ -469,6 +481,7 @@ def cmd_logs(args):
     if args.clear:
         if os.path.isfile(LOG_FILE):
             open(LOG_FILE, "w").close()
+        print("日志已清空")
         return
     if not os.path.isfile(LOG_FILE):
         print("日志文件为空")
