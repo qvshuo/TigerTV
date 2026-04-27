@@ -5,6 +5,7 @@
 """
 
 import argparse
+import datetime
 import json
 import os
 import re
@@ -19,7 +20,11 @@ from threading import Lock
 CONFIG_URL = "https://raw.githubusercontent.com/hafrey1/LunaTV-config/refs/heads/main/LunaTV-config.json"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15"
 MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10MB
+LOG_FILE = "/tmp/tiger-tv.log"
+LOG_MAX_LINES = 5000
+LOG_KEEP_LINES = 2000
 
+_log_lock = Lock()
 
 # ============== 异常类型 ==============
 
@@ -36,7 +41,31 @@ class RequestError(Exception):
     pass
 
 
-# ============== 请求与基础工具 ==============
+# ============== 日志与基础工具 ==============
+
+
+def _log(level, context, message):
+    """将日志写入文件，每条带时间戳和级别。
+
+    level: INFO | WARN | ERROR
+    context: 来源名或模块标识
+    message: 日志正文
+    """
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"{timestamp} [{level}] [{context}]: {message}\n"
+    with _log_lock:
+        if os.path.isfile(LOG_FILE):
+            try:
+                with open(LOG_FILE, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                if len(lines) > LOG_MAX_LINES:
+                    lines = lines[-LOG_KEEP_LINES:]
+                    with open(LOG_FILE, "w", encoding="utf-8") as f:
+                        f.writelines(lines)
+            except Exception:
+                pass
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line)
 
 
 def _encode_url(url):
@@ -61,7 +90,7 @@ def _http_get(url, timeout=10):
         with urllib.request.urlopen(req, timeout=timeout) as response:
             content = response.read(MAX_RESPONSE_SIZE + 1)
     except Exception as e:
-        raise RequestError(f"请求失败: {e}")
+        raise RequestError(f"{e}")
 
     if len(content) > MAX_RESPONSE_SIZE:
         raise RequestError(f"响应超过 {MAX_RESPONSE_SIZE // 1024 // 1024}MB 限制")
@@ -72,11 +101,14 @@ def make_request(url, timeout=10):
     """请求 JSON 接口并返回解析后的对象。"""
     try:
         content = _http_get(url, timeout)
-        return json.loads(content.decode("utf-8"))
+        data = json.loads(content.decode("utf-8"))
     except RequestError:
         raise
     except Exception as e:
-        raise RequestError(f"响应解析失败: {e}")
+        raise RequestError(f"{e}")
+    if not isinstance(data, dict):
+        raise RequestError(f"API 返回非对象类型: {type(data).__name__}")
+    return data
 
 
 def _load_local_config():
@@ -112,11 +144,11 @@ def load_config():
 
 
 def check_response(data, context=""):
-    """检查 API 响应 code，非 1 时输出警告。返回 data 本身以便链式调用。"""
+    """检查 API 响应 code，非 1 时记录日志。返回 data 本身以便链式调用。"""
     code = data.get("code") if isinstance(data, dict) else None
     if code is not None and code != 1:
         msg = data.get("msg", "未知错误")
-        print_warning(context or "API", f"code={code}, msg={msg}")
+        _log("WARN", context, f"API 返回 code={code}, {msg}")
     return data
 
 
@@ -126,7 +158,7 @@ def ensure_api_sources(api_name_map):
         raise ConfigError("未找到可用来源，请检查远程配置格式或过滤条件")
 
 
-def resolve_m3u8_urls(url, timeout=10):
+def resolve_m3u8_urls(url, context, timeout=10):
     """根据播放 URL 提取实际的 m3u8 地址列表。
 
     三种情况：
@@ -141,14 +173,14 @@ def resolve_m3u8_urls(url, timeout=10):
     try:
         content = _http_get(url, timeout).decode("utf-8", errors="replace")
     except Exception as e:
-        print_warning("m3u8探测", f"请求失败: {e}")
+        _log("WARN", context, f"m3u8 探测失败 - {e}")
         return []
 
     stripped = content.lstrip()
     if stripped.startswith("#EXTM3U"):
         return [url]
 
-    m3u8_paths = re.findall(r'["\']([^"\'\s]+\.m3u8)["\']', content)
+    m3u8_paths = re.findall(r'["\']([^"\'\s]+\.m3u8[^"\'\s]*)["\']', content)
     return [urllib.parse.urljoin(url, p) for p in m3u8_paths]
 
 
@@ -193,47 +225,6 @@ def parse_first_play_url_per_group(raw):
 # ============== 输出辅助 ==============
 
 
-def print_search_progress(keyword, api_count):
-    print(f"搜索关键字: {keyword}", file=sys.stderr)
-    print(f"API 数量: {api_count}", file=sys.stderr)
-
-
-def print_search_result(results):
-    total = sum(len(vods) for _, vods in results)
-    print(f"总记录数: {total}", file=sys.stderr)
-    print(file=sys.stderr)
-
-    fields = ["vod_id", "vod_name", "vod_time", "vod_remarks"]
-    for name, vods in results:
-        if not vods:
-            continue
-        for vod in vods:
-            print(f"source: {name}:")
-            for field in fields:
-                value = vod.get(field, "")
-                print(f"  {field}: {value}")
-            print()
-
-    if total == 0:
-        print("未找到任何结果")
-
-
-def print_fetch_result(vod_id, source, play_urls, down_urls):
-    print(f"视频ID: {vod_id}")
-    print(f"来源: {source}")
-    print("-" * 50)
-
-    if play_urls:
-        print("【播放链接】")
-        for name, url in play_urls:
-            print(f"{name}：{url}")
-
-    if down_urls:
-        print("【下载链接】")
-        for name, url in down_urls:
-            print(f"{name}：{url}")
-
-
 def print_quanx_result(api_domains, url_domains, m3u8_domains):
     print("; 资源站 API 域名")
     for domain in sorted(api_domains):
@@ -248,20 +239,16 @@ def print_quanx_result(api_domains, url_domains, m3u8_domains):
         print(f"host-suffix, {domain}, direct")
 
 
-def print_warning(context, message):
-    print(f"警告 [{context}]: {message}", file=sys.stderr)
-
-
 # ============== search 命令 ==============
 
 
 def cmd_search(args, api_name_map):
-    """并发搜索所有来源，输出匹配到的视频列表。"""
+    """并发搜索所有来源，输出 JSON 结果到 stdout。"""
     ensure_api_sources(api_name_map)
     keyword = args.keyword
     api_urls = list(api_name_map.keys())
 
-    print_search_progress(keyword, len(api_urls))
+    _log("INFO", "search", f"keyword={keyword}, sources={len(api_urls)}")
 
     def search_one(api_url):
         name = api_name_map.get(api_url, api_url)
@@ -270,23 +257,35 @@ def cmd_search(args, api_name_map):
                 {"wd": keyword, "ac": "list", "pagesize": 100}
             )
             data = check_response(make_request(f"{api_url}?{params}"), name)
-            return name, data.get("list", [])
+            return name, data.get("list") or []
         except Exception as e:
-            print_warning(name, f"搜索失败: {e}")
+            _log("WARN", name, f"搜索失败 - {e}")
             return name, []
 
     max_workers = min(len(api_urls), 20)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = list(executor.map(search_one, api_urls))
 
-    print_search_result(results)
+    total = sum(len(vods) for _, vods in results)
+    _log("INFO", "search", f"total_results={total}")
+
+    output = {"keyword": keyword, "results": []}
+    fields = ["vod_id", "vod_name", "vod_time", "vod_remarks"]
+    for name, vods in results:
+        for vod in vods:
+            item = {"source": name}
+            for field in fields:
+                item[field] = vod.get(field, "")
+            output["results"].append(item)
+
+    print(json.dumps(output, ensure_ascii=False, indent=2))
 
 
 # ============== fetch 命令 ==============
 
 
 def cmd_fetch(args, api_name_map):
-    """按来源名和 vod_id 获取播放/下载链接。"""
+    """按来源名和 vod_id 获取播放/下载链接，输出 JSON 结果到 stdout。"""
     vod_id = args.vod_id
     source = args.source
 
@@ -303,7 +302,7 @@ def cmd_fetch(args, api_name_map):
     try:
         params = urllib.parse.urlencode({"ids": vod_id, "ac": "detail"})
         data = check_response(make_request(f"{api_url}?{params}"), source)
-        vod_list = data.get("list", [])
+        vod_list = data.get("list") or []
 
         if not vod_list:
             raise FetchError("未找到该视频")
@@ -311,7 +310,14 @@ def cmd_fetch(args, api_name_map):
         vod = vod_list[0]
         play_urls = parse_play_urls(vod.get("vod_play_url", ""))
         down_urls = parse_play_urls(vod.get("vod_down_url", ""))
-        print_fetch_result(vod_id, source, play_urls, down_urls)
+
+        output = {
+            "vod_id": vod_id,
+            "source": source,
+            "play_urls": [{"name": name, "url": url} for name, url in play_urls],
+            "down_urls": [{"name": name, "url": url} for name, url in down_urls],
+        }
+        print(json.dumps(output, ensure_ascii=False, indent=2))
     except FetchError:
         raise
     except Exception as e:
@@ -321,7 +327,7 @@ def cmd_fetch(args, api_name_map):
 # ============== quanx 命令 ==============
 
 
-def fetch_m3u8_domains(m3u8_url, timeout=10, depth=0, cache=None, cache_lock=None):
+def fetch_m3u8_domains(m3u8_url, context, timeout=10, depth=0, cache=None, cache_lock=None):
     """递归提取 m3u8 清单中涉及的资源域名。
 
     - 主播放列表会继续跟进子清单
@@ -348,7 +354,7 @@ def fetch_m3u8_domains(m3u8_url, timeout=10, depth=0, cache=None, cache_lock=Non
             cache[m3u8_url] = domains
         return domains
     try:
-        content = _http_get(m3u8_url, timeout).decode("utf-8")
+        content = _http_get(m3u8_url, timeout).decode("utf-8", errors="replace")
         lines = content.split("\n")
 
         has_stream_inf = any("#EXT-X-STREAM-INF" in line for line in lines)
@@ -359,21 +365,16 @@ def fetch_m3u8_domains(m3u8_url, timeout=10, depth=0, cache=None, cache_lock=Non
                 if "#EXT-X-STREAM-INF" in line:
                     for j in range(i + 1, len(lines)):
                         stripped = lines[j].strip()
-                        if not stripped:
+                        if not stripped or stripped.startswith("#"):
                             continue
-                        if stripped.startswith("#EXT-X-MEDIA") or stripped.startswith(
-                            "#EXT-X-I-FRAME"
-                        ):
-                            continue
-                        if not stripped.startswith("#"):
-                            sub_urls.append(stripped)
+                        sub_urls.append(stripped)
                         break
             for sub_url in sub_urls[:3]:
                 sub_url = urllib.parse.urljoin(m3u8_url, sub_url)
                 sub_domain = clean_domain(sub_url)
                 domains.add(sub_domain)
                 sub_domains = fetch_m3u8_domains(
-                    sub_url, timeout, depth + 1, cache, cache_lock
+                    sub_url, context, timeout, depth + 1, cache, cache_lock
                 )
                 domains.update(sub_domains)
         else:
@@ -385,7 +386,7 @@ def fetch_m3u8_domains(m3u8_url, timeout=10, depth=0, cache=None, cache_lock=Non
                 domain = clean_domain(full_url)
                 domains.add(domain)
     except Exception as e:
-        print_warning("m3u8", f"解析失败: {e}")
+        _log("WARN", context, f"m3u8 解析失败 - {e}")
 
     if cache_lock is not None:
         with cache_lock:
@@ -396,10 +397,12 @@ def fetch_m3u8_domains(m3u8_url, timeout=10, depth=0, cache=None, cache_lock=Non
 
 
 def cmd_quanx(args, api_name_map):
-    """收集 API、播放/下载、m3u8 三类域名并输出直连规则。"""
+    """收集 API、播放/下载、m3u8 三类域名并输出直连规则（纯文本）。"""
     ensure_api_sources(api_name_map)
     keyword = args.keyword
     api_urls = list(api_name_map.keys())
+
+    _log("INFO", "quanx", f"keyword={keyword}, sources={len(api_urls)}")
 
     api_domains = set()
     url_domains = set()
@@ -412,6 +415,7 @@ def cmd_quanx(args, api_name_map):
         api_domains.add(domain)
 
     def process_api(api_url):
+        name = api_name_map.get(api_url, api_url)
         local_url_domains = set()
         local_m3u8_domains = set()
         seen_m3u8_urls = set()
@@ -419,38 +423,40 @@ def cmd_quanx(args, api_name_map):
             params = urllib.parse.urlencode(
                 {"wd": keyword, "ac": "list", "pagesize": 1}
             )
-            data = check_response(make_request(f"{api_url}?{params}"), clean_domain(api_url))
+            data = check_response(make_request(f"{api_url}?{params}"), name)
 
-            vod_list = data.get("list", [])
+            vod_list = data.get("list") or []
             if vod_list:
                 vod = vod_list[0]
                 vod_id = vod.get("vod_id")
                 if vod_id:
                     params2 = urllib.parse.urlencode({"ids": vod_id, "ac": "detail"})
                     detail_data = check_response(
-                        make_request(f"{api_url}?{params2}"), clean_domain(api_url)
+                        make_request(f"{api_url}?{params2}"), name
                     )
 
-                    for v in detail_data.get("list", []):
+                    for v in detail_data.get("list") or []:
                         for field in ("vod_play_url", "vod_down_url"):
                             raw = v.get(field, "")
                             if not raw:
                                 continue
                             for _, url in parse_first_play_url_per_group(raw):
+                                if not url:
+                                    continue
                                 domain = clean_domain(url)
                                 local_url_domains.add(domain)
-                                for m3u8_url in resolve_m3u8_urls(url):
+                                for m3u8_url in resolve_m3u8_urls(url, name):
                                     if m3u8_url in seen_m3u8_urls:
                                         continue
                                     seen_m3u8_urls.add(m3u8_url)
                                     m3u8 = fetch_m3u8_domains(
-                                        m3u8_url,
+                                        m3u8_url, name,
                                         cache=m3u8_cache,
                                         cache_lock=m3u8_cache_lock,
                                     )
                                     local_m3u8_domains.update(m3u8)
         except Exception as e:
-            print_warning(clean_domain(api_url), f"处理失败: {e}")
+            _log("WARN", name, f"处理失败 - {e}")
         return local_url_domains, local_m3u8_domains
 
     max_workers = min(len(api_urls), 20)
@@ -462,17 +468,45 @@ def cmd_quanx(args, api_name_map):
                 url_domains.update(url_d)
                 m3u8_domains.update(m3u8_d)
             except Exception as e:
-                print_warning("future", f"处理失败: {e}")
+                _log("WARN", "quanx", f"future 结果处理失败 - {e}")
 
     print_quanx_result(api_domains, url_domains, m3u8_domains)
+
+
+# ============== logs 命令 ==============
+
+
+def cmd_logs(args):
+    """查看或清空日志文件。"""
+    if args.clear:
+        if os.path.isfile(LOG_FILE):
+            open(LOG_FILE, "w").close()
+        print("日志已清空")
+        return
+    if not os.path.isfile(LOG_FILE):
+        print("日志文件为空")
+        return
+    with open(LOG_FILE, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    if not lines:
+        print("日志文件为空")
+        return
+    if args.full:
+        output = lines
+    else:
+        output = lines[-50:]
+    for line in output:
+        print(line, end="")
 
 
 # ============== 通用退出处理 ==============
 
 
 def exit_with_error(message):
-    """输出统一错误信息并以非 0 状态退出。"""
-    print(f"错误: {message}", file=sys.stderr)
+    """记录错误日志并输出到 stderr，以非 0 状态退出。"""
+    text = f"错误: {message}"
+    _log("ERROR", "main", text)
+    print(text, file=sys.stderr)
     raise SystemExit(1)
 
 
@@ -489,11 +523,13 @@ def main():
   search  <keyword>                        搜索视频
   fetch   --source <source> --vod_id <id>   获取视频详情
   quanx   <keyword>                        生成 Quantumult X 直连规则
+  logs    [--full] [--clear]               查看日志
 
 示例:
   tiger-tv.py search 逐玉
   tiger-tv.py fetch --source "🎬-爱奇艺-" --vod_id 73480
   tiger-tv.py quanx 逐玉
+  tiger-tv.py logs
         """,
     )
     subparsers = main_parser.add_subparsers(dest="command", help="子命令")
@@ -507,6 +543,10 @@ def main():
 
     quanx_parser = subparsers.add_parser("quanx", help="生成 Quantumult X 直连规则")
     quanx_parser.add_argument("keyword", help="搜索关键字")
+
+    logs_parser = subparsers.add_parser("logs", help="查看日志")
+    logs_parser.add_argument("--full", action="store_true", help="显示全部日志")
+    logs_parser.add_argument("--clear", action="store_true", help="清空日志文件")
 
     args = main_parser.parse_args()
 
@@ -523,6 +563,8 @@ def main():
             cmd_fetch(args, api_name_map)
         elif args.command == "quanx":
             cmd_quanx(args, api_name_map)
+        elif args.command == "logs":
+            cmd_logs(args)
     except (ConfigError, FetchError, RequestError) as e:
         exit_with_error(e)
 
