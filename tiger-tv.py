@@ -242,7 +242,7 @@ def cmd_search(args, api_name_map):
                 {"wd": keyword, "ac": "list", "pagesize": 100}
             )
             data = check_response(make_request(f"{api_url}?{params}"), name)
-            return name, data.get("list", [])
+            return name, data.get("list") or []
         except Exception as e:
             _log("WARN", name, f"搜索失败 - {e}")
             return name, []
@@ -287,7 +287,7 @@ def cmd_fetch(args, api_name_map):
     try:
         params = urllib.parse.urlencode({"ids": vod_id, "ac": "detail"})
         data = check_response(make_request(f"{api_url}?{params}"), source)
-        vod_list = data.get("list", [])
+        vod_list = data.get("list") or []
 
         if not vod_list:
             raise FetchError("未找到该视频")
@@ -415,7 +415,7 @@ def cmd_quanx(args, api_name_map):
             )
             data = check_response(make_request(f"{api_url}?{params}"), name)
 
-            vod_list = data.get("list", [])
+            vod_list = data.get("list") or []
             if vod_list:
                 vod = vod_list[0]
                 vod_id = vod.get("vod_id")
@@ -425,7 +425,7 @@ def cmd_quanx(args, api_name_map):
                         make_request(f"{api_url}?{params2}"), name
                     )
 
-                    for v in detail_data.get("list", []):
+                    for v in detail_data.get("list") or []:
                         for field in ("vod_play_url", "vod_down_url"):
                             raw = v.get(field, "")
                             if not raw:
@@ -490,8 +490,10 @@ def cmd_logs(args):
 
 
 def exit_with_error(message):
-    """记录错误日志并以非 0 状态退出。"""
-    _log("ERROR", "main", str(message))
+    """记录错误日志并输出到 stderr，以非 0 状态退出。"""
+    text = f"错误: {message}"
+    _log("ERROR", "main", text)
+    print(text, file=sys.stderr)
     raise SystemExit(1)
 
 
