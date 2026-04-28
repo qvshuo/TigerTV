@@ -114,7 +114,7 @@ def make_request(url, timeout=10):
 
 
 def _parse_config(config):
-    """从配置对象中提取可用的视频来源映射。"""
+    """从配置对象中提取可用的视频站点映射。"""
     api_site = config.get("api_site", {})
     api_name_map = {}
     for value in api_site.values():
@@ -123,7 +123,7 @@ def _parse_config(config):
         if api and "🎬" in name and "_comment" not in value:
             api_name_map[api] = name
     if not api_name_map:
-        raise ConfigError("未找到可用来源，请检查配置格式或过滤条件")
+        raise ConfigError("未找到可用站点，请检查配置格式或过滤条件")
     return api_name_map
 
 
@@ -156,22 +156,22 @@ def _save_config_cache(config):
         pass
 
 
-def load_config(source_list=None):
-    """加载配置，并筛出可用的视频来源。
+def load_config(source=None):
+    """加载配置，并筛出可用的视频站点。
 
     优先级：
-    1. --source-list 指定的本地文件
+    1. --source 指定的本地配置文件
     2. 未过期的缓存
     3. 远程 CONFIG_URL（成功后更新缓存）
     4. 远程失败时降级使用过期缓存
     """
-    if source_list:
+    if source:
         try:
-            with open(source_list, "r", encoding="utf-8") as f:
+            with open(source, "r", encoding="utf-8") as f:
                 config = json.load(f)
             return _parse_config(config)
         except Exception as e:
-            raise ConfigError(f"读取来源列表失败: {e}")
+            raise ConfigError(f"读取 source 失败: {e}")
 
     cached = _load_cached_config(check_ttl=True)
     if cached is not None:
@@ -198,10 +198,10 @@ def check_response(data, context=""):
     return data
 
 
-def ensure_api_sources(api_name_map):
-    """确保配置中至少存在一个可用来源。"""
+def ensure_api_sites(api_name_map):
+    """确保配置中至少存在一个可用站点。"""
     if not api_name_map:
-        raise ConfigError("未找到可用来源，请检查远程配置格式或过滤条件")
+        raise ConfigError("未找到可用站点，请检查远程配置格式或过滤条件")
 
 
 def resolve_m3u8_urls(url, context, timeout=10):
@@ -289,12 +289,12 @@ def print_quanx_result(api_domains, url_domains, m3u8_domains):
 
 
 def cmd_search(args, api_name_map):
-    """并发搜索所有来源，输出 JSON 结果到 stdout。"""
-    ensure_api_sources(api_name_map)
+    """并发搜索所有站点，输出 JSON 结果到 stdout。"""
+    ensure_api_sites(api_name_map)
     keyword = args.keyword
     api_urls = list(api_name_map.keys())
 
-    _log("INFO", "search", f"keyword={keyword}, sources={len(api_urls)}")
+    _log("INFO", "search", f"keyword={keyword}, sites={len(api_urls)}")
 
     def search_one(api_url):
         name = api_name_map.get(api_url, api_url)
@@ -331,23 +331,23 @@ def cmd_search(args, api_name_map):
 
 
 def cmd_fetch(args, api_name_map):
-    """按来源名和 vod_id 获取播放/下载链接，输出 JSON 结果到 stdout。"""
+    """按站点名和 vod_id 获取播放/下载链接，输出 JSON 结果到 stdout。"""
     vod_id = args.vod_id
-    source = args.source
+    site = args.site
 
     api_url = None
     for api, name in api_name_map.items():
-        if name == source:
+        if name == site:
             api_url = api
             break
 
     if not api_url:
         available = ", ".join(sorted(set(api_name_map.values())))
-        raise FetchError(f"未找到来源: {source}\n可用来源: {available}")
+        raise FetchError(f"未找到站点: {site}\n可用站点: {available}")
 
     try:
         params = urllib.parse.urlencode({"ids": vod_id, "ac": "detail"})
-        data = check_response(make_request(f"{api_url}?{params}"), source)
+        data = check_response(make_request(f"{api_url}?{params}"), site)
         vod_list = data.get("list") or []
 
         if not vod_list:
@@ -359,7 +359,7 @@ def cmd_fetch(args, api_name_map):
 
         output = {
             "vod_id": vod_id,
-            "source": source,
+            "source": site,
             "play_urls": [{"name": name, "url": url} for name, url in play_urls],
             "down_urls": [{"name": name, "url": url} for name, url in down_urls],
         }
@@ -444,11 +444,11 @@ def fetch_m3u8_domains(m3u8_url, context, timeout=10, depth=0, cache=None, cache
 
 def cmd_quanx(args, api_name_map):
     """收集 API、播放/下载、m3u8 三类域名并输出直连规则（纯文本）。"""
-    ensure_api_sources(api_name_map)
+    ensure_api_sites(api_name_map)
     keyword = args.keyword
     api_urls = list(api_name_map.keys())
 
-    _log("INFO", "quanx", f"keyword={keyword}, sources={len(api_urls)}")
+    _log("INFO", "quanx", f"keyword={keyword}, sites={len(api_urls)}")
 
     api_domains = set()
     url_domains = set()
@@ -567,21 +567,21 @@ def main():
         epilog="""
 可用命令:
   search  <keyword>                        搜索视频
-  fetch   --source <source> --vod_id <id>   获取视频详情
+  fetch   --site <site> --vod_id <id>       获取视频详情
   quanx   <keyword>                        生成 Quantumult X 直连规则
   logs    [--full] [--clear]               查看日志
 
 示例:
   tiger-tv.py search 逐玉
-  tiger-tv.py --source-list ./my-sources.json search 逐玉
-  tiger-tv.py fetch --source "🎬-爱奇艺-" --vod_id 73480
+  tiger-tv.py --source ./my-sources.json search 逐玉
+  tiger-tv.py fetch --site "🎬-爱奇艺-" --vod_id 73480
   tiger-tv.py quanx 逐玉
   tiger-tv.py logs
         """,
     )
     main_parser.add_argument(
-        "--source-list",
-        help="指定来源列表配置文件路径（JSON 格式），优先级高于缓存和远程配置",
+        "--source",
+        help="指定来源配置文件路径（JSON 格式），优先级高于缓存和远程配置",
     )
     subparsers = main_parser.add_subparsers(dest="command", help="子命令")
 
@@ -589,7 +589,7 @@ def main():
     search_parser.add_argument("keyword", help="搜索关键字")
 
     fetch_parser = subparsers.add_parser("fetch", help="获取视频详情")
-    fetch_parser.add_argument("--source", required=True, help="来源名称")
+    fetch_parser.add_argument("--site", required=True, help="站点名称")
     fetch_parser.add_argument("--vod_id", required=True, type=int, help="视频 ID")
 
     quanx_parser = subparsers.add_parser("quanx", help="生成 Quantumult X 直连规则")
@@ -606,7 +606,7 @@ def main():
         raise SystemExit(0)
 
     try:
-        api_name_map = load_config(source_list=args.source_list)
+        api_name_map = load_config(source=args.source)
 
         if args.command == "search":
             cmd_search(args, api_name_map)
