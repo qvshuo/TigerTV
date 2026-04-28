@@ -19,12 +19,12 @@ from threading import Lock
 
 CONFIG_URL = "https://raw.githubusercontent.com/hafrey1/LunaTV-config/refs/heads/main/LunaTV-config.json"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15"
-MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10MB：防止异常大响应耗尽内存
 LOG_FILE = "/tmp/tiger-tv.log"
-LOG_MAX_LINES = 5000
-LOG_KEEP_LINES = 2000
+LOG_MAX_LINES = 5000  # 超过则截断，防止长期运行后日志无限膨胀
+LOG_KEEP_LINES = 2000  # 截断后保留最近 N 行
 CACHE_FILE = "/tmp/tiger-tv-config-cache.json"
-CACHE_TTL = 86400  # 1 day
+CACHE_TTL = 86400  # 1 天：远程配置变动不频繁，过长会滞后
 
 _log_lock = Lock()
 
@@ -47,11 +47,10 @@ class RequestError(Exception):
 
 
 def _log(level, context, message):
-    """将日志写入文件，每条带时间戳和级别。
+    """线程安全地写入结构化日志。
 
-    level: INFO | WARN | ERROR
-    context: 来源名或模块标识
-    message: 日志正文
+    格式：YYYY-MM-DD HH:MM:SS [LEVEL] [site_name]: message
+    所有输出到 stdout 的命令均不应混入日志，避免破坏 JSON/纯文本管道解析。
     """
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"{timestamp} [{level}] [{context}]: {message}\n"
@@ -71,7 +70,10 @@ def _log(level, context, message):
 
 
 def _encode_url(url):
-    """对 URL 中的非 ASCII 字符做 percent-encoding。"""
+    """percent-encode 非 ASCII 字符，避免 urllib 抛出 UnicodeEncodeError。
+
+    safe 保留 `/` 和 `%` 是因为路径中已有的 percent-encoding 不应被二次编码。
+    """
     parsed = urllib.parse.urlparse(url)
     encoded = parsed._replace(
         path=urllib.parse.quote(parsed.path, safe="/%"),
@@ -81,9 +83,10 @@ def _encode_url(url):
 
 
 def _http_get(url, timeout=10):
-    """发送 GET 请求并返回原始字节。
+    """发送 GET 请求，返回原始字节。
 
-    统一附带 User-Agent，并限制单次响应体大小。
+    统一附带 User-Agent：部分资源站对无 UA 请求直接拒绝。
+    用 MAX_RESPONSE_SIZE + 1 探测超限：避免流式读取的复杂性。
     """
     url = _encode_url(url)
     req = urllib.request.Request(url)
@@ -100,7 +103,10 @@ def _http_get(url, timeout=10):
 
 
 def make_request(url, timeout=10):
-    """请求 JSON 接口并返回解析后的对象。"""
+    """请求 JSON 接口并返回 dict。
+
+    返回类型校验：MacCMS API 的 code/msg/info 结构要求顶层必须是对象。
+    """
     try:
         content = _http_get(url, timeout)
         data = json.loads(content.decode("utf-8"))
@@ -114,7 +120,10 @@ def make_request(url, timeout=10):
 
 
 def _parse_config(config):
-    """从配置对象中提取可用的视频站点映射。"""
+    """将原始配置 JSON 解析为 {api_url: site_name} 映射。
+
+    过滤逻辑：只保留名称含 🎬 且无 _comment 的站点，_comment 用于标记备用/失效源。
+    """
     api_site = config.get("api_site", {})
     api_name_map = {}
     for value in api_site.values():
@@ -128,7 +137,7 @@ def _parse_config(config):
 
 
 def _load_cached_config(check_ttl=True):
-    """尝试读取缓存配置。check_ttl=False 时忽略过期时间（降级用）。"""
+    """读取本地缓存。check_ttl=False 时忽略过期时间，用于远程失败后的降级。"""
     try:
         if not os.path.isfile(CACHE_FILE):
             return None
@@ -144,7 +153,7 @@ def _load_cached_config(check_ttl=True):
 
 
 def _save_config_cache(config):
-    """将配置写入缓存文件。"""
+    """将配置写入缓存文件。失败静默处理：不影响主流程。"""
     try:
         payload = {
             "fetched_at": datetime.datetime.now().isoformat(),
@@ -157,12 +166,12 @@ def _save_config_cache(config):
 
 
 def load_config(source=None):
-    """加载配置，并筛出可用的视频站点。
+    """加载站点配置。
 
     优先级：
-    1. --source 指定的本地配置文件
-    2. 未过期的缓存
-    3. 远程 CONFIG_URL（成功后更新缓存）
+    1. --source 指定的本地配置文件（完全隔离，不读写缓存）
+    2. 未过期的本地缓存
+    3. 远程 CONFIG_URL（成功后写入缓存）
     4. 远程失败时降级使用过期缓存
     """
     if source:
@@ -190,7 +199,7 @@ def load_config(source=None):
 
 
 def check_response(data, context=""):
-    """检查 API 响应 code，非 1 时记录日志。返回 data 本身以便链式调用。"""
+    """校验 API code 并返回 data 本身，支持链式调用。"""
     code = data.get("code") if isinstance(data, dict) else None
     if code is not None and code != 1:
         msg = data.get("msg", "未知错误")
@@ -199,18 +208,16 @@ def check_response(data, context=""):
 
 
 def ensure_api_sites(api_name_map):
-    """确保配置中至少存在一个可用站点。"""
+    """配置加载后校验：空配置直接失败，避免后续无意义请求。"""
     if not api_name_map:
         raise ConfigError("未找到可用站点，请检查远程配置格式或过滤条件")
 
 
 def resolve_m3u8_urls(url, context, timeout=10):
-    """根据播放 URL 提取实际的 m3u8 地址列表。
+    """将播放页 URL 解析为实际 m3u8 地址。
 
-    三种情况：
-    1. URL 路径以 .m3u8 结尾 → 直接返回该 URL
-    2. 请求后内容以 #EXTM3U 开头 → 该 URL 本身就是 m3u8
-    3. 返回 HTML → 从页面中提取引号包裹的 .m3u8 路径并用 urljoin 拼接
+    资源站返回的 play_url 通常是跳转页（HTML）而非直接 m3u8。
+    需要探测内容类型：直接 m3u8 / HTML 中的引用路径 / 跳转页本身。
     """
     parsed = urllib.parse.urlparse(url)
     if parsed.path.endswith(".m3u8"):
@@ -226,6 +233,7 @@ def resolve_m3u8_urls(url, context, timeout=10):
     if stripped.startswith("#EXTM3U"):
         return [url]
 
+    # 匹配引号中的 .m3u8 路径（支持 ?sign=... 查询参数）
     m3u8_paths = re.findall(r'["\']([^"\'\s]+\.m3u8[^"\'\s]*)["\']', content)
     return [urllib.parse.urljoin(url, p) for p in m3u8_paths]
 
@@ -289,7 +297,7 @@ def print_quanx_result(api_domains, url_domains, m3u8_domains):
 
 
 def cmd_search(args, api_name_map):
-    """并发搜索所有站点，输出 JSON 结果到 stdout。"""
+    """并发搜索所有站点，单站失败不影响整体结果。"""
     ensure_api_sites(api_name_map)
     keyword = args.keyword
     api_urls = list(api_name_map.keys())
@@ -331,7 +339,7 @@ def cmd_search(args, api_name_map):
 
 
 def cmd_fetch(args, api_name_map):
-    """按站点名和 vod_id 获取播放/下载链接，输出 JSON 结果到 stdout。"""
+    """按站点名和 vod_id 获取详情，输出 JSON。"""
     vod_id = args.vod_id
     site = args.site
 
@@ -374,12 +382,10 @@ def cmd_fetch(args, api_name_map):
 
 
 def fetch_m3u8_domains(m3u8_url, context, timeout=10, depth=0, cache=None, cache_lock=None):
-    """递归提取 m3u8 清单中涉及的资源域名。
+    """递归解析 m3u8 清单，提取涉及的 CDN 域名。
 
-    - 主播放列表会继续跟进子清单
-    - 普通清单直接提取媒体分片 URL
-    - 递归深度最多 2 层
-    - 可选共享缓存用于减少重复请求
+    主播放列表可能包含多码率子清单（#EXT-X-STREAM-INF），需要递归跟进。
+    深度限制为 2：避免嵌套过深导致请求风暴；缓存避免并发时重复请求同一 m3u8。
     """
     if cache is None:
         cache = {}
@@ -443,7 +449,7 @@ def fetch_m3u8_domains(m3u8_url, context, timeout=10, depth=0, cache=None, cache
 
 
 def cmd_quanx(args, api_name_map):
-    """收集 API、播放/下载、m3u8 三类域名并输出直连规则（纯文本）。"""
+    """搜索并输出 Quantumult X 直连规则（纯文本）。"""
     ensure_api_sites(api_name_map)
     keyword = args.keyword
     api_urls = list(api_name_map.keys())
@@ -523,7 +529,7 @@ def cmd_quanx(args, api_name_map):
 
 
 def cmd_logs(args):
-    """查看或清空日志文件。"""
+    """查看或清空日志文件。日志与 stdout 分离，避免污染命令输出。"""
     if args.clear:
         if os.path.isfile(LOG_FILE):
             open(LOG_FILE, "w").close()
@@ -549,7 +555,7 @@ def cmd_logs(args):
 
 
 def exit_with_error(message):
-    """记录错误日志并输出到 stderr，以非 0 状态退出。"""
+    """统一错误出口：记录日志 + stderr 输出 + 非零退出码。"""
     text = f"错误: {message}"
     _log("ERROR", "main", text)
     print(text, file=sys.stderr)
@@ -560,7 +566,7 @@ def exit_with_error(message):
 
 
 def main():
-    """解析命令行参数并分发到对应子命令。"""
+    """命令分发入口。"""
     main_parser = argparse.ArgumentParser(
         description="小老虎爱看剧 (TigerTV)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
