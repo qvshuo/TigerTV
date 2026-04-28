@@ -23,6 +23,8 @@ MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10MB
 LOG_FILE = "/tmp/tiger-tv.log"
 LOG_MAX_LINES = 5000
 LOG_KEEP_LINES = 2000
+CACHE_FILE = "/tmp/tiger-tv-config-cache.json"
+CACHE_TTL = 86400  # 1 day
 
 _log_lock = Lock()
 
@@ -111,35 +113,79 @@ def make_request(url, timeout=10):
     return data
 
 
-def _load_local_config():
-    """尝试从脚本同目录读取 config.json，不存在则返回 None。"""
+def _parse_config(config):
+    """从配置对象中提取可用的视频来源映射。"""
+    api_site = config.get("api_site", {})
+    api_name_map = {}
+    for value in api_site.values():
+        api = value.get("api", "")
+        name = value.get("name", "")
+        if api and "🎬" in name and "_comment" not in value:
+            api_name_map[api] = name
+    if not api_name_map:
+        raise ConfigError("未找到可用来源，请检查配置格式或过滤条件")
+    return api_name_map
+
+
+def _load_cached_config(check_ttl=True):
+    """尝试读取缓存配置。check_ttl=False 时忽略过期时间（降级用）。"""
     try:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        local_path = os.path.join(script_dir, "config.json")
-        if os.path.isfile(local_path):
-            with open(local_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+        if not os.path.isfile(CACHE_FILE):
+            return None
+        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+            cached = json.load(f)
+        if check_ttl:
+            fetched_at = datetime.datetime.fromisoformat(cached.get("fetched_at", ""))
+            if (datetime.datetime.now() - fetched_at).total_seconds() > CACHE_TTL:
+                return None
+        return cached.get("config")
+    except Exception:
+        return None
+
+
+def _save_config_cache(config):
+    """将配置写入缓存文件。"""
+    try:
+        payload = {
+            "fetched_at": datetime.datetime.now().isoformat(),
+            "config": config,
+        }
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
-    return None
 
 
-def load_config():
+def load_config(source_list=None):
     """加载配置，并筛出可用的视频来源。
 
-    优先从脚本同目录 config.json 读取，不存在则远程获取。
+    优先级：
+    1. --source-list 指定的本地文件
+    2. 未过期的缓存
+    3. 远程 CONFIG_URL（成功后更新缓存）
+    4. 远程失败时降级使用过期缓存
     """
+    if source_list:
+        try:
+            with open(source_list, "r", encoding="utf-8") as f:
+                config = json.load(f)
+            return _parse_config(config)
+        except Exception as e:
+            raise ConfigError(f"读取来源列表失败: {e}")
+
+    cached = _load_cached_config(check_ttl=True)
+    if cached is not None:
+        return _parse_config(cached)
+
     try:
-        config = _load_local_config() or make_request(CONFIG_URL)
-        api_site = config.get("api_site", {})
-        api_name_map = {}
-        for value in api_site.values():
-            api = value.get("api", "")
-            name = value.get("name", "")
-            if api and "🎬" in name and "_comment" not in value:
-                api_name_map[api] = name
-        return api_name_map
+        config = make_request(CONFIG_URL)
+        _save_config_cache(config)
+        return _parse_config(config)
     except Exception as e:
+        stale = _load_cached_config(check_ttl=False)
+        if stale is not None:
+            _log("WARN", "config", f"远程配置获取失败，使用过期缓存: {e}")
+            return _parse_config(stale)
         raise ConfigError(f"加载配置失败: {e}")
 
 
@@ -527,10 +573,15 @@ def main():
 
 示例:
   tiger-tv.py search 逐玉
+  tiger-tv.py --source-list ./my-sources.json search 逐玉
   tiger-tv.py fetch --source "🎬-爱奇艺-" --vod_id 73480
   tiger-tv.py quanx 逐玉
   tiger-tv.py logs
         """,
+    )
+    main_parser.add_argument(
+        "--source-list",
+        help="指定来源列表配置文件路径（JSON 格式），优先级高于缓存和远程配置",
     )
     subparsers = main_parser.add_subparsers(dest="command", help="子命令")
 
@@ -555,7 +606,7 @@ def main():
         raise SystemExit(0)
 
     try:
-        api_name_map = load_config()
+        api_name_map = load_config(source_list=args.source_list)
 
         if args.command == "search":
             cmd_search(args, api_name_map)

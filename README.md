@@ -63,6 +63,9 @@ tiger-tv.py fetch --source "🎬-爱奇艺-" --vod_id 73480
 # 生成 Quantumult X 直连规则（纯文本输出）
 tiger-tv.py quanx 逐玉
 
+# 使用自定义来源列表（跳过远程配置和缓存）
+tiger-tv.py --source-list ./my-sources.json search 逐玉
+
 # 查看最近日志
 tiger-tv.py logs
 
@@ -123,7 +126,8 @@ host-suffix, example.com, direct
 
 ## 实现要点
 
-- 来源配置优先从脚本同目录 `config.json` 读取，不存在时从 `CONFIG_URL`（GitHub RAW）远程加载；只保留名称包含 `🎬` 且不含 `_comment` 的来源。
+- 来源配置默认从 `CONFIG_URL`（GitHub RAW）远程加载，加载结果会写入本地缓存（`/tmp/tiger-tv-config-cache.json`），缓存有效期 1 天。远程获取失败且存在缓存时，会自动降级使用缓存（即使已过期）。
+- 可通过 `--source-list <path>` 指定本地 JSON 配置文件，此时完全跳过远程和缓存逻辑；文件格式与 LunaTV-config.json 一致。只保留名称包含 `🎬` 且不含 `_comment` 的来源。
 - 所有请求统一经过 `_http_get()` / `make_request()`，默认超时 10 秒，单次响应体限制 10MB；URL 中的非 ASCII 字符自动 percent-encoding。
 - `search` 最多并发请求 20 个来源；`fetch` 通过 `ac=detail` 和 `ids=<vod_id>` 获取详情。
 - API 响应会检查 `code` 字段，非 1 时记录日志。
