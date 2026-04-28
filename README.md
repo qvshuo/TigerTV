@@ -93,10 +93,14 @@ A: `fetch --site` 必须完整匹配配置中的 `name` 字段（含 emoji）。
 A: 检查网络是否能访问 GitHub RAW 和目标资源站 API；部分站点可能临时失效。
 
 **Q: 如何指定自己的配置文件？**  
-A: 使用 `--source <path>` 传入本地 JSON 文件，格式与 LunaTV-config.json 一致。
+A: 使用 `--source <path>` 传入本地 JSON 文件。配置文件格式与 [LunaTV-config](https://github.com/hafrey1/LunaTV-config) 项目一致，该仓库也是 TigerTV 默认远程配置的唯一来源。
 
 **Q: 如何卸载？**  
 A: 执行 `bash uninstall.sh`，或手动删除 `~/.local/bin/tiger-tv.py`。
+
+## 致谢
+
+- 站点配置数据来自 [LunaTV-config](https://github.com/hafrey1/LunaTV-config)
 
 ## License
 
