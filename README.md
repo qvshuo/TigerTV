@@ -97,7 +97,7 @@ tiger-tv.py logs --clear
 {
   "keyword": "逐玉",
   "results": [
-    {"source": "🎬-爱奇艺-", "vod_id": 73480, "vod_name": "逐玉", "vod_time": "...", "vod_remarks": "全40集"}
+    {"site": "🎬-爱奇艺-", "vod_id": 73480, "vod_name": "逐玉", "vod_time": "...", "vod_remarks": "全40集"}
   ]
 }
 ```
@@ -107,7 +107,7 @@ tiger-tv.py logs --clear
 ```json
 {
   "vod_id": 73480,
-  "source": "🎬-爱奇艺-",
+  "site": "🎬-爱奇艺-",
   "vod_play_url": [{"name": "第01集", "url": "https://..."}],
   "vod_down_url": []
 }
@@ -127,7 +127,7 @@ host-suffix, example.com, direct
 ## 实现要点
 
 - 来源配置默认从 `CONFIG_URL`（GitHub RAW）远程加载，加载结果会写入本地缓存（`/tmp/tiger-tv-config-cache.json`），缓存有效期 1 天。远程获取失败且存在缓存时，会自动降级使用缓存（即使已过期）。
-- 可通过 `--source <path>` 指定本地 JSON 配置文件，此时完全跳过远程和缓存逻辑；文件格式与 LunaTV-config.json 一致。只保留名称包含 `🎬` 且不含 `_comment` 的来源。
+- 可通过 `--source <path>` 指定本地 JSON 配置文件，此时完全跳过远程和缓存逻辑；文件格式与 LunaTV-config.json 一致。只保留名称包含 `🎬` 且不含 `_comment` 的站点。
 - 所有请求统一经过 `_http_get()` / `make_request()`，默认超时 10 秒，单次响应体限制 10MB；URL 中的非 ASCII 字符自动 percent-encoding。
 - `search` 最多并发请求 20 个站点；`fetch` 通过 `ac=detail` 和 `ids=<vod_id>` 获取详情。
 - API 响应会检查 `code` 字段，非 1 时记录日志。
