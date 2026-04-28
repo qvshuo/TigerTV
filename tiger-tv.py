@@ -360,8 +360,8 @@ def cmd_fetch(args, api_name_map):
         output = {
             "vod_id": vod_id,
             "source": site,
-            "play_urls": [{"name": name, "url": url} for name, url in play_urls],
-            "down_urls": [{"name": name, "url": url} for name, url in down_urls],
+            "vod_play_url": [{"name": name, "url": url} for name, url in play_urls],
+            "vod_down_url": [{"name": name, "url": url} for name, url in down_urls],
         }
         print(json.dumps(output, ensure_ascii=False, indent=2))
     except FetchError:

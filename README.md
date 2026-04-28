@@ -108,8 +108,8 @@ tiger-tv.py logs --clear
 {
   "vod_id": 73480,
   "source": "🎬-爱奇艺-",
-  "play_urls": [{"name": "第01集", "url": "https://..."}],
-  "down_urls": []
+  "vod_play_url": [{"name": "第01集", "url": "https://..."}],
+  "vod_down_url": []
 }
 ```
 
