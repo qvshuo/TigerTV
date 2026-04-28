@@ -9,6 +9,7 @@ import datetime
 import json
 import os
 import re
+import sys
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -567,8 +568,13 @@ def cmd_logs(args):
 
 
 def exit_with_error(message):
-    """统一错误出口：直接打印错误并退出。"""
-    print(f"错误: {message}")
+    """统一错误出口：记录日志 + stderr 输出 + 非零退出码。
+
+    stderr 用于诊断信息，不污染 stdout 管道；日志用于事后排查。
+    """
+    text = f"错误: {message}"
+    _log("ERROR", "main", text)
+    print(text, file=sys.stderr)
     raise SystemExit(1)
 
 
