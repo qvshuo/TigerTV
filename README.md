@@ -7,7 +7,7 @@
 - **规则生成**：一键提取域名并输出 Quantumult X 规则
 - **JSON 输出**：`search` / `fetch` 直接输出结构化数据，便于管道和脚本解析
 
-## 安装
+## 安装和卸载
 
 ```bash
 # 安装到 ~/.local/bin
@@ -16,19 +16,25 @@ curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/install.sh | ba
 # 加入 PATH（bash）
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
+
+# 加入 PATH（zsh）
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
+
+卸载：执行 `bash uninstall.sh`，或手动删除 `~/.local/bin/tiger-tv.py`。
 
 ## 快速开始
 
 ```bash
 # 搜索视频
-$ tiger-tv.py search 哪吒
+$ tiger-tv.py search 逐玉
 
 # 获取播放链接（site 需完整匹配，如 🎬-爱奇艺-）
 $ tiger-tv.py fetch --site "🎬-爱奇艺-" --vod_id 73480
 
 # 生成 Quantumult X 直连规则
-$ tiger-tv.py quanx 哪吒
+$ tiger-tv.py quanx 逐玉
 
 # 查看日志
 $ tiger-tv.py logs
@@ -55,9 +61,9 @@ $ tiger-tv.py logs
 
 ```json
 {
-  "keyword": "哪吒",
+  "keyword": "逐玉",
   "results": [
-    {"site": "🎬-爱奇艺-", "vod_id": 73480, "vod_name": "哪吒", "vod_time": "...", "vod_remarks": "全40集"}
+    {"site": "🎬-爱奇艺-", "vod_id": 73480, "vod_name": "逐玉", "vod_time": "...", "vod_remarks": "全40集"}
   ]
 }
 ```
@@ -83,20 +89,6 @@ host-suffix, example.com, direct
 ; m3u8 域名
 host-suffix, example.com, direct
 ```
-
-## 常见问题
-
-**Q: 如何知道站点名？**  
-A: `fetch --site` 必须完整匹配配置中的 `name` 字段（含 emoji）。不确定时可以故意输错，程序会列出所有可用站点。
-
-**Q: 搜索结果为 0？**  
-A: 检查网络是否能访问 GitHub RAW 和目标资源站 API；部分站点可能临时失效。
-
-**Q: 如何指定自己的配置文件？**  
-A: 使用 `--source <path>` 传入本地 JSON 文件。配置文件格式与 [LunaTV-config](https://github.com/hafrey1/LunaTV-config) 项目一致，该仓库也是 TigerTV 默认远程配置的唯一来源。
-
-**Q: 如何卸载？**  
-A: 执行 `bash uninstall.sh`，或手动删除 `~/.local/bin/tiger-tv.py`。
 
 ## 致谢
 
