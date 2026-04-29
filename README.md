@@ -11,7 +11,7 @@
 
 ```bash
 # 安装到 ~/.local/bin
-curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/scripts/install.sh | bash
 
 # 加入 PATH（bash）
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
@@ -22,22 +22,22 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
-卸载：执行 `bash uninstall.sh`，或手动删除 `~/.local/bin/tiger-tv.py`。
+卸载：执行 `bash scripts/uninstall.sh`，或手动删除 `~/.local/bin/tigertv-cli.py`。
 
 ## 快速开始
 
 ```bash
 # 搜索视频
-$ tiger-tv.py search 逐玉
+$ tigertv-cli.py search 逐玉
 
 # 获取播放链接（site 需完整匹配，如 🎬-爱奇艺-）
-$ tiger-tv.py fetch --site "🎬-爱奇艺-" --vod_id 73480
+$ tigertv-cli.py fetch --site "🎬-爱奇艺-" --vod_id 73480
 
 # 生成 Quantumult X 直连规则
-$ tiger-tv.py quanx 逐玉
+$ tigertv-cli.py quanx 逐玉
 
 # 查看日志
-$ tiger-tv.py logs
+$ tigertv-cli.py logs
 ```
 
 ## 命令速查

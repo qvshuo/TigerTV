@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_PATH="${HOME}/.local/bin/tiger-tv.py"
+TARGET_PATH="${HOME}/.local/bin/tigertv-cli.py"
 
 if [[ -f "${TARGET_PATH}" ]]; then
   rm "${TARGET_PATH}"
