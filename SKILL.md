@@ -1,5 +1,5 @@
 ---
-name: tiger-tv
+name: TigerTV
 description: "当任务涉及影视搜索、按站点和 vod_id 获取播放或下载链接、下载剧集，或为影视资源站域名生成 Quantumult X 直连规则时，优先使用此技能。"
 triggers:
   - 影视搜索
@@ -11,7 +11,7 @@ triggers:
   - 小老虎爱看剧
 ---
 
-# tiger-tv：小老虎爱看剧.skill
+# TigerTV：小老虎爱看剧.skill
 
 用于搜索影视剧集、获取播放/下载链接、下载剧集，以及生成 Quantumult X 直连规则。
 
