@@ -11,7 +11,7 @@ struct EpisodePanel: View {
                 Text(response.site)
                     .font(.headline)
                 Text("共 \(response.vod_play_url.count) 集")
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -47,7 +47,7 @@ struct EpisodeLoadingPanel: View {
                 Text(result.site)
                     .font(.headline)
                 Text("正在获取剧集...")
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
