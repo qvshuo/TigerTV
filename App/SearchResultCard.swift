@@ -5,10 +5,11 @@ struct SearchResultCard: View {
     let isSelected: Bool
     let isLoading: Bool
     let onTap: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(spacing: AppSpacing.sm) {
                 Text(result.displayTitle)
                     .font(.title3)
                     .fontWeight(.semibold)
@@ -45,22 +46,28 @@ struct SearchResultCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(isSelected ? Color.accentColor.opacity(0.65) : Color.secondary.opacity(0.22), lineWidth: 1)
-                )
+        .padding(AppSpacing.md)
+        .glassBackground(
+            radius: AppRadius.md,
+            strokeOpacity: 0.22,
+            shadowRadius: isHovered ? 10 : 6,
+            isActive: isSelected,
+            activeStrokeOpacity: 0.65
         )
+        .scaleEffect(isHovered && !isSelected ? 1.012 : 1.0)
+        .offset(y: isHovered && !isSelected ? -1.5 : 0)
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
+        .onHover { isHovered = $0 }
+        .animation(AppMotion.hover, value: isHovered)
+        .animation(AppMotion.select, value: isSelected)
         .overlay(alignment: .topTrailing) {
             if isLoading {
                 ProgressView()
                     .controlSize(.small)
-                    .padding(12)
+                    .padding(AppSpacing.sm)
+                    .glassBackground(radius: AppRadius.sm)
+                    .padding(AppSpacing.sm)
             }
         }
     }

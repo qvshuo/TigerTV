@@ -31,10 +31,11 @@ struct ResultsLayout: View {
                     PlayerContainer(player: player)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(.black)
+                        .transition(.opacity)
                 }
             } else {
                 VStack(spacing: 0) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: AppSpacing.sm) {
                         Button(action: onBack) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 15, weight: .semibold))
@@ -42,37 +43,61 @@ struct ResultsLayout: View {
                                 .frame(width: 32, height: 32)
                                 .background(
                                     Circle()
-                                        .fill(Color.secondary.opacity(0.12))
+                                        .fill(Color.secondary.opacity(0.1))
                                 )
                         }
                         .buttonStyle(.plain)
+                        .hoverLift()
 
                         GlassSearchBar(keyword: $keyword, onSearch: onSearch, compact: true)
 
                         Spacer()
                     }
-                    .padding()
+                    .padding(AppSpacing.md)
                     .background(.ultraThinMaterial)
+                    .overlay(alignment: .bottom) {
+                        Rectangle()
+                            .fill(Color.secondary.opacity(0.1))
+                            .frame(height: 1)
+                    }
 
                     HStack(spacing: 0) {
                         leftContent
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                        if let response = fetchResponse {
+                        if isFetching, let pendingFetchResult {
+                            EpisodeLoadingPanel(result: pendingFetchResult)
+                                .frame(minWidth: 280, idealWidth: 320, maxWidth: 360)
+                                .overlay(
+                                    Rectangle()
+                                        .fill(Color.secondary.opacity(0.1))
+                                        .frame(width: 1)
+                                        .frame(maxHeight: .infinity),
+                                    alignment: .leading
+                                )
+                                .transition(.opacity)
+                        } else if let response = fetchResponse {
                             EpisodePanel(
                                 response: response,
                                 selectedEpisode: selectedEpisode,
                                 onSelect: onSelectEpisode
                             )
-                            .frame(width: 300)
-                        } else if isFetching, let pendingFetchResult {
-                            EpisodeLoadingPanel(result: pendingFetchResult)
-                                .frame(width: 300)
+                            .frame(minWidth: 280, idealWidth: 320, maxWidth: 360)
+                            .overlay(
+                                Rectangle()
+                                    .fill(Color.secondary.opacity(0.1))
+                                    .frame(width: 1)
+                                    .frame(maxHeight: .infinity),
+                                alignment: .leading
+                            )
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
                         }
                     }
                 }
+                .transition(.opacity)
             }
         }
+        .animation(AppMotion.page, value: isVideoFullscreen)
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
             isFullscreen = true
         }
@@ -86,13 +111,13 @@ struct ResultsLayout: View {
         if let player {
             PlayerContainer(player: player)
         } else if isResolvingPlayback {
-            VStack(spacing: 16) {
+            VStack(spacing: AppSpacing.md) {
                 Spacer()
                 ProgressView("正在解析播放地址...")
                 Spacer()
             }
         } else if isSearching {
-            VStack(spacing: 16) {
+            VStack(spacing: AppSpacing.md) {
                 Spacer()
                 ProgressView()
                 Text("正在搜索「\(submittedKeyword)」...")
@@ -104,7 +129,7 @@ struct ResultsLayout: View {
                 .font(.title3)
         } else {
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 16)], spacing: 16) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: AppSpacing.md)], spacing: AppSpacing.md) {
                     ForEach(results) { result in
                         SearchResultCard(
                             result: result,
@@ -114,7 +139,7 @@ struct ResultsLayout: View {
                         )
                     }
                 }
-                .padding()
+                .padding(AppSpacing.md)
             }
         }
     }

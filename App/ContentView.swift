@@ -41,6 +41,10 @@ struct ContentView: View {
                     onDeleteHistory: deleteHistory,
                     onClearHistory: clearHistory
                 )
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.98)),
+                    removal: .opacity.combined(with: .move(edge: .leading))
+                ))
             } else {
                 ResultsLayout(
                     keyword: $keyword,
@@ -59,8 +63,13 @@ struct ContentView: View {
                     onSelectResult: selectResult,
                     onSelectEpisode: selectEpisode
                 )
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .trailing)),
+                    removal: .opacity.combined(with: .scale(scale: 0.98))
+                ))
             }
         }
+        .animation(AppMotion.page, value: hasSearched)
         .environmentObject(client)
         .alert("错误", isPresented: $showError, actions: {
             Button("确定") { client.errorMessage = nil }
@@ -143,9 +152,9 @@ struct ContentView: View {
 
         selectedResult = result
         pendingFetchResult = result
-        fetchResponse = nil
         fetchID = UUID()
         let currentFetchID = fetchID
+        isFetching = true
 
         player?.pause()
         playbackID = UUID()
@@ -154,18 +163,8 @@ struct ContentView: View {
         isResolvingPlayback = false
 
         Task {
-            let loadingTask = Task {
-                try? await Task.sleep(nanoseconds: 300_000_000)
-                await MainActor.run {
-                    if currentFetchID == fetchID {
-                        isFetching = true
-                    }
-                }
-            }
-
             do {
                 let response = try await client.fetch(site: result.site, vodID: result.vod_id)
-                loadingTask.cancel()
                 await MainActor.run {
                     guard currentFetchID == fetchID else { return }
                     fetchResponse = response
@@ -173,7 +172,6 @@ struct ContentView: View {
                     isFetching = false
                 }
             } catch {
-                loadingTask.cancel()
                 await MainActor.run {
                     guard currentFetchID == fetchID else { return }
                     pendingFetchResult = nil

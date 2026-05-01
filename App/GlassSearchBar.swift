@@ -5,9 +5,10 @@ struct GlassSearchBar: View {
     let onSearch: () -> Void
     let compact: Bool
     @FocusState private var isFocused: Bool
+    @State private var isSearchHovered = false
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppSpacing.sm) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
                 .font(compact ? .body : .title3)
@@ -18,34 +19,46 @@ struct GlassSearchBar: View {
                 .onSubmit(onSearch)
                 .focused($isFocused)
 
-            if !keyword.isEmpty {
-                Button(action: { keyword = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
+            Button(action: { keyword = "" }) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
             }
+            .buttonStyle(.plain)
+            .frame(width: 24)
+            .opacity(keyword.isEmpty ? 0 : 1)
+            .scaleEffect(keyword.isEmpty ? 0.8 : 1)
+            .disabled(keyword.isEmpty)
+            .animation(AppMotion.hover, value: keyword.isEmpty)
 
             Button(action: onSearch) {
                 Image(systemName: "arrow.right")
                     .font(.system(size: compact ? 12 : 14, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: compact ? 28 : 36, height: compact ? 28 : 36)
-                    .background(Color.accentColor)
-                    .clipShape(Circle())
+                    .background(
+                        Circle()
+                            .fill(Color.accentColor.opacity(isSearchEnabled ? 1.0 : 0.4))
+                    )
             }
             .buttonStyle(.plain)
-            .disabled(keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .opacity(isSearchEnabled ? 1 : 0.6)
+            .scaleEffect(isSearchHovered ? 1.06 : 1.0)
+            .disabled(!isSearchEnabled)
+            .animation(AppMotion.hover, value: isSearchHovered)
+            .onHover { isSearchHovered = $0 }
         }
-        .padding(.horizontal, compact ? 12 : 18)
-        .padding(.vertical, compact ? 8 : 14)
-        .background(
-            RoundedRectangle(cornerRadius: compact ? 12 : 18, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: compact ? 12 : 18, style: .continuous)
-                        .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
-                )
+        .padding(.horizontal, compact ? AppSpacing.md : AppSpacing.lg)
+        .padding(.vertical, compact ? AppSpacing.sm : AppSpacing.md)
+        .glassBackground(
+            radius: compact ? AppRadius.sm : AppRadius.md,
+            strokeOpacity: isFocused ? 0.35 : 0.16,
+            shadowRadius: isFocused ? 12 : 6,
+            isActive: isFocused
         )
+        .animation(AppMotion.hover, value: isFocused)
+    }
+
+    private var isSearchEnabled: Bool {
+        !keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }

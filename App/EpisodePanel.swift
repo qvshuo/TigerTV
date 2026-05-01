@@ -7,7 +7,7 @@ struct EpisodePanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
                 Text(response.site)
                     .font(.headline)
                 Text("共 \(response.vod_play_url.count) 集")
@@ -15,19 +15,23 @@ struct EpisodePanel: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
+            .padding(AppSpacing.md)
 
             Divider()
 
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 8)], spacing: 8) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: AppSpacing.sm)], spacing: AppSpacing.sm) {
                     ForEach(response.vod_play_url) { link in
-                        EpisodeButton(link: link, isSelected: selectedEpisode?.id == link.id) {
+                        EpisodeButton(
+                            link: link,
+                            isSelected: selectedEpisode?.id == link.id
+                        ) {
                             onSelect(link)
                         }
+                        .transition(.scale(scale: 0.9).combined(with: .opacity))
                     }
                 }
-                .padding()
+                .padding(AppSpacing.md)
             }
         }
         .background(.ultraThinMaterial)
@@ -38,8 +42,8 @@ struct EpisodeLoadingPanel: View {
     let result: SearchResult
 
     var body: some View {
-        VStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
                 Text(result.site)
                     .font(.headline)
                 Text("正在获取剧集...")
@@ -47,10 +51,17 @@ struct EpisodeLoadingPanel: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
+            .padding(AppSpacing.md)
 
-            ProgressView()
-            Spacer()
+            Divider()
+
+            VStack(spacing: 0) {
+                Spacer()
+                ProgressView()
+                    .controlSize(.small)
+                Spacer()
+            }
+            .padding(AppSpacing.md)
         }
         .background(.ultraThinMaterial)
     }
@@ -60,6 +71,7 @@ private struct EpisodeButton: View {
     let link: EpisodeLink
     let isSelected: Bool
     let onSelect: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: onSelect) {
@@ -69,16 +81,29 @@ private struct EpisodeButton: View {
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
+                .foregroundStyle(isSelected ? .primary : .secondary)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.white.opacity(0.05))
+                    RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous)
+                        .fill(
+                            isSelected
+                                ? Color.accentColor.opacity(0.15)
+                                : isHovered
+                                    ? Color.secondary.opacity(0.1)
+                                    : Color.secondary.opacity(0.05)
+                        )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.28), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous)
+                        .stroke(
+                            isSelected ? Color.accentColor.opacity(0.5) : Color.clear,
+                            lineWidth: isSelected ? 1.5 : 0.5
+                        )
                 )
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .animation(AppMotion.hover, value: isHovered)
+        .onHover { isHovered = $0 }
     }
 }
