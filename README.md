@@ -6,15 +6,11 @@
 
 一款 macOS 影视搜索与播放工具，同时提供命令行工具 `tigertv-cli.py` 及 Agent 可用的 `SKILL.md`。
 
----
-
 ## 特性
 
 - **桌面应用（GUI）**：聚合多个资源站，支持搜索与播放剧集  
 - **命令行工具（CLI）**：搜索影视资源、获取播放/下载链接、生成 Quantumult X 规则、查看日志  
 - **Agent Skill**：基于 CLI 封装，能力与 CLI 完全一致  
-
----
 
 ## 快速开始
 
@@ -30,8 +26,6 @@ xattr -cr "/Applications/TigerTV.app"
 ````
 
 **系统要求：** macOS 26+
-
----
 
 ### 命令行工具
 
@@ -52,8 +46,6 @@ source ~/.bashrc
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
-
----
 
 ## 常用命令
 
@@ -77,13 +69,9 @@ tigertv-cli.py logs
 /tmp/tigertv-cli.log
 ```
 
----
-
 ## 致谢
 
 站点配置数据来源：[LunaTV-config](https://github.com/hafrey1/LunaTV-config)
-
----
 
 ## License
 
