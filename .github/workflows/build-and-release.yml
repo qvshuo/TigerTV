@@ -1,0 +1,50 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build
+        run: |
+          xcodebuild \
+            -project "TigerTV.xcodeproj" \
+            -scheme "TigerTV" \
+            -configuration Release \
+            -derivedDataPath DerivedData \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Package
+        run: |
+          APP_PATH="DerivedData/Build/Products/Release/TigerTV.app"
+          VERSION=$(plutil -extract CFBundleShortVersionString raw "${APP_PATH}/Contents/Info.plist")
+          BUILD=$(plutil -extract CFBundleVersion raw "${APP_PATH}/Contents/Info.plist")
+          ZIP_NAME="TigerTV-${VERSION}.zip"
+
+          ditto -c -k --keepParent "${APP_PATH}" "${ZIP_NAME}"
+
+          echo "version=${VERSION}" >> "$GITHUB_ENV"
+          echo "build=${BUILD}" >> "$GITHUB_ENV"
+          echo "asset_path=${ZIP_NAME}" >> "$GITHUB_ENV"
+          echo "Version: ${VERSION} (${BUILD})"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.version }}
+          name: ${{ env.version }}
+          generate_release_notes: true
+          files: ${{ env.asset_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
