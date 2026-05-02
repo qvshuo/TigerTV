@@ -27,7 +27,7 @@ jobs:
 
       - name: Package
         run: |
-          APP_PATH="DerivedData/Build/Products/Release/TigerTV.app"
+          APP_PATH="DerivedData/Build/Products/Release/小老虎爱看剧.app"
           VERSION=$(plutil -extract CFBundleShortVersionString raw "${APP_PATH}/Contents/Info.plist")
           BUILD=$(plutil -extract CFBundleVersion raw "${APP_PATH}/Contents/Info.plist")
           ZIP_NAME="TigerTV-${VERSION}.zip"

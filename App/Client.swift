@@ -21,6 +21,7 @@ final class TigerTVClient: ObservableObject {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: pythonPath)
         process.arguments = [cliPath] + arguments
+        let processBox = ProcessBox(process)
 
         let pipe = Pipe()
         let errPipe = Pipe()
@@ -50,45 +51,52 @@ final class TigerTVClient: ObservableObject {
             }
         }
 
-        return try await withCheckedThrowingContinuation { continuation in
-            let gate = ResumeGate()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let gate = ResumeGate()
 
-            let resumeOnce: @Sendable (Result<Data, Error>) -> Void = { result in
-                gate.resume {
-                    switch result {
-                    case .success(let data):
-                        continuation.resume(returning: data)
-                    case .failure(let error):
-                        continuation.resume(throwing: error)
+                let resumeOnce: @Sendable (Result<Data, Error>) -> Void = { result in
+                    gate.resume {
+                        switch result {
+                        case .success(let data):
+                            continuation.resume(returning: data)
+                        case .failure(let error):
+                            continuation.resume(throwing: error)
+                        }
                     }
                 }
-            }
 
-            process.terminationHandler = { proc in
-                pipe.fileHandleForReading.readabilityHandler = nil
-                errPipe.fileHandleForReading.readabilityHandler = nil
+                process.terminationHandler = { proc in
+                    pipe.fileHandleForReading.readabilityHandler = nil
+                    errPipe.fileHandleForReading.readabilityHandler = nil
 
-                let data = outBuffer.consume()
-                let errBytes = errBuffer.consume()
+                    outBuffer.append(pipe.fileHandleForReading.readDataToEndOfFile())
+                    errBuffer.append(errPipe.fileHandleForReading.readDataToEndOfFile())
 
-                if proc.terminationStatus == 0 {
-                    resumeOnce(.success(data))
-                } else {
-                    let err = String(data: errBytes, encoding: .utf8) ?? "未知错误"
-                    resumeOnce(.failure(TigerTVError.cliError(err.trimmingCharacters(in: .whitespacesAndNewlines))))
+                    let data = outBuffer.consume()
+                    let errBytes = errBuffer.consume()
+
+                    if proc.terminationStatus == 0 {
+                        resumeOnce(.success(data))
+                    } else {
+                        let err = String(data: errBytes, encoding: .utf8) ?? "未知错误"
+                        resumeOnce(.failure(TigerTVError.cliError(err.trimmingCharacters(in: .whitespacesAndNewlines))))
+                    }
+                }
+
+                do {
+                    try process.run()
+                    DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
+                        guard process.isRunning else { return }
+                        process.terminate()
+                        resumeOnce(.failure(TigerTVError.commandTimeout(timeoutLabel)))
+                    }
+                } catch {
+                    resumeOnce(.failure(error))
                 }
             }
-
-            do {
-                try process.run()
-                DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
-                    guard process.isRunning else { return }
-                    process.terminate()
-                    resumeOnce(.failure(TigerTVError.commandTimeout(timeoutLabel)))
-                }
-            } catch {
-                resumeOnce(.failure(error))
-            }
+        } onCancel: {
+            processBox.terminate()
         }
     }
 
@@ -172,6 +180,24 @@ private final class DataBuffer: @unchecked Sendable {
         let result = data
         lock.unlock()
         return result
+    }
+}
+
+private final class ProcessBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private weak var process: Process?
+
+    init(_ process: Process) {
+        self.process = process
+    }
+
+    func terminate() {
+        lock.lock()
+        let process = process
+        lock.unlock()
+        if process?.isRunning == true {
+            process?.terminate()
+        }
     }
 }
 
