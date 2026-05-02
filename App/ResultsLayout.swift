@@ -1,5 +1,6 @@
 import SwiftUI
 import AVKit
+import AppKit
 
 struct ResultsLayout: View {
     @Binding var keyword: String
@@ -19,6 +20,8 @@ struct ResultsLayout: View {
     let onSelectEpisode: (EpisodeLink) -> Void
 
     @State private var isFullscreen = false
+    @State private var hostWindow: NSWindow?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isVideoFullscreen: Bool {
         isFullscreen && player != nil
@@ -97,11 +100,14 @@ struct ResultsLayout: View {
                 .transition(.opacity)
             }
         }
-        .animation(AppMotion.page, value: isVideoFullscreen)
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
+        .background(WindowAccessor(window: $hostWindow))
+        .animation(reduceMotion ? nil : AppMotion.page, value: isVideoFullscreen)
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { notification in
+            guard notification.object as? NSWindow === hostWindow else { return }
             isFullscreen = true
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { notification in
+            guard notification.object as? NSWindow === hostWindow else { return }
             isFullscreen = false
         }
     }
@@ -141,6 +147,24 @@ struct ResultsLayout: View {
                 }
                 .padding(AppSpacing.md)
             }
+        }
+    }
+}
+
+private struct WindowAccessor: NSViewRepresentable {
+    @Binding var window: NSWindow?
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            window = view.window
+        }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            window = view.window
         }
     }
 }

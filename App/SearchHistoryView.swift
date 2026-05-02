@@ -6,6 +6,7 @@ struct SearchHistoryView: View {
     let onDelete: (String) -> Void
     let onClear: () -> Void
     @State private var hoveredItem: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         if !history.isEmpty {
@@ -38,6 +39,7 @@ struct SearchHistoryView: View {
             }
             .padding(AppSpacing.md)
             .glassBackground(radius: AppRadius.md)
+            .animation(reduceMotion ? nil : AppMotion.hover, value: hoveredItem)
         }
     }
 }
@@ -47,6 +49,7 @@ private struct HistoryChip: View {
     let isHovered: Bool
     let onSelect: () -> Void
     let onDelete: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var displayText: String {
         if text.count > 12 {
@@ -56,32 +59,34 @@ private struct HistoryChip: View {
     }
 
     var body: some View {
-        Button(action: onSelect) {
+        HStack(spacing: AppSpacing.xs) {
             Text(displayText)
                 .font(.callout)
                 .lineLimit(1)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(isHovered ? Color.secondary.opacity(0.14) : Color.secondary.opacity(0.06))
-                )
-                .overlay(alignment: .topTrailing) {
-                    if isHovered {
-                        Button(action: onDelete) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 13))
-                                .symbolRenderingMode(.hierarchical)
-                        }
-                        .buttonStyle(.plain)
-                        .offset(x: 6, y: -6)
-                        .transition(.scale.combined(with: .opacity))
-                    }
+
+            if isHovered {
+                Button(action: onDelete) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 13))
+                        .symbolRenderingMode(.hierarchical)
                 }
+                .buttonStyle(.plain)
+                .help("删除")
+                .transition(.scale.combined(with: .opacity))
+            }
         }
-        .buttonStyle(.plain)
-        .scaleEffect(isHovered ? 1.04 : 1.0)
-        .animation(AppMotion.hover, value: isHovered)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(
+            Capsule(style: .continuous)
+                .fill(isHovered ? Color.secondary.opacity(0.14) : Color.secondary.opacity(0.06))
+        )
+        .contentShape(Capsule(style: .continuous))
+        .onTapGesture(perform: onSelect)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .scaleEffect(reduceMotion ? 1.0 : (isHovered ? 1.04 : 1.0))
+        .animation(reduceMotion ? nil : AppMotion.hover, value: isHovered)
     }
 }
 

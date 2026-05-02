@@ -12,19 +12,23 @@ struct ContentView: View {
     @State private var results: [SearchResult] = []
     @State private var isSearching = false
     @State private var searchID = UUID()
+    @State private var searchTask: Task<Void, Never>?
 
     @State private var selectedResult: SearchResult?
     @State private var pendingFetchResult: SearchResult?
     @State private var fetchResponse: FetchResponse?
     @State private var isFetching = false
     @State private var fetchID = UUID()
+    @State private var fetchTask: Task<Void, Never>?
 
     @State private var selectedEpisode: EpisodeLink?
     @State private var player: AVPlayer?
     @State private var isResolvingPlayback = false
     @State private var playbackID = UUID()
+    @State private var playbackTask: Task<Void, Never>?
     @State private var showError = false
     @State private var hasSearched = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var searchHistory: [String] {
         (try? JSONDecoder().decode([String].self, from: Data(searchHistoryData.utf8))) ?? []
@@ -69,7 +73,7 @@ struct ContentView: View {
                 ))
             }
         }
-        .animation(AppMotion.page, value: hasSearched)
+        .animation(reduceMotion ? nil : AppMotion.page, value: hasSearched)
         .environmentObject(client)
         .alert("错误", isPresented: $showError, actions: {
             Button("确定") { client.errorMessage = nil }
@@ -88,7 +92,11 @@ struct ContentView: View {
         hasSearched = true
         addHistory(trimmed)
         submittedKeyword = trimmed
+        searchTask?.cancel()
+        fetchTask?.cancel()
+        playbackTask?.cancel()
         searchID = UUID()
+        fetchID = UUID()
         let currentSearchID = searchID
 
         player?.pause()
@@ -101,12 +109,17 @@ struct ContentView: View {
         results = []
         isSearching = true
 
-        Task {
+        searchTask = Task {
             do {
                 let response = try await client.search(keyword: trimmed)
                 await MainActor.run {
                     guard currentSearchID == searchID else { return }
                     results = response
+                    isSearching = false
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    guard currentSearchID == searchID else { return }
                     isSearching = false
                 }
             } catch {
@@ -146,12 +159,15 @@ struct ContentView: View {
     }
 
     private func selectResult(_ result: SearchResult) {
-        if selectedResult?.id == result.id, fetchResponse?.id == result.id || isFetching || pendingFetchResult?.id == result.id {
+        if selectedResult?.id == result.id, fetchResponse?.id == result.id || pendingFetchResult?.id == result.id {
             return
         }
 
+        fetchTask?.cancel()
+        playbackTask?.cancel()
         selectedResult = result
         pendingFetchResult = result
+        fetchResponse = nil
         fetchID = UUID()
         let currentFetchID = fetchID
         isFetching = true
@@ -162,7 +178,7 @@ struct ContentView: View {
         selectedEpisode = nil
         isResolvingPlayback = false
 
-        Task {
+        fetchTask = Task {
             do {
                 let response = try await client.fetch(site: result.site, vodID: result.vod_id)
                 await MainActor.run {
@@ -171,9 +187,16 @@ struct ContentView: View {
                     pendingFetchResult = nil
                     isFetching = false
                 }
+            } catch is CancellationError {
+                await MainActor.run {
+                    guard currentFetchID == fetchID else { return }
+                    pendingFetchResult = nil
+                    isFetching = false
+                }
             } catch {
                 await MainActor.run {
                     guard currentFetchID == fetchID else { return }
+                    fetchResponse = nil
                     pendingFetchResult = nil
                     isFetching = false
                     client.errorMessage = error.localizedDescription
@@ -183,6 +206,7 @@ struct ContentView: View {
     }
 
     private func selectEpisode(_ episode: EpisodeLink) {
+        playbackTask?.cancel()
         selectedEpisode = episode
         player?.pause()
         player = nil
@@ -190,7 +214,7 @@ struct ContentView: View {
         playbackID = UUID()
         let currentPlaybackID = playbackID
 
-        Task {
+        playbackTask = Task {
             do {
                 let url = try await PlaybackURLResolver().resolve(from: episode.url)
                 let newPlayer = AVPlayer(url: url)
@@ -199,6 +223,11 @@ struct ContentView: View {
                     player = newPlayer
                     isResolvingPlayback = false
                     newPlayer.play()
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    guard currentPlaybackID == playbackID else { return }
+                    isResolvingPlayback = false
                 }
             } catch {
                 await MainActor.run {
@@ -212,6 +241,7 @@ struct ContentView: View {
 
     private func goBack() {
         if player != nil || selectedEpisode != nil || isResolvingPlayback {
+            playbackTask?.cancel()
             player?.pause()
             playbackID = UUID()
             player = nil
@@ -221,6 +251,9 @@ struct ContentView: View {
         }
 
         if selectedResult != nil || fetchResponse != nil || pendingFetchResult != nil {
+            fetchTask?.cancel()
+            playbackTask?.cancel()
+            fetchID = UUID()
             selectedResult = nil
             pendingFetchResult = nil
             fetchResponse = nil
@@ -230,8 +263,15 @@ struct ContentView: View {
         }
 
         if !results.isEmpty || isSearching {
+            searchTask?.cancel()
+            fetchTask?.cancel()
+            playbackTask?.cancel()
             searchID = UUID()
+            fetchID = UUID()
+            playbackID = UUID()
             isSearching = false
+            isFetching = false
+            isResolvingPlayback = false
             results = []
             submittedKeyword = ""
             hasSearched = false

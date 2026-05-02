@@ -7,6 +7,7 @@ struct HomeScreen: View {
     let onSelectHistory: (String) -> Void
     let onDeleteHistory: (String) -> Void
     let onClearHistory: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -56,6 +57,6 @@ struct HomeScreen: View {
             }
             .padding()
         }
-        .animation(AppMotion.page, value: history.isEmpty)
+        .animation(reduceMotion ? nil : AppMotion.page, value: history.isEmpty)
     }
 }

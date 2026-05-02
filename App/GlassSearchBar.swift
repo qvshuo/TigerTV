@@ -6,6 +6,7 @@ struct GlassSearchBar: View {
     let compact: Bool
     @FocusState private var isFocused: Bool
     @State private var isSearchHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: AppSpacing.sm) {
@@ -26,9 +27,9 @@ struct GlassSearchBar: View {
             .buttonStyle(.plain)
             .frame(width: 24)
             .opacity(keyword.isEmpty ? 0 : 1)
-            .scaleEffect(keyword.isEmpty ? 0.8 : 1)
+            .scaleEffect(reduceMotion || !keyword.isEmpty ? 1 : 0.8)
             .disabled(keyword.isEmpty)
-            .animation(AppMotion.hover, value: keyword.isEmpty)
+            .animation(reduceMotion ? nil : AppMotion.hover, value: keyword.isEmpty)
 
             Button(action: onSearch) {
                 Image(systemName: "arrow.right")
@@ -42,9 +43,9 @@ struct GlassSearchBar: View {
             }
             .buttonStyle(.plain)
             .opacity(isSearchEnabled ? 1 : 0.6)
-            .scaleEffect(isSearchHovered ? 1.06 : 1.0)
+            .scaleEffect(reduceMotion ? 1.0 : (isSearchHovered ? 1.06 : 1.0))
             .disabled(!isSearchEnabled)
-            .animation(AppMotion.hover, value: isSearchHovered)
+            .animation(reduceMotion ? nil : AppMotion.hover, value: isSearchHovered)
             .onHover { isSearchHovered = $0 }
         }
         .padding(.horizontal, compact ? AppSpacing.md : AppSpacing.lg)
@@ -55,7 +56,7 @@ struct GlassSearchBar: View {
             shadowRadius: isFocused ? 12 : 6,
             isActive: isFocused
         )
-        .animation(AppMotion.hover, value: isFocused)
+        .animation(reduceMotion ? nil : AppMotion.hover, value: isFocused)
     }
 
     private var isSearchEnabled: Bool {

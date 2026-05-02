@@ -72,6 +72,7 @@ private struct EpisodeButton: View {
     let isSelected: Bool
     let onSelect: () -> Void
     @State private var isHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: onSelect) {
@@ -102,8 +103,8 @@ private struct EpisodeButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .animation(AppMotion.hover, value: isHovered)
+        .scaleEffect(reduceMotion ? 1.0 : (isHovered ? 1.02 : 1.0))
+        .animation(reduceMotion ? nil : AppMotion.hover, value: isHovered)
         .onHover { isHovered = $0 }
     }
 }
