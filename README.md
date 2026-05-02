@@ -8,9 +8,31 @@
 
 ## 特性
 
-- **桌面应用（GUI）**：聚合多个资源站，支持搜索与播放剧集  
-- **命令行工具（CLI）**：搜索影视资源、获取播放/下载链接、生成 Quantumult X 规则、查看日志  
-- **Agent Skill**：基于 CLI 封装，能力与 CLI 完全一致  
+- **桌面应用（GUI）**：聚合多个资源站，支持搜索与播放剧集
+- **命令行工具（CLI）**：搜索影视资源、获取播放/下载链接、生成 Quantumult X 规则、查看日志
+- **Agent Skill**：基于 CLI 封装，能力与 CLI 完全一致
+
+## 截图
+
+<p align="center">
+  <img src="screenshots/1.png" width="80%">
+</p>
+
+<p align="center">
+  <img src="screenshots/2.png" width="80%">
+</p>
+
+<p align="center">
+  <img src="screenshots/3.png" width="80%">
+</p>
+
+<p align="center">
+  <img src="screenshots/4.png" width="80%">
+</p>
+
+<p align="center">
+  <img src="screenshots/5.png" width="80%">
+</p>
 
 ## 快速开始
 
