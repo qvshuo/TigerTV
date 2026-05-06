@@ -17,7 +17,10 @@ from threading import Lock
 
 # ============== 基础配置 ==============
 
-CONFIG_URL = "https://raw.githubusercontent.com/hafrey1/LunaTV-config/refs/heads/main/LunaTV-config.json"
+CONFIG_URL = "https://raw.githubusercontent.com/qvshuo/TigerTV/refs/heads/main/references/LunaTV-config.json"
+CONFIG_CDN_URL = "https://cdn.jsdelivr.net/gh/qvshuo/TigerTV@main/references/LunaTV-config.json"
+CONFIG_URL_TIMEOUT = 5
+CONFIG_CDN_TIMEOUT = 10
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15"
 MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10MB：防止异常大响应耗尽内存
 LOG_FILE = "/tmp/tigertv-cli.log"
@@ -190,8 +193,9 @@ def load_config(source=None):
     优先级：
     1. --source 指定的本地配置文件（完全隔离，不读写缓存）
     2. 未过期的本地缓存
-    3. 远程 CONFIG_URL（成功后写入缓存）
-    4. 远程失败时降级使用过期缓存
+    3. 远程 CONFIG_URL（超时 5s，成功后写入缓存）
+    4. 远程 CONFIG_CDN_URL（超时 10s，成功后写入缓存）
+    5. 远程都失败时降级使用过期缓存
     """
     if source:
         try:
@@ -207,18 +211,29 @@ def load_config(source=None):
     if cached is not None:
         return _parse_config(cached)
 
+    raw_err = None
     try:
-        config = make_request(CONFIG_URL)
+        config = make_request(CONFIG_URL, timeout=CONFIG_URL_TIMEOUT)
+        parsed = _parse_config(config)
         _save_config_cache(config)
-        return _parse_config(config)
-    except ConfigError:
-        raise
+        return parsed
     except Exception as e:
-        stale = _load_cached_config(check_ttl=False)
-        if stale is not None:
-            _log("WARN", "config", f"远程配置获取失败，使用过期缓存: {e}")
-            return _parse_config(stale)
-        raise ConfigError(f"加载配置失败: {e}") from e
+        raw_err = e
+
+    cdn_err = None
+    try:
+        config = make_request(CONFIG_CDN_URL, timeout=CONFIG_CDN_TIMEOUT)
+        parsed = _parse_config(config)
+        _save_config_cache(config)
+        return parsed
+    except Exception as e:
+        cdn_err = e
+
+    stale = _load_cached_config(check_ttl=False)
+    if stale is not None:
+        _log("WARN", "config", f"远程配置获取失败，使用过期缓存: raw={raw_err}, cdn={cdn_err}")
+        return _parse_config(stale)
+    raise ConfigError(f"加载配置失败: raw={raw_err}, cdn={cdn_err}") from raw_err
 
 
 def check_response(data, context=""):
