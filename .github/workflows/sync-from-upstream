@@ -1,0 +1,58 @@
+name: Sync LunaTV-config.json
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Sync LunaTV-config.json
+        run: |
+          FILE_URL="https://raw.githubusercontent.com/hafrey1/LunaTV-config/main/LunaTV-config.json"
+          TARGET_DIR="references"
+          TARGET_PATH="$TARGET_DIR/LunaTV-config.json"
+
+          mkdir -p "$TARGET_DIR"
+
+          echo "Checking if upstream file exists..."
+
+          if curl --output /dev/null --silent --head --fail "$FILE_URL"; then
+            echo "File exists. Downloading..."
+            
+            curl -sSLf "$FILE_URL" -o "$TARGET_PATH"
+            
+            if jq . "$TARGET_PATH" >/dev/null 2>&1; then
+              echo "JSON validation passed. Download completed."
+            else
+              echo "Error: Downloaded file is not valid JSON. Aborting sync."
+              exit 1
+            fi
+            
+          else
+            echo "Upstream file not found. Skipping sync."
+            exit 0
+          fi
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add references/LunaTV-config.json
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Sync LunaTV-config.json from upstream"
+            git push
+          fi
