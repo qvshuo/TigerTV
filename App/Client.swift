@@ -150,7 +150,7 @@ final class TigerTVClient: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
-        let data = try await runCLI(arguments: ["search", keyword], timeout: 15, timeoutLabel: "搜索")
+        let data = try await runCLI(arguments: ["search", keyword], timeout: 20, timeoutLabel: "搜索")
         let response = try JSONDecoder().decode(SearchResponse.self, from: data)
         return response.results
     }
