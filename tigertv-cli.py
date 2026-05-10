@@ -404,7 +404,13 @@ def cmd_search(args, api_name_map):
         for vod in vods:
             item = {"site": name}
             for field in fields:
-                item[field] = vod.get(field, "")
+                if field == "vod_id":
+                    try:
+                        item[field] = int(vod.get(field, 0) or 0)
+                    except (ValueError, TypeError):
+                        item[field] = 0
+                else:
+                    item[field] = vod.get(field) or ""
             output["results"].append(item)
 
     print(json.dumps(output, ensure_ascii=False, indent=2))
