@@ -1,0 +1,20 @@
+{
+  "code": 1,
+  "msg": "ok",
+  "page": 1,
+  "pagecount": 1,
+  "limit": 20,
+  "total": 1,
+  "list": [
+    {
+      "vod_id": 73480,
+      "vod_name": "逐玉",
+      "vod_time": "2026-01-01",
+      "vod_remarks": "更新至 10 集",
+      "vod_play_from": "线路A$$$线路B",
+      "vod_play_url": "第01集$https://play.example-iqiyi.com/v/73480-01.html#第02集$https://play.example-iqiyi.com/v/73480-02.html$$$第01集$https://play.example-iqiyi.com/alt/73480-01.html",
+      "vod_down_from": "下载",
+      "vod_down_url": "第01集$https://down.example-iqiyi.com/v/73480-01.mp4"
+    }
+  ]
+}

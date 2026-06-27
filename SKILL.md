@@ -51,7 +51,7 @@ tigertv-cli.py search <keyword>
   "results": [
     {
       "site": "🎬金鹰点播",
-      "vod_id": "104571",
+      "vod_id": 104571,
       "vod_name": "逐玉",
       "vod_time": "2026-03-22 23:35:02",
       "vod_remarks": "第40集已完结"

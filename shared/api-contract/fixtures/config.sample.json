@@ -1,0 +1,21 @@
+{
+  "cache_time": 7200,
+  "api_site": {
+    "iqiyi.example": {
+      "name": "🎬-爱奇艺-",
+      "api": "https://api.example-iqiyi.com/api.php/provide/vod",
+      "detail": "https://example-iqiyi.com"
+    },
+    "jinying.example": {
+      "name": "🎬金鹰点播",
+      "api": "https://api.example-jinying.com/api.php/provide/vod",
+      "detail": "https://example-jinying.com"
+    },
+    "disabled.example": {
+      "name": "backup-disabled-source",
+      "api": "https://api.example-backup.com/api.php/provide/vod",
+      "detail": "https://example-backup.com",
+      "_comment": "disabled backup"
+    }
+  }
+}
