@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 # 1. CLI tests (prefer pytest, fall back to unittest)
 if python3 -m pytest tests/ 2>/dev/null; then
