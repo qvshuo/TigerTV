@@ -145,8 +145,8 @@ class ConfigDataSource(
     companion object {
         private const val TAG = "ConfigDataSource"
         private const val MOVIE_EMOJI = "🎬"
-        private const val CONFIG_URL = "https://raw.githubusercontent.com/qvshuo/TigerTV/refs/heads/main/references/LunaTV-config.json"
-        private const val CONFIG_CDN_URL = "https://cdn.jsdelivr.net/gh/qvshuo/TigerTV@main/references/LunaTV-config.json"
+        private const val CONFIG_URL = "https://raw.githubusercontent.com/qvshuo/TigerTV/refs/heads/main/skill/references/LunaTV-config.json"
+        private const val CONFIG_CDN_URL = "https://cdn.jsdelivr.net/gh/qvshuo/TigerTV@main/skill/references/LunaTV-config.json"
         private const val USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
 
         fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()

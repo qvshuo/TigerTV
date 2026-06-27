@@ -4,7 +4,7 @@
 
 # 小老虎爱看剧 (TigerTV)
 
-跨平台影视搜索与播放工具，包含 macOS 应用、Android TV 应用，以及命令行工具 `tigertv-cli.py` 和 Agent 可用的 `SKILL.md`。
+跨平台影视搜索与播放工具，包含 macOS 应用、Android TV 应用，以及命令行工具 `tigertv-cli.py` 和 Agent 可用的 `skill/SKILL.md`。
 
 ## 特性
 
@@ -15,25 +15,23 @@
 
 ## 截图
 
-<p align="center">
-  <img src="screenshots/1.png" width="80%">
-</p>
+### macOS
 
-<p align="center">
-  <img src="screenshots/2.png" width="80%">
-</p>
+<table>
+  <tr>
+    <td width="50%"><img src="screenshots/macOS/1.png" width="100%"></td>
+    <td width="50%"><img src="screenshots/macOS/2.png" width="100%"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="screenshots/macOS/3.png" width="100%"></td>
+    <td width="50%"><img src="screenshots/macOS/4.png" width="100%"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="screenshots/macOS/5.png" width="100%"></td>
+    <td width="50%"></td>
+  </tr>
+</table>
 
-<p align="center">
-  <img src="screenshots/3.png" width="80%">
-</p>
-
-<p align="center">
-  <img src="screenshots/4.png" width="80%">
-</p>
-
-<p align="center">
-  <img src="screenshots/5.png" width="80%">
-</p>
 
 ## 快速开始
 
@@ -82,7 +80,7 @@ cd AndroidTV
 一键安装：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/skill/scripts/install.sh | bash
 ```
 
 安装脚本不会修改 PATH；如 `~/.local/bin` 尚未加入 PATH，可手动配置：
@@ -127,8 +125,10 @@ TigerTV/
 ├── macOS/              # macOS 应用
 │   ├── TigerTV.xcodeproj
 │   └── App/            # SwiftUI 源码与资源
-├── references/         # API 规范与站点配置（从上游同步）
-├── scripts/            # 安装/校验脚本
+├── skill/              # Agent skill 配套（说明、安装脚本、参考资料）
+│   ├── SKILL.md
+│   ├── scripts/
+│   └── references/
 ├── shared/             # 跨平台 API 契约与 fixtures
 ├── tests/              # CLI 测试
 ├── tigertv-cli.py      # 命令行工具

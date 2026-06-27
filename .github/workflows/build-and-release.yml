@@ -65,7 +65,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Check shared contract and CLI
-        run: ./scripts/check-contract.sh
+        run: .github/scripts/check-contract.sh
 
       - name: Generate release keystore
         working-directory: ./AndroidTV
