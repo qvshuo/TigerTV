@@ -2,13 +2,13 @@
   <img width="128" height="128" src="macOS/App/Assets.xcassets/AppIcon.appiconset/icon_256x256.png" alt="TigerTV icon">
 </p>
 
-# 小老虎爱看剧 (TigerTV)
+# 小老虎爱看剧（TigerTV）
 
 跨平台影视搜索与播放工具，包含 macOS 应用、Android TV 应用，以及命令行工具 `tigertv-cli.py` 和 Agent 可用的 `skill/SKILL.md`。
 
 ## 特性
 
-- **macOS 桌面应用**：聚合多个资源站，支持搜索与播放剧集
+- **macOS 应用**：聚合多个资源站，支持搜索与播放剧集
 - **Android TV 应用**：为电视遥控器优化的搜索、选集与播放体验
 - **命令行工具（CLI）**：搜索影视资源、获取播放/下载链接、生成 Quantumult X 规则、查看日志
 - **Agent Skill**：基于 CLI 封装影视搜索、链接获取和规则生成，并提供下载流程建议
@@ -48,32 +48,12 @@ xattr -cr "/Applications/小老虎爱看剧.app"
 
 **系统要求：** macOS 26+（Apple Silicon）
 
-构建：
-
-```bash
-xcodebuild -project macOS/TigerTV.xcodeproj -scheme TigerTV -configuration Release CODE_SIGNING_ALLOWED=NO build
-```
-
 ### Android TV 应用
 
 1. 从 Releases 下载 `TigerTV-AndroidTV-universal-<version>.apk`
 2. 安装到 Android TV 设备
 
-**系统要求：** Android 6.0+（API 23+），目标大屏幕 / Android TV
-
-构建：
-
-```bash
-cd AndroidTV
-./gradlew test assembleDebug
-```
-
-Release 构建（CI 使用临时签名）：
-
-```bash
-cd AndroidTV
-./gradlew assembleRelease
-```
+**系统要求：** Android 6.0+（API 23+）
 
 ### 命令行工具
 
@@ -115,25 +95,6 @@ tigertv-cli.py logs
 
 ```
 /tmp/tigertv-cli.log
-```
-
-## 项目结构
-
-```
-TigerTV/
-├── AndroidTV/          # Android TV 应用（Kotlin + Compose for TV）
-├── macOS/              # macOS 应用
-│   ├── TigerTV.xcodeproj
-│   └── App/            # SwiftUI 源码与资源
-├── skill/              # Agent skill 配套（说明、安装脚本、参考资料）
-│   ├── SKILL.md
-│   ├── scripts/
-│   └── references/
-├── shared/             # 跨平台 API 契约与 fixtures
-├── tests/              # CLI 测试
-├── tigertv-cli.py      # 命令行工具
-├── README.md
-└── AGENTS.md
 ```
 
 ## 致谢
