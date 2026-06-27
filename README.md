@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="128" height="128" src="tiger-icon.png" alt="TigerTV icon">
+  <img width="128" height="128" src="macOS/App/Assets.xcassets/AppIcon.appiconset/icon_256x256.png" alt="TigerTV icon">
 </p>
 
 # 小老虎爱看剧 (TigerTV)
@@ -46,9 +46,9 @@
 
 ```shell
 xattr -cr "/Applications/小老虎爱看剧.app"
-````
+```
 
-**系统要求：** macOS 26+（Apple Silicon）。Intel Mac 需自行从源码构建。
+**系统要求：** macOS 26+（Apple Silicon）
 
 构建：
 
