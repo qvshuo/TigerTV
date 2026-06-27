@@ -232,7 +232,7 @@ class TigerTvConfigTests(unittest.TestCase):
                 {"http://cache.test/api.php/provide/vod": "🎬-缓存站-"},
             )
 
-    def test_load_config_uses_raw_when_cache_missing(self):
+    def test_load_config_uses_cdn_when_cache_missing(self):
         module = load_module()
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_path = Path(temp_dir) / "cache.json"
@@ -243,6 +243,43 @@ class TigerTvConfigTests(unittest.TestCase):
 
             def fake_make_request(url, timeout=10):
                 calls.append((url, timeout))
+                return {
+                    "api_site": {
+                        "demo": {
+                            "name": "🎬-CDN站-",
+                            "api": "http://cdn.test/api.php/provide/vod",
+                        }
+                    }
+                }
+
+            module.make_request = fake_make_request
+            try:
+                api_name_map = module.load_config()
+            finally:
+                module.CACHE_FILE = original_cache
+                module.make_request = original_make_request
+
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0][0], module.CONFIG_CDN_URL)
+            self.assertEqual(calls[0][1], module.CONFIG_CDN_TIMEOUT)
+            self.assertEqual(
+                api_name_map,
+                {"http://cdn.test/api.php/provide/vod": "🎬-CDN站-"},
+            )
+
+    def test_load_config_uses_raw_when_cdn_fails(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_path = Path(temp_dir) / "cache.json"
+            original_cache = module.CACHE_FILE
+            module.CACHE_FILE = str(cache_path)
+            original_make_request = module.make_request
+            calls = []
+
+            def fake_make_request(url, timeout=10):
+                calls.append((url, timeout))
+                if url == module.CONFIG_CDN_URL:
+                    raise module.RequestError("cdn down")
                 return {
                     "api_site": {
                         "demo": {
@@ -259,15 +296,17 @@ class TigerTvConfigTests(unittest.TestCase):
                 module.CACHE_FILE = original_cache
                 module.make_request = original_make_request
 
-            self.assertEqual(len(calls), 1)
-            self.assertEqual(calls[0][0], module.CONFIG_URL)
-            self.assertEqual(calls[0][1], module.CONFIG_URL_TIMEOUT)
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(calls[0][0], module.CONFIG_CDN_URL)
+            self.assertEqual(calls[0][1], module.CONFIG_CDN_TIMEOUT)
+            self.assertEqual(calls[1][0], module.CONFIG_URL)
+            self.assertEqual(calls[1][1], module.CONFIG_URL_TIMEOUT)
             self.assertEqual(
                 api_name_map,
                 {"http://raw.test/api.php/provide/vod": "🎬-RAW站-"},
             )
 
-    def test_load_config_uses_cdn_when_raw_fails(self):
+    def test_load_config_uses_raw_when_cdn_parse_fails(self):
         module = load_module()
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_path = Path(temp_dir) / "cache.json"
@@ -278,52 +317,13 @@ class TigerTvConfigTests(unittest.TestCase):
 
             def fake_make_request(url, timeout=10):
                 calls.append((url, timeout))
-                if url == module.CONFIG_URL:
-                    raise module.RequestError("raw down")
-                return {
-                    "api_site": {
-                        "demo": {
-                            "name": "🎬-CDN站-",
-                            "api": "http://cdn.test/api.php/provide/vod",
-                        }
-                    }
-                }
-
-            module.make_request = fake_make_request
-            try:
-                api_name_map = module.load_config()
-            finally:
-                module.CACHE_FILE = original_cache
-                module.make_request = original_make_request
-
-            self.assertEqual(len(calls), 2)
-            self.assertEqual(calls[0][0], module.CONFIG_URL)
-            self.assertEqual(calls[0][1], module.CONFIG_URL_TIMEOUT)
-            self.assertEqual(calls[1][0], module.CONFIG_CDN_URL)
-            self.assertEqual(calls[1][1], module.CONFIG_CDN_TIMEOUT)
-            self.assertEqual(
-                api_name_map,
-                {"http://cdn.test/api.php/provide/vod": "🎬-CDN站-"},
-            )
-
-    def test_load_config_uses_cdn_when_raw_parse_fails(self):
-        module = load_module()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            cache_path = Path(temp_dir) / "cache.json"
-            original_cache = module.CACHE_FILE
-            module.CACHE_FILE = str(cache_path)
-            original_make_request = module.make_request
-            calls = []
-
-            def fake_make_request(url, timeout=10):
-                calls.append((url, timeout))
-                if url == module.CONFIG_URL:
+                if url == module.CONFIG_CDN_URL:
                     return {"api_site": {}}  # parse 后无站点，触发 ConfigError
                 return {
                     "api_site": {
                         "demo": {
-                            "name": "🎬-CDN站-",
-                            "api": "http://cdn.test/api.php/provide/vod",
+                            "name": "🎬-RAW站-",
+                            "api": "http://raw.test/api.php/provide/vod",
                         }
                     }
                 }
@@ -336,11 +336,11 @@ class TigerTvConfigTests(unittest.TestCase):
                 module.make_request = original_make_request
 
             self.assertEqual(len(calls), 2)
-            self.assertEqual(calls[0][0], module.CONFIG_URL)
-            self.assertEqual(calls[1][0], module.CONFIG_CDN_URL)
+            self.assertEqual(calls[0][0], module.CONFIG_CDN_URL)
+            self.assertEqual(calls[1][0], module.CONFIG_URL)
             self.assertEqual(
                 api_name_map,
-                {"http://cdn.test/api.php/provide/vod": "🎬-CDN站-"},
+                {"http://raw.test/api.php/provide/vod": "🎬-RAW站-"},
             )
 
     def test_load_config_falls_back_to_stale_cache(self):

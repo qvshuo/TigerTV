@@ -1,5 +1,27 @@
-__pycache__/
+# macOS
 .DS_Store
-AGENTS.md
+
+# Python
+__pycache__/
+
+# Xcode
 xcuserdata/
 DerivedData/
+*.xcresult
+*.dSYM/
+
+# Android / Gradle / IDE
+.gradle/
+build/
+.idea/
+.kotlin/
+.cxx/
+.externalNativeBuild/
+captures/
+local.properties
+*.iml
+*.apk
+*.aab
+*.idsig
+*.keystore
+*.jks

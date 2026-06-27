@@ -193,8 +193,8 @@ def load_config(source=None):
     优先级：
     1. --source 指定的本地配置文件（完全隔离，不读写缓存）
     2. 未过期的本地缓存
-    3. 远程 CONFIG_URL（超时 5s，成功后写入缓存）
-    4. 远程 CONFIG_CDN_URL（超时 10s，成功后写入缓存）
+    3. 远程 CONFIG_CDN_URL（超时 10s，成功后写入缓存）
+    4. 远程 CONFIG_URL（超时 5s，成功后写入缓存）
     5. 远程都失败时降级使用过期缓存
     """
     if source:
@@ -211,15 +211,6 @@ def load_config(source=None):
     if cached is not None:
         return _parse_config(cached)
 
-    raw_err = None
-    try:
-        config = make_request(CONFIG_URL, timeout=CONFIG_URL_TIMEOUT)
-        parsed = _parse_config(config)
-        _save_config_cache(config)
-        return parsed
-    except Exception as e:
-        raw_err = e
-
     cdn_err = None
     try:
         config = make_request(CONFIG_CDN_URL, timeout=CONFIG_CDN_TIMEOUT)
@@ -228,6 +219,15 @@ def load_config(source=None):
         return parsed
     except Exception as e:
         cdn_err = e
+
+    raw_err = None
+    try:
+        config = make_request(CONFIG_URL, timeout=CONFIG_URL_TIMEOUT)
+        parsed = _parse_config(config)
+        _save_config_cache(config)
+        return parsed
+    except Exception as e:
+        raw_err = e
 
     stale = _load_cached_config(check_ttl=False)
     if stale is not None:

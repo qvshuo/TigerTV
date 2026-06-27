@@ -1,0 +1,20 @@
+{
+  "vod_id": 73480,
+  "site": "🎬-爱奇艺-",
+  "vod_play_url": [
+    {
+      "name": "第01集",
+      "url": "https://play.example-iqiyi.com/v/73480-01.html"
+    },
+    {
+      "name": "第02集",
+      "url": "https://play.example-iqiyi.com/v/73480-02.html"
+    }
+  ],
+  "vod_down_url": [
+    {
+      "name": "第01集",
+      "url": "https://down.example-iqiyi.com/v/73480-01.mp4"
+    }
+  ]
+}
