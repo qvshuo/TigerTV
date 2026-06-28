@@ -91,7 +91,7 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
-## 常用命令
+#### 常用命令
 
 ```shell
 # 搜索剧集
