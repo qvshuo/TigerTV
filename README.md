@@ -53,7 +53,7 @@
 
 ### macOS 应用
 
-1. 从 Releases 下载 `TigerTV-macOS-arm64-<version>.zip`
+1. 从 [Releases](https://github.com/qvshuo/TigerTV/releases) 下载 `TigerTV-macOS-arm64-<version>.zip`
 2. 解压并拖入「应用程序」文件夹  
 
 首次启动前执行：
@@ -66,7 +66,7 @@ xattr -cr "/Applications/小老虎爱看剧.app"
 
 ### Android TV 应用
 
-1. 从 Releases 下载 `TigerTV-AndroidTV-universal-<version>.apk`
+1. 从 [Releases](https://github.com/qvshuo/TigerTV/releases) 下载 `TigerTV-AndroidTV-universal-<version>.apk`
 2. 安装到 Android TV 设备
 
 **系统要求：** Android 6.0+（API 23+）
