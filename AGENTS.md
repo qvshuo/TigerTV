@@ -26,7 +26,7 @@ All subcommands except `logs` accept a global `--source <path>` (see below). Err
 
 ## Architecture Gotchas
 
-- **Remote config with caching and RAW fallback**: `load_config()` tries (1) `--source` if given, (2) fresh local cache, (3) `CONFIG_CDN_URL` (jsdelivr, 10s timeout), (4) `CONFIG_URL` (GitHub RAW, 5s timeout), (5) expired cache as last resort. Cache: `/tmp/tigertv-cli-config-cache.json`, 1-day TTL. The local `skill/references/LunaTV-config.json` is auto-synced daily by `.github/workflows/sync-from-upstream.yml` and is **not** read by the script.
+- **Remote config with caching and RAW fallback**: `load_config()` tries (1) `--source` if given, (2) fresh local cache, (3) `CONFIG_CDN_URL` (jsdelivr, 10s timeout), (4) `CONFIG_URL` (GitHub RAW, 5s timeout), (5) expired cache as last resort. Cache: `/tmp/tigertv-cli-config-cache.json`, 1-day TTL. The local `skills/references/LunaTV-config.json` is auto-synced daily by `.github/workflows/sync-from-upstream.yml` and is **not** read by the script.
 - **Source filtering**: keep entries where `name` contains `🎬` and entry has no `_comment` key (used to mark disabled/backup sources).
 - **Custom source via `--source`**: local JSON file path (same shape as remote config) bypasses both remote fetch and cache. Use this for offline work, CI, or testing.
 - **`fetch --site` must be an exact match** of the remote config `name` field, emoji and punctuation included. Wrong site triggers an error listing every available site — use intentionally to discover valid names.
@@ -37,12 +37,12 @@ All subcommands except `logs` accept a global `--source <path>` (see below). Err
 - **Concurrency**: `search` and `quanx` use `ThreadPoolExecutor(max_workers=min(sites, 20))`.
 - **Output contract**: `search`/`fetch` → JSON on stdout; `quanx` → plain text on stdout; errors → stderr (via `exit_with_error`, exit code 1); all logs → `/tmp/tigertv-cli.log` (viewed via `logs` command). Logs never mix into stdout to keep pipes parseable.
 - **HTTP safety**: `_http_get` enforces `MAX_RESPONSE_SIZE = 10MB` and percent-encodes non-ASCII path/query via `_encode_url` to avoid `UnicodeEncodeError`. All requests send a hardcoded macOS Safari `User-Agent`.
-- **API spec reference**: `skill/references/API接口说明V2.txt` documents the upstream MacCMS-style provide API the script targets (ac=list/detail, code/msg/list, etc.). Read-only, not loaded by code.
+- **API spec reference**: `skills/references/API接口说明V2.txt` documents the upstream MacCMS-style provide API the script targets (ac=list/detail, code/msg/list, etc.). Read-only, not loaded by code.
 
 ## Install / Uninstall
 
-- `skill/scripts/install.sh` downloads `tigertv-cli.py` from GitHub RAW (not the local file) into `~/.local/bin/tigertv-cli.py`.
-- `skill/scripts/uninstall.sh` removes it.
+- `skills/scripts/install.sh` downloads `tigertv-cli.py` from GitHub RAW (not the local file) into `~/.local/bin/tigertv-cli.py`.
+- `skills/scripts/uninstall.sh` removes it.
 - Neither script modifies `PATH`; user must add `~/.local/bin` manually.
 
 ## Logs

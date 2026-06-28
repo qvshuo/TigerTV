@@ -4,7 +4,7 @@
 
 # 小老虎爱看剧（TigerTV）
 
-跨平台影视搜索与播放工具，包含 macOS 应用、Android TV 应用，以及命令行工具 `tigertv-cli.py` 和 Agent 可用的 `skill/SKILL.md`。
+跨平台影视搜索与播放工具，包含 macOS 应用、Android TV 应用，以及命令行工具 `tigertv-cli.py` 和 Agent 可用的 `skills/SKILL.md`。
 
 ## 特性
 
@@ -76,7 +76,7 @@ xattr -cr "/Applications/小老虎爱看剧.app"
 一键安装：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/skill/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/skills/scripts/install.sh | bash
 ```
 
 安装脚本不会修改 PATH；如 `~/.local/bin` 尚未加入 PATH，可手动配置：

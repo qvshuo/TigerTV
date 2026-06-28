@@ -17,8 +17,8 @@ from threading import Lock
 
 # ============== 基础配置 ==============
 
-CONFIG_URL = "https://raw.githubusercontent.com/qvshuo/TigerTV/refs/heads/main/skill/references/LunaTV-config.json"
-CONFIG_CDN_URL = "https://cdn.jsdelivr.net/gh/qvshuo/TigerTV@main/skill/references/LunaTV-config.json"
+CONFIG_URL = "https://raw.githubusercontent.com/qvshuo/TigerTV/refs/heads/main/skills/references/LunaTV-config.json"
+CONFIG_CDN_URL = "https://cdn.jsdelivr.net/gh/qvshuo/TigerTV@main/skills/references/LunaTV-config.json"
 CONFIG_URL_TIMEOUT = 5
 CONFIG_CDN_TIMEOUT = 10
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15"
