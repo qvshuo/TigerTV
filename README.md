@@ -32,6 +32,22 @@
   </tr>
 </table>
 
+### Android TV
+
+<table>
+  <tr>
+    <td width="50%"><img src="screenshots/AndroidTV/1.png" width="100%"></td>
+    <td width="50%"><img src="screenshots/AndroidTV/2.png" width="100%"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="screenshots/AndroidTV/3.png" width="100%"></td>
+    <td width="50%"><img src="screenshots/AndroidTV/4.png" width="100%"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="screenshots/AndroidTV/5.png" width="100%"></td>
+    <td width="50%"></td>
+  </tr>
+</table>
 
 ## 快速开始
 
