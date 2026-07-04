@@ -53,11 +53,13 @@ All subcommands except `logs` accept a global `--source <path>` (see below). Err
 
 ## macOS GUI (`macOS/`)
 
-Native SwiftUI app wrapping the CLI. Target: macOS 26+, Swift 6. App Sandbox is **disabled** in `macOS/App/TigerTV.entitlements` (subprocesses and `/tmp` log writes fail under sandbox).
+Native SwiftUI macOS app that reimplements the CLI logic in Swift (no Python subprocess). Target: macOS 26+, Swift 6. App Sandbox is **disabled** in `macOS/App/TigerTV.entitlements` (network and `~/Library/Caches` access fail under sandbox).
 
 ```
 macOS/
 ├── TigerTV.xcodeproj
+├── Package.swift
+├── TigerTVTests/
 └── App/
     ├── Assets.xcassets/
     ├── TigerTVApp.swift
@@ -68,11 +70,18 @@ macOS/
     ├── EpisodePanel.swift
     ├── SearchHistoryView.swift
     ├── GlassSearchBar.swift
-    ├── Client.swift
-    ├── Models.swift
-    ├── PlaybackURLResolver.swift
     ├── PlayerView.swift
     ├── DesignSystem.swift
+    ├── TigerTVViewModel.swift
+    ├── HTTPClient.swift
+    ├── ConfigDataSource.swift
+    ├── MacCMSApiClient.swift
+    ├── TigerTVRepository.swift
+    ├── PlaybackURLResolver.swift
+    ├── SearchHistoryStore.swift
+    ├── Models.swift
+    ├── LoadResult.swift
+    ├── TigerTVError.swift
     ├── Info.plist
     └── TigerTV.entitlements
 ```
@@ -80,7 +89,12 @@ macOS/
 ### Build
 
 ```bash
+# App
 xcodebuild -project macOS/TigerTV.xcodeproj -scheme TigerTV -destination 'platform=macOS' build
+
+# macOS unit tests (Swift Package Manager XCTest)
+cd macOS
+swift test
 ```
 
 CI uses `xcodebuild -project macOS/TigerTV.xcodeproj ... -configuration Release ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build` and zips the app for the GitHub Release (see `.github/workflows/build-and-release.yml`). Releases are **only** triggered manually via `workflow_dispatch` — no push/tag auto-release.
@@ -94,24 +108,31 @@ CI uses `xcodebuild -project macOS/TigerTV.xcodeproj ... -configuration Release 
 | `App/HomeScreen.swift` / `App/ResultsLayout.swift` | Empty state and post-search layout |
 | `App/SearchResultCard.swift` / `App/EpisodePanel.swift` | Result and episode UI |
 | `App/SearchHistoryView.swift` / `App/GlassSearchBar.swift` | History and search input |
-| `App/Client.swift` | `Process`-based CLI bridge; resolves a non-xcrun Python 3 (see below) and streams stdout via `readabilityHandler` to avoid pipe-buffer deadlock |
-| `App/Models.swift` | `SearchResult`, `FetchResponse`, `EpisodeLink`, `TigerTVError` |
-| `App/PlaybackURLResolver.swift` | HTML → m3u8 URL extraction (mirrors CLI logic) |
 | `App/PlayerView.swift` | `AVPlayer` + `VideoPlayer` (AVKit) wrapper |
-
-The macOS app bundles `tigertv-cli.py` as a resource (`Bundle.main.path(forResource: "tigertv-cli", ofType: "py")`) — `Client.swift:9`. Keep the filename and extension exact when updating.
+| `App/TigerTVViewModel.swift` | `@MainActor` UI state container |
+| `App/HTTPClient.swift` | Shared URL session: Safari UA, 10MB cap, non-ASCII URL encoding |
+| `App/ConfigDataSource.swift` | Config cache → CDN → RAW → expired-cache fallback; filters sites by `🎬` and no `_comment` |
+| `App/MacCMSApiClient.swift` | MacCMS `ac=list/detail` requests |
+| `App/TigerTVRepository.swift` | Concurrent search, 10-minute search cache, episode parsing |
+| `App/PlaybackURLResolver.swift` | HTML → m3u8 URL extraction (mirrors CLI logic) |
+| `App/SearchHistoryStore.swift` | `UserDefaults`-backed search history (max 20) |
+| `App/Models.swift` / `LoadResult.swift` / `TigerTVError.swift` | Domain models and `Result<T>` wrapper |
 
 ### GUI Quirks
 
-- **Python 3 resolution**: `Client.swift:103` walks a hardcoded candidate list (Xcode CLT frameworks → system framework → Homebrew) before scanning `$PATH`. `/usr/bin/python3` is an xcrun shim that fails inside sandboxed contexts, so it is last-resort. Add a new candidate there when supporting new toolchains.
-- **Timeouts**: `search` and `fetch` both 20s (`Client.swift:153,162`).
+- **No CLI dependency**: the app no longer bundles or shells out to `tigertv-cli.py`.
+- **Config loading**: follows the CLI priority — fresh local cache → CDN (10s) → RAW (5s) → expired cache. Cache lives in `~/Library/Caches/TigerTV/tigertv-config-cache.json`.
+- **Source filtering**: same as CLI — keep entries whose `name` contains `🎬` and have no `_comment` key.
+- **Config errors**: shown inline on the home screen. Other errors surface via alert.
+- **Search history**: persisted in `UserDefaults` (key `tigertv.searchHistory`), capped at 20 items.
+- **Timeouts**: search and fetch use 20s; config CDN fetch uses 10s and RAW fallback uses 5s.
 - **Fullscreen**: hides the top search bar and right episode panel; exiting restores them.
 
 ## Android TV (`AndroidTV/`)
 
 Native Android TV app implemented in Kotlin with Jetpack Compose for TV, Material 3, and Media3 ExoPlayer. It replicates the CLI search/fetch/playback-resolution logic in Kotlin so both platforms share the same output contract and config behavior. The authoritative business rules live in `tigertv-cli.py`; Android mirrors them using the shared API contract in `shared/api-contract/`.
 
-Current version: `2.0.0` (`versionCode 2`). Release APKs are universal and include both `armeabi-v7a` (for broad Android TV compatibility) and `arm64-v8a` (for modern devices and arm64 emulators).
+Current version: `3.0.0` (`versionCode 4`). Release APKs are universal and include both `armeabi-v7a` (for broad Android TV compatibility) and `arm64-v8a` (for modern devices and arm64 emulators).
 
 ### Build
 
@@ -151,7 +172,7 @@ cd AndroidTV
 ## Cross-Platform Sync
 
 - The output contract for `search`/`fetch` is documented in `shared/api-contract/`.
-- Any change to CLI output fields or parsing rules must update `shared/api-contract/` and trigger a review of `AndroidTV`.
+- Any change to CLI output fields or parsing rules must update `shared/api-contract/` and trigger a review of both `AndroidTV` and `macOS`.
 - Contract fixtures in `shared/api-contract/fixtures/` should be used by both CLI and Android tests when possible.
 
 ## Network Requirements

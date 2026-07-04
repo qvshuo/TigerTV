@@ -14,8 +14,8 @@ data class SearchResult(
     val site: String,
     @SerialName("vod_id") val vodId: Int,
     @SerialName("vod_name") val vodName: String,
-    @SerialName("vod_time") val vodTime: String? = null,
-    @SerialName("vod_remarks") val vodRemarks: String? = null
+    @SerialName("vod_time") val vodTime: String = "",
+    @SerialName("vod_remarks") val vodRemarks: String = ""
 )
 
 @Serializable

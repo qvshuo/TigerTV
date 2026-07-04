@@ -30,8 +30,8 @@ Fields:
   - `site`: exact `name` value from the source config. Emojis and punctuation are significant.
   - `vod_id`: integer content id for the site.
   - `vod_name`: display title.
-  - `vod_time`: optional update/release time string.
-  - `vod_remarks`: optional status string (e.g. episode count, resolution).
+  - `vod_time`: update/release time string; missing values are output as `""`.
+  - `vod_remarks`: status string (e.g. episode count, resolution); missing values are output as `""`.
 
 ### `FetchResponse`
 
@@ -91,13 +91,13 @@ Source filtering:
 
 - Keep entries where `name` contains `🎬`.
 - Discard entries that contain a `_comment` key (disabled / backup sources).
-- Android mirrors this filtering before searching.
+- macOS and Android mirror this filtering before searching.
 
 ## MacCMS API rules
 
 Search:
 
-- Endpoint: `{api}?ac=list&wd={keyword}`
+- Endpoint: `{api}?ac=list&wd={keyword}&pagesize=100`
 - Success response has `code == 1`.
 - `list` contains items with `vod_id` and `vod_name`.
 
@@ -124,14 +124,15 @@ Error handling:
 
 Inputs are episode `url` values from `FetchResponse`.
 
-Rules (same for macOS and Android):
+Rules (same for CLI, macOS, and Android):
 
 1. If the URL path ends with `.m3u8` or `.mp4`, use it directly.
-2. Otherwise, fetch the URL as HTML.
-3. From the HTML, extract the first absolute `.m3u8` URL (`https?://...\.m3u8(?:\?...)?`).
-4. If no absolute URL, extract the first quoted relative `.m3u8` path and resolve it against the base URL.
-5. Support query strings, escaped slashes (`\/`), and URL-encoded characters.
-6. Failure to find a media URL → playback error.
+2. Otherwise, fetch the URL.
+3. If the response body starts with `#EXTM3U`, return the original URL (some endpoints return raw HLS playlists).
+4. Otherwise, treat the response as HTML and extract the first absolute `.m3u8` URL (`https?://...\.m3u8(?:\?...)?`).
+5. If no absolute URL, extract the first quoted relative `.m3u8` path, percent-decode it, and resolve it against the base URL.
+6. Support query strings and escaped slashes (`\/`).
+7. Failure to find a media URL → playback error.
 
 ## Fixtures
 

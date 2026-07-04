@@ -10,9 +10,7 @@
 		000000000000000000000100 /* TigerTVApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000200 /* TigerTVApp.swift */; };
 		000000000000000000000101 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000201 /* ContentView.swift */; };
 		000000000000000000000102 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000202 /* Models.swift */; };
-		000000000000000000000103 /* Client.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000203 /* Client.swift */; };
 		000000000000000000000104 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000204 /* Assets.xcassets */; };
-		000000000000000000000105 /* tigertv-cli.py in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000205 /* tigertv-cli.py */; };
 		000000000000000000000106 /* AVKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 000000000000000000000206 /* AVKit.framework */; };
 		000000000000000000000108 /* PlaybackURLResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000208 /* PlaybackURLResolver.swift */; };
 		000000000000000000000109 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000209 /* PlayerView.swift */; };
@@ -23,15 +21,21 @@
 		000000000000000000000114 /* SearchResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000214 /* SearchResultCard.swift */; };
 		000000000000000000000115 /* EpisodePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000215 /* EpisodePanel.swift */; };
 		000000000000000000000116 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000216 /* DesignSystem.swift */; };
+		A00000000000000000000101 /* HTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000100 /* HTTPClient.swift */; };
+		A00000000000000000000201 /* ConfigDataSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000200 /* ConfigDataSource.swift */; };
+		A00000000000000000000301 /* MacCMSApiClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000300 /* MacCMSApiClient.swift */; };
+		A00000000000000000000401 /* SearchHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000400 /* SearchHistoryStore.swift */; };
+		A00000000000000000000501 /* TigerTVRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000500 /* TigerTVRepository.swift */; };
+		A00000000000000000000601 /* LoadResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000600 /* LoadResult.swift */; };
+		A00000000000000000000701 /* TigerTVError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000700 /* TigerTVError.swift */; };
+		A00000000000000000000801 /* TigerTVViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000800 /* TigerTVViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		000000000000000000000200 /* TigerTVApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TigerTVApp.swift; sourceTree = "<group>"; };
 		000000000000000000000201 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		000000000000000000000202 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
-		000000000000000000000203 /* Client.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Client.swift; sourceTree = "<group>"; };
 		000000000000000000000204 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		000000000000000000000205 /* tigertv-cli.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; name = "tigertv-cli.py"; path = "../tigertv-cli.py"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000206 /* AVKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVKit.framework; path = System/Library/Frameworks/AVKit.framework; sourceTree = SDKROOT; };
 		000000000000000000000208 /* PlaybackURLResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackURLResolver.swift; sourceTree = "<group>"; };
 		000000000000000000000209 /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
@@ -42,6 +46,14 @@
 		000000000000000000000214 /* SearchResultCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultCard.swift; sourceTree = "<group>"; };
 		000000000000000000000215 /* EpisodePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpisodePanel.swift; sourceTree = "<group>"; };
 		000000000000000000000216 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		A00000000000000000000100 /* HTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPClient.swift; sourceTree = "<group>"; };
+		A00000000000000000000200 /* ConfigDataSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigDataSource.swift; sourceTree = "<group>"; };
+		A00000000000000000000300 /* MacCMSApiClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCMSApiClient.swift; sourceTree = "<group>"; };
+		A00000000000000000000400 /* SearchHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchHistoryStore.swift; sourceTree = "<group>"; };
+		A00000000000000000000500 /* TigerTVRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TigerTVRepository.swift; sourceTree = "<group>"; };
+		A00000000000000000000600 /* LoadResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadResult.swift; sourceTree = "<group>"; };
+		A00000000000000000000700 /* TigerTVError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TigerTVError.swift; sourceTree = "<group>"; };
+		A00000000000000000000800 /* TigerTVViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TigerTVViewModel.swift; sourceTree = "<group>"; };
 		000000000000000000000300 /* TigerTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TigerTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000301 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		000000000000000000000302 /* TigerTV.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TigerTV.entitlements; sourceTree = "<group>"; };
@@ -71,8 +83,15 @@
 				000000000000000000000214 /* SearchResultCard.swift */,
 				000000000000000000000215 /* EpisodePanel.swift */,
 				000000000000000000000216 /* DesignSystem.swift */,
+				A00000000000000000000800 /* TigerTVViewModel.swift */,
+				A00000000000000000000600 /* LoadResult.swift */,
+				A00000000000000000000700 /* TigerTVError.swift */,
 				000000000000000000000202 /* Models.swift */,
-				000000000000000000000203 /* Client.swift */,
+				A00000000000000000000100 /* HTTPClient.swift */,
+				A00000000000000000000200 /* ConfigDataSource.swift */,
+				A00000000000000000000300 /* MacCMSApiClient.swift */,
+				A00000000000000000000400 /* SearchHistoryStore.swift */,
+				A00000000000000000000500 /* TigerTVRepository.swift */,
 				000000000000000000000208 /* PlaybackURLResolver.swift */,
 				000000000000000000000209 /* PlayerView.swift */,
 				000000000000000000000204 /* Assets.xcassets */,
@@ -93,7 +112,6 @@
 		000000000000000000000402 = {
 			isa = PBXGroup;
 			children = (
-				000000000000000000000205 /* tigertv-cli.py */,
 				000000000000000000000400 /* App */,
 				000000000000000000000401 /* Products */,
 				000000000000000000000206 /* AVKit.framework */,
@@ -159,7 +177,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				000000000000000000000104 /* Assets.xcassets in Resources */,
-				000000000000000000000105 /* tigertv-cli.py in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -179,8 +196,15 @@
 				000000000000000000000114 /* SearchResultCard.swift in Sources */,
 				000000000000000000000115 /* EpisodePanel.swift in Sources */,
 				000000000000000000000116 /* DesignSystem.swift in Sources */,
+				A00000000000000000000801 /* TigerTVViewModel.swift in Sources */,
+				A00000000000000000000601 /* LoadResult.swift in Sources */,
+				A00000000000000000000701 /* TigerTVError.swift in Sources */,
 				000000000000000000000102 /* Models.swift in Sources */,
-				000000000000000000000103 /* Client.swift in Sources */,
+				A00000000000000000000101 /* HTTPClient.swift in Sources */,
+				A00000000000000000000201 /* ConfigDataSource.swift in Sources */,
+				A00000000000000000000301 /* MacCMSApiClient.swift in Sources */,
+				A00000000000000000000401 /* SearchHistoryStore.swift in Sources */,
+				A00000000000000000000501 /* TigerTVRepository.swift in Sources */,
 				000000000000000000000108 /* PlaybackURLResolver.swift in Sources */,
 				000000000000000000000109 /* PlayerView.swift in Sources */,
 			);
@@ -197,7 +221,7 @@
 				CODE_SIGN_ENTITLEMENTS = App/TigerTV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -208,8 +232,9 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 3.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = art.anjing.TigerTV;
+				PRODUCT_MODULE_NAME = TigerTV;
 				PRODUCT_NAME = "小老虎爱看剧";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
@@ -224,7 +249,7 @@
 				CODE_SIGN_ENTITLEMENTS = App/TigerTV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -235,8 +260,9 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 3.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = art.anjing.TigerTV;
+				PRODUCT_MODULE_NAME = TigerTV;
 				PRODUCT_NAME = "小老虎爱看剧";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;

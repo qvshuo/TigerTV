@@ -426,6 +426,30 @@ class TigerTvRequestTests(unittest.TestCase):
             with self.assertRaises(module.RequestError):
                 module.request_vod_list("https://api.test/vod", "test", wd="逐玉")
 
+    def test_request_vod_list_uses_twenty_second_timeout_by_default(self):
+        module = load_module()
+        calls = []
+
+        def fake_make_request(url, timeout=10):
+            calls.append(timeout)
+            return {"code": 1, "list": []}
+
+        with mock.patch.object(module, "make_request", side_effect=fake_make_request):
+            module.request_vod_list("https://api.test/vod", "test", wd="逐玉")
+        self.assertEqual(calls, [20])
+
+    def test_request_vod_list_allows_custom_timeout(self):
+        module = load_module()
+        calls = []
+
+        def fake_make_request(url, timeout=10):
+            calls.append(timeout)
+            return {"code": 1, "list": []}
+
+        with mock.patch.object(module, "make_request", side_effect=fake_make_request):
+            module.request_vod_list("https://api.test/vod", "test", timeout=5, wd="逐玉")
+        self.assertEqual(calls, [5])
+
     def test_clean_domain_basic(self):
         module = load_module()
         self.assertEqual(module.clean_domain("https://www.example.com/path"), "www.example.com")
@@ -496,6 +520,18 @@ class TigerTvM3u8Tests(unittest.TestCase):
         with mock.patch.object(module, "_http_get", return_value=m3u8_content):
             result = module.resolve_m3u8_urls("https://play.test/page", "test")
         self.assertEqual(result, ["https://play.test/page"])
+
+    def test_resolve_mp4_direct_url(self):
+        module = load_module()
+        result = module.resolve_m3u8_urls("https://cdn.test/video.mp4", "test")
+        self.assertEqual(result, ["https://cdn.test/video.mp4"])
+
+    def test_resolve_m3u8_url_decodes_encoded_path(self):
+        module = load_module()
+        html_content = b'<script>var u="https://cdn.test/playlist/index.m3u8?sign=a%2Fb%2Bc%3D";</script>'
+        with mock.patch.object(module, "_http_get", return_value=html_content):
+            result = module.resolve_m3u8_urls("https://play.test/page", "test")
+        self.assertEqual(result, ["https://cdn.test/playlist/index.m3u8?sign=a/b+c="])
 
     def test_fetch_m3u8_domains_collects_master_and_segments(self):
         module = load_module()

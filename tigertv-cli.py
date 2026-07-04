@@ -4,6 +4,8 @@
 命令行入口：tigertv-cli.py <command> [options]
 """
 
+__version__ = "3.0.0"
+
 import argparse
 import datetime
 import json
@@ -268,12 +270,12 @@ def build_api_url(api_url, **params):
     )
 
 
-def request_vod_list(api_url, context, **params):
+def request_vod_list(api_url, context, timeout=20, **params):
     """请求资源站列表接口，返回 list 字段。
 
     API 返回 code!=1 时抛出 RequestError，由调用方决定是否容错。
     """
-    data = make_request(build_api_url(api_url, **params))
+    data = make_request(build_api_url(api_url, **params), timeout=timeout)
     check_response(data, context)
     vod_list = data.get("list")
     if vod_list is None:
@@ -290,7 +292,7 @@ def resolve_m3u8_urls(url, context, timeout=10):
     需要探测内容类型：直接 m3u8 / HTML 中的引用路径 / 跳转页本身。
     """
     parsed = urllib.parse.urlparse(url)
-    if parsed.path.endswith(".m3u8"):
+    if parsed.path.lower().endswith((".m3u8", ".mp4")):
         return [url]
 
     try:
@@ -656,6 +658,12 @@ def main():
   tigertv-cli.py quanx 逐玉
   tigertv-cli.py logs
         """,
+    )
+    main_parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="显示版本号",
     )
     main_parser.add_argument(
         "--source",

@@ -34,15 +34,15 @@ struct SearchResultCard: View {
                     )
             }
 
-            if let remarks = result.vod_remarks, !remarks.isEmpty {
-                Text(remarks)
+            if !result.vodRemarks.isEmpty {
+                Text(result.vodRemarks)
                     .font(.body)
                     .foregroundStyle(.primary.opacity(0.85))
                     .lineLimit(1)
             }
 
-            if let time = result.vod_time, !time.isEmpty {
-                Text(time)
+            if !result.vodTime.isEmpty {
+                Text(result.vodTime)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

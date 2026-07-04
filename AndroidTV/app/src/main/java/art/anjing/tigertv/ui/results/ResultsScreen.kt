@@ -156,9 +156,9 @@ private fun ResultsGrid(
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        result.vodRemarks?.let {
+                        if (result.vodRemarks.isNotEmpty()) {
                             Text(
-                                text = it,
+                                text = result.vodRemarks,
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

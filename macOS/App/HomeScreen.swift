@@ -2,11 +2,13 @@ import SwiftUI
 
 struct HomeScreen: View {
     @Binding var keyword: String
+    let configErrorMessage: String?
     let history: [String]
     let onSearch: () -> Void
     let onSelectHistory: (String) -> Void
     let onDeleteHistory: (String) -> Void
     let onClearHistory: () -> Void
+    let onRetryConfig: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -40,6 +42,23 @@ struct HomeScreen: View {
                 VStack(spacing: AppSpacing.md) {
                     GlassSearchBar(keyword: $keyword, onSearch: onSearch, compact: false)
                         .frame(maxWidth: 560)
+
+                    if let configErrorMessage {
+                        VStack(spacing: AppSpacing.sm) {
+                            Text(configErrorMessage)
+                                .font(.callout)
+                                .foregroundStyle(.red)
+                                .multilineTextAlignment(.center)
+                            Button("重试") {
+                                onRetryConfig()
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .padding(AppSpacing.md)
+                        .glassBackground(radius: AppRadius.md)
+                        .frame(maxWidth: 560)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
 
                     if !history.isEmpty {
                         SearchHistoryView(

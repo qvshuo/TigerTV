@@ -10,7 +10,7 @@ struct EpisodePanel: View {
             VStack(alignment: .leading, spacing: AppSpacing.xs) {
                 Text(response.site)
                     .font(.headline)
-                Text("共 \(response.vod_play_url.count) 集")
+                Text("共 \(response.vodPlayUrl.count) 集")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -21,7 +21,7 @@ struct EpisodePanel: View {
 
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: AppSpacing.sm)], spacing: AppSpacing.sm) {
-                    ForEach(response.vod_play_url) { link in
+                    ForEach(response.vodPlayUrl) { link in
                         EpisodeButton(
                             link: link,
                             isSelected: selectedEpisode?.id == link.id

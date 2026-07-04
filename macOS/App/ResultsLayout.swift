@@ -8,7 +8,6 @@ struct ResultsLayout: View {
     let results: [SearchResult]
     let isSearching: Bool
     let selectedResult: SearchResult?
-    let pendingFetchResult: SearchResult?
     let fetchResponse: FetchResponse?
     let isFetching: Bool
     let player: AVPlayer?
@@ -68,8 +67,8 @@ struct ResultsLayout: View {
                         leftContent
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                        if isFetching, let pendingFetchResult {
-                            EpisodeLoadingPanel(result: pendingFetchResult)
+                        if isFetching, let selectedResult {
+                            EpisodeLoadingPanel(result: selectedResult)
                                 .frame(minWidth: 280, idealWidth: 320, maxWidth: 360)
                                 .overlay(
                                     Rectangle()

@@ -1,0 +1,6 @@
+#EXTM3U
+#EXTINF:10,
+http://cdn.test/seg.ts
+
+A non-.m3u8 play URL may return raw HLS playlist content starting with #EXTM3U.
+All platforms must detect the #EXTM3U prefix and return the original URL.

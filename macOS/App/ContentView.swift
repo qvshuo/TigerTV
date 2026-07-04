@@ -1,49 +1,31 @@
 import SwiftUI
 import AVKit
 
-// MARK: - ContentView
-
 struct ContentView: View {
-    @StateObject private var client = TigerTVClient()
-    @AppStorage("searchHistory") private var searchHistoryData = "[]"
+    @StateObject private var viewModel = TigerTVViewModel()
 
-    @State private var keyword = ""
-    @State private var submittedKeyword = ""
-    @State private var results: [SearchResult] = []
-    @State private var isSearching = false
-    @State private var searchID = UUID()
-    @State private var searchTask: Task<Void, Never>?
-
-    @State private var selectedResult: SearchResult?
-    @State private var pendingFetchResult: SearchResult?
-    @State private var fetchResponse: FetchResponse?
-    @State private var isFetching = false
-    @State private var fetchID = UUID()
-    @State private var fetchTask: Task<Void, Never>?
-
-    @State private var selectedEpisode: EpisodeLink?
-    @State private var player: AVPlayer?
-    @State private var isResolvingPlayback = false
-    @State private var playbackID = UUID()
-    @State private var playbackTask: Task<Void, Never>?
-    @State private var showError = false
     @State private var hasSearched = false
+    @State private var player: AVPlayer?
+    @State private var showError = false
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var searchHistory: [String] {
-        (try? JSONDecoder().decode([String].self, from: Data(searchHistoryData.utf8))) ?? []
+    private var activeErrorMessage: String? {
+        viewModel.searchErrorMessage ?? viewModel.fetchErrorMessage ?? viewModel.playbackErrorMessage
     }
 
     var body: some View {
         ZStack {
             if !hasSearched {
                 HomeScreen(
-                    keyword: $keyword,
-                    history: searchHistory,
+                    keyword: $viewModel.keyword,
+                    configErrorMessage: viewModel.configErrorMessage,
+                    history: viewModel.searchHistory,
                     onSearch: startSearch,
                     onSelectHistory: selectHistory,
-                    onDeleteHistory: deleteHistory,
-                    onClearHistory: clearHistory
+                    onDeleteHistory: viewModel.removeHistory,
+                    onClearHistory: viewModel.clearHistory,
+                    onRetryConfig: viewModel.retryLoadConfig
                 )
                 .transition(.asymmetric(
                     insertion: .opacity.combined(with: .scale(scale: 0.98)),
@@ -51,17 +33,16 @@ struct ContentView: View {
                 ))
             } else {
                 ResultsLayout(
-                    keyword: $keyword,
-                    submittedKeyword: submittedKeyword,
-                    results: results,
-                    isSearching: isSearching,
-                    selectedResult: selectedResult,
-                    pendingFetchResult: pendingFetchResult,
-                    fetchResponse: fetchResponse,
-                    isFetching: isFetching,
+                    keyword: $viewModel.keyword,
+                    submittedKeyword: viewModel.submittedKeyword,
+                    results: viewModel.results,
+                    isSearching: viewModel.isSearching,
+                    selectedResult: viewModel.selectedResult,
+                    fetchResponse: viewModel.fetchResponse,
+                    isFetching: viewModel.isFetching,
                     player: player,
-                    selectedEpisode: selectedEpisode,
-                    isResolvingPlayback: isResolvingPlayback,
+                    selectedEpisode: viewModel.selectedEpisode,
+                    isResolvingPlayback: viewModel.isResolvingPlayback,
                     onBack: goBack,
                     onSearch: startSearch,
                     onSelectResult: selectResult,
@@ -74,206 +55,66 @@ struct ContentView: View {
             }
         }
         .animation(reduceMotion ? nil : AppMotion.page, value: hasSearched)
-        .environmentObject(client)
         .alert("错误", isPresented: $showError, actions: {
-            Button("确定") { client.errorMessage = nil }
+            Button("确定") {
+                viewModel.clearActiveError()
+            }
         }, message: {
-            Text(client.errorMessage ?? "未知错误")
+            Text(activeErrorMessage ?? "未知错误")
         })
-        .onChange(of: client.errorMessage) { _, newValue in
+        .onChange(of: activeErrorMessage) { _, newValue in
             showError = newValue != nil
+        }
+        .onChange(of: viewModel.resolvedPlaybackUrl) { _, url in
+            guard let url, let playbackURL = URL(string: url) else { return }
+            player?.pause()
+            let newPlayer = AVPlayer(url: playbackURL)
+            player = newPlayer
+            newPlayer.play()
         }
     }
 
     private func startSearch() {
-        let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = viewModel.keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-
         hasSearched = true
-        addHistory(trimmed)
-        submittedKeyword = trimmed
-        searchTask?.cancel()
-        fetchTask?.cancel()
-        playbackTask?.cancel()
-        searchID = UUID()
-        fetchID = UUID()
-        let currentSearchID = searchID
-
         player?.pause()
-        playbackID = UUID()
         player = nil
-        selectedEpisode = nil
-        fetchResponse = nil
-        pendingFetchResult = nil
-        selectedResult = nil
-        results = []
-        isSearching = true
-
-        searchTask = Task {
-            do {
-                let response = try await client.search(keyword: trimmed)
-                await MainActor.run {
-                    guard currentSearchID == searchID else { return }
-                    results = response
-                    isSearching = false
-                }
-            } catch is CancellationError {
-                await MainActor.run {
-                    guard currentSearchID == searchID else { return }
-                    isSearching = false
-                }
-            } catch {
-                await MainActor.run {
-                    guard currentSearchID == searchID else { return }
-                    isSearching = false
-                    client.errorMessage = error.localizedDescription
-                }
-            }
-        }
+        viewModel.search()
     }
 
     private func selectHistory(_ item: String) {
-        keyword = item
+        viewModel.keyword = item
         startSearch()
     }
 
-    private func addHistory(_ item: String) {
-        var history = searchHistory.filter { $0 != item }
-        history.insert(item, at: 0)
-        history = Array(history.prefix(20))
-        saveHistory(history)
-    }
-
-    private func deleteHistory(_ item: String) {
-        saveHistory(searchHistory.filter { $0 != item })
-    }
-
-    private func clearHistory() {
-        saveHistory([])
-    }
-
-    private func saveHistory(_ history: [String]) {
-        if let data = try? JSONEncoder().encode(history), let text = String(data: data, encoding: .utf8) {
-            searchHistoryData = text
-        }
-    }
-
     private func selectResult(_ result: SearchResult) {
-        if selectedResult?.id == result.id, fetchResponse?.id == result.id || pendingFetchResult?.id == result.id {
-            return
-        }
-
-        fetchTask?.cancel()
-        playbackTask?.cancel()
-        selectedResult = result
-        pendingFetchResult = result
-        fetchResponse = nil
-        fetchID = UUID()
-        let currentFetchID = fetchID
-        isFetching = true
-
         player?.pause()
-        playbackID = UUID()
         player = nil
-        selectedEpisode = nil
-        isResolvingPlayback = false
-
-        fetchTask = Task {
-            do {
-                let response = try await client.fetch(site: result.site, vodID: result.vod_id)
-                await MainActor.run {
-                    guard currentFetchID == fetchID else { return }
-                    fetchResponse = response
-                    pendingFetchResult = nil
-                    isFetching = false
-                }
-            } catch is CancellationError {
-                await MainActor.run {
-                    guard currentFetchID == fetchID else { return }
-                    pendingFetchResult = nil
-                    isFetching = false
-                }
-            } catch {
-                await MainActor.run {
-                    guard currentFetchID == fetchID else { return }
-                    fetchResponse = nil
-                    pendingFetchResult = nil
-                    isFetching = false
-                    client.errorMessage = error.localizedDescription
-                }
-            }
-        }
+        viewModel.selectResult(result)
     }
 
     private func selectEpisode(_ episode: EpisodeLink) {
-        playbackTask?.cancel()
-        selectedEpisode = episode
         player?.pause()
         player = nil
-        isResolvingPlayback = true
-        playbackID = UUID()
-        let currentPlaybackID = playbackID
-
-        playbackTask = Task {
-            do {
-                let url = try await PlaybackURLResolver().resolve(from: episode.url)
-                let newPlayer = AVPlayer(url: url)
-                await MainActor.run {
-                    guard currentPlaybackID == playbackID else { return }
-                    player = newPlayer
-                    isResolvingPlayback = false
-                    newPlayer.play()
-                }
-            } catch is CancellationError {
-                await MainActor.run {
-                    guard currentPlaybackID == playbackID else { return }
-                    isResolvingPlayback = false
-                }
-            } catch {
-                await MainActor.run {
-                    guard currentPlaybackID == playbackID else { return }
-                    isResolvingPlayback = false
-                    client.errorMessage = error.localizedDescription
-                }
-            }
-        }
+        viewModel.selectEpisode(episode)
     }
 
     private func goBack() {
-        if player != nil || selectedEpisode != nil || isResolvingPlayback {
-            playbackTask?.cancel()
+        if player != nil || viewModel.selectedEpisode != nil || viewModel.isResolvingPlayback {
+            viewModel.clearPlayback()
             player?.pause()
-            playbackID = UUID()
             player = nil
-            selectedEpisode = nil
-            isResolvingPlayback = false
             return
         }
 
-        if selectedResult != nil || fetchResponse != nil || pendingFetchResult != nil {
-            fetchTask?.cancel()
-            playbackTask?.cancel()
-            fetchID = UUID()
-            selectedResult = nil
-            pendingFetchResult = nil
-            fetchResponse = nil
-            isFetching = false
-            playbackID = UUID()
+        if viewModel.selectedResult != nil || viewModel.fetchResponse != nil || viewModel.isFetching {
+            viewModel.clearFetch()
             return
         }
 
-        if !results.isEmpty || isSearching {
-            searchTask?.cancel()
-            fetchTask?.cancel()
-            playbackTask?.cancel()
-            searchID = UUID()
-            fetchID = UUID()
-            playbackID = UUID()
-            isSearching = false
-            isFetching = false
-            isResolvingPlayback = false
-            results = []
-            submittedKeyword = ""
+        if !viewModel.results.isEmpty || viewModel.isSearching {
+            viewModel.clearResults()
             hasSearched = false
             return
         }
