@@ -4,14 +4,14 @@
 
 # 小老虎爱看剧（TigerTV）
 
-跨平台影视搜索与播放工具，包含 macOS 应用、Android TV 应用，以及命令行工具 `tigertv-cli.py` 和 Agent 可用的 `skill/SKILL.md`。
+跨平台影视搜索与播放工具，包含 macOS 应用、Android TV 应用，以及命令行工具 `tigertv-cli.py` 和 Agent 可用的 `skills/SKILL.md`。
 
 ## 特性
 
 - **macOS 应用**：聚合多个资源站，支持搜索与播放剧集
 - **Android TV 应用**：为电视遥控器优化的搜索、选集与播放体验
-- **命令行工具（CLI）**：搜索影视资源、获取播放/下载链接、生成 Quantumult X 规则、查看日志
-- **Agent Skill**：基于 CLI 封装影视搜索、链接获取和规则生成，并提供下载流程建议
+- **命令行工具（CLI）**：搜索影视资源、获取播放/下载链接、生成 Quantumult X 直连规则、查看日志
+- **Agent Skill**：基于 CLI 封装影视搜索、链接获取和 QX 直连规则生成，并提供下载流程建议
 
 ## 截图
 
@@ -53,7 +53,7 @@
 
 ### macOS 应用
 
-1. 从 Releases 下载 `TigerTV-macOS-arm64-<version>.zip`
+1. 从 [Releases](https://github.com/qvshuo/TigerTV/releases) 下载 `TigerTV-macOS-arm64-<version>.zip`
 2. 解压并拖入「应用程序」文件夹  
 
 首次启动前执行：
@@ -66,7 +66,7 @@ xattr -cr "/Applications/小老虎爱看剧.app"
 
 ### Android TV 应用
 
-1. 从 Releases 下载 `TigerTV-AndroidTV-universal-<version>.apk`
+1. 从 [Releases](https://github.com/qvshuo/TigerTV/releases) 下载 `TigerTV-AndroidTV-universal-<version>.apk`
 2. 安装到 Android TV 设备
 
 **系统要求：** Android 6.0+（API 23+）
@@ -76,7 +76,7 @@ xattr -cr "/Applications/小老虎爱看剧.app"
 一键安装：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/skill/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/skills/scripts/install.sh | bash
 ```
 
 安装脚本不会修改 PATH；如 `~/.local/bin` 尚未加入 PATH，可手动配置：

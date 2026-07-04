@@ -20,7 +20,7 @@ triggers:
 首次使用，或当前环境中不存在 `tigertv-cli.py` 命令时：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/skill/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/skills/scripts/install.sh | bash
 ```
 
 搜索、获取链接和生成规则只依赖 `tigertv-cli.py`；下载剧集时，还需要 `yt-dlp` 和 `ffmpeg`。
