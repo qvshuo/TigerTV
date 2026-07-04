@@ -1,6 +1,10 @@
 package art.anjing.tigertv
 
+import android.util.Log
 import art.anjing.tigertv.data.MacCMSApiClient
+import io.mockk.every
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -20,11 +24,14 @@ class MacCMSApiClientTest {
         server = MockWebServer()
         server.start()
         client = MacCMSApiClient()
+        mockkStatic(Log::class)
+        every { Log.w(any<String>(), any<String>(), any()) } returns 0
     }
 
     @After
     fun tearDown() {
         server.shutdown()
+        unmockkStatic(Log::class)
     }
 
     @Test
