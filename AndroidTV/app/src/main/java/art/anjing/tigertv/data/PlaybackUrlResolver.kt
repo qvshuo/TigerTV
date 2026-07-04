@@ -6,6 +6,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
 import java.net.URL
+import java.net.URLDecoder
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
@@ -35,20 +36,32 @@ class PlaybackUrlResolver(
                 response.body?.string() ?: throw IOException("Empty body")
             }
 
+        if (html.trimStart().startsWith("#EXTM3U", ignoreCase = true)) {
+            return@withContext urlString
+        }
+
         val decoded = html.replace("\\/", "/")
 
         val absoluteMatcher = ABSOLUTE_M3U8.matcher(decoded)
         if (absoluteMatcher.find()) {
-            return@withContext absoluteMatcher.group(1)!!
+            return@withContext absoluteMatcher.group(1)!!.percentDecode()
         }
 
         val relativeMatcher = RELATIVE_M3U8.matcher(decoded)
         if (relativeMatcher.find()) {
-            val relative = relativeMatcher.group(1)!!
+            val relative = relativeMatcher.group(1)!!.percentDecode()
             return@withContext URL(url, relative).toString()
         }
 
         throw IOException("No m3u8 URL found")
+    }
+
+    private fun String.percentDecode(): String {
+        return try {
+            URLDecoder.decode(this, "UTF-8")
+        } catch (e: IllegalArgumentException) {
+            this
+        }
     }
 
     companion object {

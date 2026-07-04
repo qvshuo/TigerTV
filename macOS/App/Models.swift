@@ -1,58 +1,85 @@
 import Foundation
 
-enum TigerTVError: Error, LocalizedError {
-    case cliNotFound
-    case pythonNotFound
-    case invalidOutput
-    case cliError(String)
-    case commandTimeout(String)
-    case playbackResolutionFailed
+struct SourceConfig: Codable, Sendable {
+    let cacheTime: Int?
+    let apiSite: [String: SourceSite]
 
-    var errorDescription: String? {
-        switch self {
-        case .cliNotFound:
-            return "未找到 tigertv-cli.py"
-        case .pythonNotFound:
-            return "未找到 Python 3 运行时"
-        case .invalidOutput:
-            return "CLI 返回了无效数据"
-        case .cliError(let msg):
-            return msg
-        case .commandTimeout(let command):
-            return "\(command) 超时，请稍后重试或换个关键词"
-        case .playbackResolutionFailed:
-            return "无法解析播放地址"
-        }
+    enum CodingKeys: String, CodingKey {
+        case cacheTime = "cache_time"
+        case apiSite = "api_site"
     }
 }
 
-struct SearchResponse: Codable {
+struct SourceSite: Codable, Sendable {
+    let name: String
+    let api: String
+    let detail: String?
+    let comment: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name, api, detail
+        case comment = "_comment"
+    }
+}
+
+struct SearchResponse: Codable, Sendable {
     let keyword: String
     let results: [SearchResult]
 }
 
-struct SearchResult: Codable, Identifiable, Hashable {
+struct SearchResult: Codable, Identifiable, Hashable, Sendable {
     let site: String
-    let vod_id: Int
-    let vod_name: String
-    let vod_time: String?
-    let vod_remarks: String?
+    let vodId: Int
+    let vodName: String
+    let vodTime: String
+    let vodRemarks: String
 
-    var id: String { "\(site)-\(vod_id)" }
+    var id: String { "\(site)-\(vodId)" }
+    var displayTitle: String { vodName }
 
-    var displayTitle: String { vod_name }
+    enum CodingKeys: String, CodingKey {
+        case site
+        case vodId = "vod_id"
+        case vodName = "vod_name"
+        case vodTime = "vod_time"
+        case vodRemarks = "vod_remarks"
+    }
+
+    init(site: String, vodId: Int, vodName: String, vodTime: String = "", vodRemarks: String = "") {
+        self.site = site
+        self.vodId = vodId
+        self.vodName = vodName
+        self.vodTime = vodTime
+        self.vodRemarks = vodRemarks
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        site = try container.decode(String.self, forKey: .site)
+        vodId = try container.decode(Int.self, forKey: .vodId)
+        vodName = try container.decode(String.self, forKey: .vodName)
+        vodTime = try container.decodeIfPresent(String.self, forKey: .vodTime) ?? ""
+        vodRemarks = try container.decodeIfPresent(String.self, forKey: .vodRemarks) ?? ""
+    }
 }
 
-struct FetchResponse: Codable, Identifiable, Hashable {
-    let vod_id: Int
+struct FetchResponse: Codable, Identifiable, Hashable, Sendable {
+    let vodId: Int
     let site: String
-    let vod_play_url: [EpisodeLink]
-    let vod_down_url: [EpisodeLink]
+    let vodPlayUrl: [EpisodeLink]
+    let vodDownUrl: [EpisodeLink]
 
-    var id: String { "\(site)-\(vod_id)" }
+    var id: String { "\(site)-\(vodId)" }
+
+    enum CodingKeys: String, CodingKey {
+        case vodId = "vod_id"
+        case site
+        case vodPlayUrl = "vod_play_url"
+        case vodDownUrl = "vod_down_url"
+    }
 }
 
-struct EpisodeLink: Codable, Identifiable, Hashable {
+struct EpisodeLink: Codable, Identifiable, Hashable, Sendable {
     let name: String
     let url: String
 

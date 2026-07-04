@@ -74,7 +74,7 @@ class PlaybackUrlResolverTest {
     }
 
     @Test
-    fun `signed url with encoded characters stays intact`() = runBlocking {
+    fun `encoded characters in url are decoded`() = runBlocking {
         val html = """
             <script>
               var src = "https://cdn.example.com/playlist/index.m3u8?sign=a%2Fb%2Bc%3D";
@@ -82,6 +82,21 @@ class PlaybackUrlResolverTest {
         """.trimIndent()
         server.enqueue(MockResponse().setBody(html))
         val result = resolver.resolve(server.url("/player.html").toString())
-        assertEquals("https://cdn.example.com/playlist/index.m3u8?sign=a%2Fb%2Bc%3D", result)
+        assertEquals("https://cdn.example.com/playlist/index.m3u8?sign=a/b+c=", result)
+    }
+
+    @Test
+    fun `direct mp4 returns itself`() = runBlocking {
+        val url = "https://cdn.example.com/video.mp4"
+        assertEquals(url, resolver.resolve(url))
+    }
+
+    @Test
+    fun `raw m3u8 content returned from non m3u8 url`() = runBlocking {
+        val content = "#EXTM3U\n#EXTINF:10,\nhttp://cdn.test/seg.ts\n"
+        server.enqueue(MockResponse().setBody(content))
+        val requestUrl = server.url("/play.php?id=1").toString()
+        val result = resolver.resolve(requestUrl)
+        assertEquals(requestUrl, result)
     }
 }

@@ -19,7 +19,7 @@ class MacCMSApiClient(
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
     suspend fun search(siteName: String, api: String, keyword: String): List<SearchResult> {
-        val url = buildUrl(api, mapOf("ac" to "list", "wd" to keyword))
+        val url = buildUrl(api, mapOf("ac" to "list", "wd" to keyword, "pagesize" to "100"))
         return withContext(Dispatchers.IO) {
             try {
                 val response = executeGet(url)
@@ -91,8 +91,8 @@ data class MacCMSListResponse(
 data class MacCMSListItem(
     @SerialName("vod_id") val vodId: Int = 0,
     @SerialName("vod_name") val vodName: String = "",
-    @SerialName("vod_time") val vodTime: String? = null,
-    @SerialName("vod_remarks") val vodRemarks: String? = null
+    @SerialName("vod_time") val vodTime: String = "",
+    @SerialName("vod_remarks") val vodRemarks: String = ""
 )
 
 @Serializable
