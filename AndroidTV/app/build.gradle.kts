@@ -12,8 +12,8 @@ android {
         applicationId = "art.anjing.tigertv"
         minSdk = 23
         targetSdk = 37
-        versionCode = 5
-        versionName = "3.1.0"
+        versionCode = 6
+        versionName = "3.1.1"
 
         // Include both 32-bit (TV) and 64-bit (modern devices/emulators) ABIs.
         ndk {
@@ -22,25 +22,19 @@ android {
     }
 
     signingConfigs {
-        if (System.getenv("CI_RELEASE_STORE_FILE") != null) {
-            create("release") {
-                storeFile = file(System.getenv("CI_RELEASE_STORE_FILE")!!)
-                storePassword = System.getenv("CI_RELEASE_STORE_PASSWORD")!!
-                keyAlias = System.getenv("CI_RELEASE_KEY_ALIAS")!!
-                keyPassword = System.getenv("CI_RELEASE_KEY_PASSWORD")!!
-            }
+        create("release") {
+            storeFile = file(System.getenv("CI_RELEASE_STORE_FILE") ?: "")
+            storePassword = System.getenv("CI_RELEASE_STORE_PASSWORD")
+            keyAlias = System.getenv("CI_RELEASE_KEY_ALIAS")
+            keyPassword = System.getenv("CI_RELEASE_KEY_PASSWORD")
         }
     }
 
     buildTypes {
-        release {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-            signingConfig = signingConfigs.findByName("release")
-                ?: signingConfigs.getByName("debug")
+            isShrinkResources = false
         }
     }
 

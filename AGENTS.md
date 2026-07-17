@@ -133,7 +133,7 @@ CI uses `xcodebuild -project macOS/TigerTV.xcodeproj ... -configuration Release 
 
 Native Android TV app implemented in Kotlin with Jetpack Compose for TV, Material 3, and Media3 ExoPlayer. It replicates the CLI search/fetch/playback-resolution logic in Kotlin so both platforms share the same output contract and config behavior. The authoritative business rules live in `tigertv-cli.py`; Android mirrors them using the shared API contract in `shared/api-contract/`.
 
-Current version: `3.0.0` (`versionCode 4`). Release APKs are universal and include both `armeabi-v7a` (for broad Android TV compatibility) and `arm64-v8a` (for modern devices and arm64 emulators).
+Current version: `3.1.1` (`versionCode 6`). Release APKs are universal and include both `armeabi-v7a` (for broad Android TV compatibility) and `arm64-v8a` (for modern devices and arm64 emulators).
 
 ### Build
 
