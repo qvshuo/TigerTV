@@ -13,5 +13,6 @@
     <string name="error_playback">无法解析播放地址</string>
     <string name="retry">重试</string>
     <string name="retry_load_config">重新加载配置</string>
+    <string name="next_episode">下一集</string>
     <string name="back">返回</string>
 </resources>

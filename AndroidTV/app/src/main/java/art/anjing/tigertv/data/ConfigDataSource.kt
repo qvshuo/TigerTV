@@ -3,6 +3,7 @@ package art.anjing.tigertv.data
 import android.content.Context
 import android.util.Log
 import art.anjing.tigertv.domain.SourceConfig
+import art.anjing.tigertv.domain.SourceSite
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -10,6 +11,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.CancellationException
 import java.util.concurrent.TimeUnit
 
 class ConfigDataSource(
@@ -25,10 +27,14 @@ class ConfigDataSource(
         cdnUrl: String = CONFIG_CDN_URL,
         ttlMillis: Long = TimeUnit.DAYS.toMillis(1)
     ): Result<SourceConfig> = withContext(Dispatchers.IO) {
+        // fetchError 用局部变量收集，避免跨调用复用同一可变字段带来的可见性问题。
+        var fetchError: String? = null
+        val onError: (String) -> Unit = { fetchError = it }
         try {
-            lastFetchError = null
-
             val cached = readCache()
+
+            // 读取时再过滤：缓存保留原始完整配置（含 _comment 站点），与 CLI 行为一致，
+            // 过滤规则变更后无需等缓存过期即可生效。
             if (cached != null && isCacheFresh(ttlMillis)) {
                 val filtered = filterConfigSafe(cached)
                 if (filtered != null) {
@@ -37,14 +43,17 @@ class ConfigDataSource(
                 }
             }
 
-            // Remote refresh priority: CDN first, then GitHub RAW
-            val remote = tryRemote(cdnUrl, timeoutMs = 10_000)
-                ?: tryRemote(primaryUrl, timeoutMs = 5_000)
+            // Remote refresh priority: CDN first, then GitHub RAW；成功后缓存原始（未过滤）配置。
+            val remoteRaw = fetchRemoteRaw(cdnUrl, 10_000L, onError)
+                ?: fetchRemoteRaw(primaryUrl, 5_000L, onError)
 
-            if (remote != null) {
+            if (remoteRaw != null) {
                 Log.i(TAG, "Using remote config")
-                writeCache(remote)
-                return@withContext Result.Success(remote)
+                writeCache(remoteRaw)
+                val filtered = filterConfigSafe(remoteRaw)
+                if (filtered != null) {
+                    return@withContext Result.Success(filtered)
+                }
             }
 
             if (cached != null) {
@@ -55,8 +64,11 @@ class ConfigDataSource(
                 }
             }
 
-            val details = lastFetchError ?: "CDN and RAW config fetch failed or unusable, no cache"
+            val details = fetchError ?: "CDN and RAW config fetch failed or unusable, no cache"
             return@withContext Result.Error(IOException("Config unavailable: $details"))
+        } catch (e: CancellationException) {
+            // 结构化取消必须重抛，否则 ViewModel.cancel 无法中断子 job。
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load config", e)
             Result.Error(e)
@@ -75,8 +87,12 @@ class ConfigDataSource(
 
     private fun writeCache(config: SourceConfig) {
         try {
-            cacheFile.writeText(json.encodeToString(SourceConfig.serializer(), config))
-            File(context.cacheDir, "tigertv-config-cache.timestamp").writeText(System.currentTimeMillis().toString())
+            // 原子写：先写 tmp 再 rename，避免中断留下半截 JSON。
+            val tmp = File(cacheFile.parentFile, "${cacheFile.name}.tmp")
+            tmp.writeText(json.encodeToString(SourceConfig.serializer(), config))
+            tmp.renameTo(cacheFile)
+            File(context.cacheDir, "tigertv-config-cache.timestamp")
+                .writeText(System.currentTimeMillis().toString())
         } catch (e: Exception) {
             Log.w(TAG, "Failed to write cache", e)
         }
@@ -93,9 +109,8 @@ class ConfigDataSource(
         }
     }
 
-    private var lastFetchError: String? = null
-
-    private fun fetchRemote(url: String, timeoutMs: Long): SourceConfig? {
+    /** 获取远程原始（未过滤）配置。 */
+    private fun fetchRemoteRaw(url: String, timeoutMs: Long, onError: (String) -> Unit): SourceConfig? {
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", USER_AGENT)
@@ -103,43 +118,51 @@ class ConfigDataSource(
         val callClient = client.newBuilder()
             .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
             .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+            .writeTimeout(timeoutMs, TimeUnit.MILLISECONDS)
             .build()
         return try {
             callClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    lastFetchError = "$url returned HTTP ${response.code}"
-                    Log.w(TAG, lastFetchError!!)
+                    onError("$url returned HTTP ${response.code}")
                     return null
                 }
-                val body = response.body?.string() ?: run {
-                    lastFetchError = "$url returned empty body"
-                    Log.w(TAG, lastFetchError!!)
+                val body = response.body ?: run {
+                    onError("$url returned empty body")
                     return null
                 }
-                json.decodeFromString(SourceConfig.serializer(), body)
+                // 10MB 上限：request(MAX+1) 读到上限或 EOF 即停；
+                // 返回 true 说明响应 > MAX 直接拒绝，否则 buffer 即完整 body。
+                val source = body.source()
+                if (source.request((MAX_RESPONSE_SIZE + 1).toLong())) {
+                    onError("$url response exceeds 10MB limit")
+                    return null
+                }
+                val text = String(source.readByteArray(source.buffer.size), body.contentType()?.charset() ?: Charsets.UTF_8)
+                json.decodeFromString(SourceConfig.serializer(), text)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            lastFetchError = "$url failed: ${e.javaClass.simpleName}: ${e.message}"
-            Log.w(TAG, lastFetchError!!)
+            onError("$url failed: ${e.javaClass.simpleName}: ${e.message}")
             null
         }
     }
 
+    /**
+     * 过滤：name 含 🎬、无 _comment、api 非空（与 CLI `if api and "🎬" in name and "_comment" not in value` 一致）。
+     * 去重：按 api URL 去重（与 CLI `api_name_map[api] = name` 一致）。
+     */
     private fun filterConfigSafe(config: SourceConfig): SourceConfig? {
-        val filtered = config.apiSite.filterValues { site ->
-            site.name.contains(MOVIE_EMOJI) && site.comment == null
+        val seenApi = mutableSetOf<String>()
+        val filtered = LinkedHashMap<String, SourceSite>()
+        for (site in config.apiSite.values) {
+            if (site.api.isEmpty()) continue
+            if (!site.name.contains(MOVIE_EMOJI)) continue
+            if (site.comment != null) continue
+            if (!seenApi.add(site.api)) continue
+            filtered[site.api] = site
         }
-        return if (filtered.isEmpty()) null else config.copy(apiSite = filtered)
-    }
-
-    private fun tryRemote(url: String, timeoutMs: Long): SourceConfig? {
-        val raw = fetchRemote(url, timeoutMs) ?: return null
-        val filtered = filterConfigSafe(raw)
-        if (filtered == null) {
-            lastFetchError = "$url has no usable sites"
-            Log.w(TAG, lastFetchError!!)
-        }
-        return filtered
+        return if (filtered.isEmpty()) null else SourceConfig(config.cacheTime, filtered)
     }
 
     companion object {
@@ -147,7 +170,8 @@ class ConfigDataSource(
         private const val MOVIE_EMOJI = "🎬"
         private const val CONFIG_URL = "https://raw.githubusercontent.com/qvshuo/TigerTV/refs/heads/main/skills/references/LunaTV-config.json"
         private const val CONFIG_CDN_URL = "https://cdn.jsdelivr.net/gh/qvshuo/TigerTV@main/skills/references/LunaTV-config.json"
-        private const val USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
+        private const val USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15"
+        private const val MAX_RESPONSE_SIZE = 10 * 1024 * 1024  // 10MB
 
         fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)

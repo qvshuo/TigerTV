@@ -54,10 +54,41 @@ actor MacCMSApiClient {
     }
 }
 
+/// 宽松 Int 解码：容忍 int / float / 数字字符串，与 CLI `int(code)` / `int(vod_id)` 及 Android `LenientIntSerializer` 对齐。
+///
+/// 背景：部分 MacCMS 站返回 `"vod_id":"136872"`（字符串）或 `"code":1.0`（浮点）。
+/// 严格 `decode(Int.self)` 会失败并导致整站搜索结果被丢弃。
+private extension KeyedDecodingContainer {
+    func decodeLenientInt(forKey key: Key) -> Int {
+        if let value = try? decode(Int.self, forKey: key) {
+            return value
+        }
+        if let value = try? decode(Double.self, forKey: key) {
+            return Int(value)
+        }
+        if let value = try? decode(String.self, forKey: key) {
+            if let intValue = Int(value) { return intValue }
+            if let doubleValue = Double(value) { return Int(doubleValue) }
+        }
+        return 0
+    }
+}
+
 struct MacCMSListResponse: Codable, Sendable {
     let code: Int
     let msg: String?
     let list: [MacCMSListItem]
+
+    enum CodingKeys: String, CodingKey {
+        case code, msg, list
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = container.decodeLenientInt(forKey: .code)
+        msg = try container.decodeIfPresent(String.self, forKey: .msg)
+        list = try container.decodeIfPresent([MacCMSListItem].self, forKey: .list) ?? []
+    }
 }
 
 struct MacCMSListItem: Codable, Sendable {
@@ -75,8 +106,8 @@ struct MacCMSListItem: Codable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        vodId = try container.decode(Int.self, forKey: .vodId)
-        vodName = try container.decode(String.self, forKey: .vodName)
+        vodId = container.decodeLenientInt(forKey: .vodId)
+        vodName = try container.decodeIfPresent(String.self, forKey: .vodName) ?? ""
         vodTime = try container.decodeIfPresent(String.self, forKey: .vodTime) ?? ""
         vodRemarks = try container.decodeIfPresent(String.self, forKey: .vodRemarks) ?? ""
     }
@@ -86,6 +117,17 @@ struct MacCMSDetailResponse: Codable, Sendable {
     let code: Int
     let msg: String?
     let list: [MacCMSDetailItem]
+
+    enum CodingKeys: String, CodingKey {
+        case code, msg, list
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = container.decodeLenientInt(forKey: .code)
+        msg = try container.decodeIfPresent(String.self, forKey: .msg)
+        list = try container.decodeIfPresent([MacCMSDetailItem].self, forKey: .list) ?? []
+    }
 }
 
 struct MacCMSDetailItem: Codable, Sendable {
@@ -99,5 +141,13 @@ struct MacCMSDetailItem: Codable, Sendable {
         case vodName = "vod_name"
         case vodPlayUrl = "vod_play_url"
         case vodDownUrl = "vod_down_url"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        vodId = container.decodeLenientInt(forKey: .vodId)
+        vodName = try container.decodeIfPresent(String.self, forKey: .vodName)
+        vodPlayUrl = try container.decodeIfPresent(String.self, forKey: .vodPlayUrl)
+        vodDownUrl = try container.decodeIfPresent(String.self, forKey: .vodDownUrl)
     }
 }

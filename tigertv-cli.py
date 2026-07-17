@@ -14,7 +14,7 @@ import re
 import sys
 import urllib.parse
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 
 # ============== 基础配置 ==============
@@ -58,16 +58,20 @@ def _log(level, context, message):
 
     格式：YYYY-MM-DD HH:MM:SS [LEVEL] [site_name]: message
     所有输出到 stdout 的命令均不应混入日志，避免破坏 JSON/纯文本管道解析。
+    日志写入失败静默处理：诊断信息不应反过来破坏主流程。
     """
     global _log_write_count
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"{timestamp} [{level}] [{context}]: {message}\n"
-    with _log_lock:
-        _log_write_count += 1
-        if _log_write_count % _LOG_TRIM_INTERVAL == 0:
-            _trim_log_file()
-        with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(line)
+    try:
+        with _log_lock:
+            _log_write_count += 1
+            if _log_write_count % _LOG_TRIM_INTERVAL == 0:
+                _trim_log_file()
+            with open(LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(line)
+    except Exception:
+        pass
 
 
 def _trim_log_file():
@@ -125,7 +129,7 @@ def make_request(url, timeout=10):
     """
     try:
         content = _http_get(url, timeout)
-        data = json.loads(content.decode("utf-8"))
+        data = json.loads(content.decode("utf-8", errors="replace"))
     except RequestError:
         raise
     except Exception as e:
@@ -177,14 +181,20 @@ def _load_cached_config(check_ttl=True):
 
 
 def _save_config_cache(config):
-    """将配置写入缓存文件。失败静默处理：不影响主流程。"""
+    """将配置写入缓存文件。失败静默处理：不影响主流程。
+
+    原子写入（temp + os.replace）：避免中断后留下半截 JSON，
+    也减少并发 CLI 调用之间的竞态窗口。
+    """
     try:
         payload = {
             "fetched_at": datetime.datetime.now().isoformat(),
             "config": config,
         }
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+        tmp = f"{CACHE_FILE}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, CACHE_FILE)
     except Exception:
         pass
 
@@ -239,11 +249,20 @@ def load_config(source=None):
 
 
 def check_response(data, context=""):
-    """校验 API code，非 1 时抛出 RequestError。"""
+    """校验 API code，非 1 时抛出 RequestError。
+
+    code 容忍字符串/浮点形式（"1"、"1.0"）：部分 MacCMS 部署以非 int 返回 code。
+    """
     code = data.get("code") if isinstance(data, dict) else None
-    if code is not None and code != 1:
-        msg = data.get("msg", "未知错误")
-        raise RequestError(f"API 返回 code={code}, {msg}")
+    if code is not None:
+        try:
+            normalized = int(code)
+        except (ValueError, TypeError):
+            normalized = None
+        if normalized != 1:
+            msg = data.get("msg", "未知错误")
+            prefix = f"[{context}] " if context else ""
+            raise RequestError(f"{prefix}API 返回 code={code}, {msg}")
     return data
 
 
@@ -282,6 +301,8 @@ def request_vod_list(api_url, context, timeout=20, **params):
         vod_list = []
     if not isinstance(vod_list, list):
         raise RequestError("API 返回的 list 字段不是数组")
+    if not all(isinstance(v, dict) for v in vod_list):
+        raise RequestError("API 返回的 list 元素不是对象")
     return vod_list
 
 
@@ -471,7 +492,9 @@ def fetch_m3u8_domains(m3u8_url, context, timeout=10, depth=0, cache=None, cache
         return cached
 
     if depth > 2:
-        return _cache_m3u8_domains(cache, cache_lock, m3u8_url, set())
+        # 深度截断结果不写入缓存：避免某 URL 在深层被缓存为空 set 后，
+        # 再以顶层 master 出现时被误命中（缓存键仅按 URL），导致 CDN 域名静默丢失。
+        return set()
 
     domains = {clean_domain(m3u8_url)}
     try:
@@ -504,7 +527,7 @@ def fetch_m3u8_domains(m3u8_url, context, timeout=10, depth=0, cache=None, cache
                 if not line:
                     continue
                 if line.startswith("#"):
-                    if line.startswith("#EXT-X-KEY"):
+                    if line.startswith("#EXT-X-KEY") or line.startswith("#EXT-X-MEDIA"):
                         match = re.search(r'URI=["\']?([^,"\']+)', line)
                         if match:
                             key_url = urllib.parse.urljoin(m3u8_url, match.group(1))
@@ -584,14 +607,9 @@ def cmd_quanx(args, api_name_map):
 
     max_workers = min(len(api_urls), 20)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(process_api, url): url for url in api_urls}
-        for future in as_completed(futures):
-            try:
-                url_d, m3u8_d = future.result()
-                url_domains.update(url_d)
-                m3u8_domains.update(m3u8_d)
-            except Exception as e:
-                _log("WARN", "quanx", f"future 结果处理失败 - {e}")
+        for url_d, m3u8_d in executor.map(process_api, api_urls):
+            url_domains.update(url_d)
+            m3u8_domains.update(m3u8_d)
 
     print_quanx_result(api_domains, url_domains, m3u8_domains)
 
@@ -704,9 +722,20 @@ def main():
             "quanx": cmd_quanx,
         }
         handler = dispatch.get(args.command)
-        if handler:
-            handler(args, api_name_map)
+        if handler is None:
+            raise FetchError(f"未知命令: {args.command}")
+        handler(args, api_name_map)
     except (ConfigError, FetchError, RequestError) as e:
+        exit_with_error(e)
+    except BrokenPipeError:
+        # 下游管道早闭（如 `... | head`）：静默退出，不打印 traceback 污染 stderr。
+        try:
+            sys.stdout.close()
+        except Exception:
+            pass
+        raise SystemExit(0)
+    except Exception as e:
+        # 未预期异常也走统一出口，避免裸 traceback 绕过 exit_with_error 契约。
         exit_with_error(e)
 
 

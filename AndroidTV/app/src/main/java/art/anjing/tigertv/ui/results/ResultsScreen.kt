@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -105,11 +104,11 @@ private fun ResultsGrid(
     modifier: Modifier = Modifier,
 ) {
     val firstCardFocusRequester = remember { FocusRequester() }
-    val focused = remember { mutableStateOf(false) }
 
+    // 每当 results 变更（新搜索 / 重入屏导致 List 实例变化）即恢复首项焦点：
+    // 去掉一次性 `focused` 标志——其在二次搜索时不会复位，导致焦点丢失。
     LaunchedEffect(results) {
-        if (!focused.value && results.isNotEmpty()) {
-            focused.value = true
+        if (results.isNotEmpty()) {
             requestFocusSafely(firstCardFocusRequester)
         }
     }

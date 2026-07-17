@@ -24,5 +24,11 @@
     <string>public.app-category.entertainment</string>
     <key>LSMinimumSystemVersion</key>
     <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+    <!-- 资源站 API 与 m3u8 资源大量使用 HTTP，与 CLI（urllib 无 ATS）保持一致放行。 -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
 </dict>
 </plist>

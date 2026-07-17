@@ -29,10 +29,20 @@ final class TigerTVViewModel: ObservableObject {
     private var fetchTask: Task<Void, Never>?
     private var playbackTask: Task<Void, Never>?
 
+    // Generation token：区分"当前活跃 task"与"已被取消的旧 task"。
+    // 旧 task 的 HTTP 请求无法真正中断（见 HTTPClient），其完成回调若直接
+    // 写共享 @Published 标志位会污染新 task 的状态。token 在每次发起新请求时
+    // 自增并被捕获；旧 task 完成后比对 token，不等则丢弃结果。
+    private var searchGeneration = 0
+    private var fetchGeneration = 0
+    private var playbackGeneration = 0
+
     convenience init() {
-        let cacheDirectory = FileManager.default
+        // 安全解包 cachesDirectory（测试宿主下可能为空），避免 force unwrap 崩溃。
+        let cachesDir = FileManager.default
             .urls(for: .cachesDirectory, in: .userDomainMask)
-            .first!
+            .first ?? FileManager.default.temporaryDirectory
+        let cacheDirectory = cachesDir
             .appendingPathComponent(Bundle.main.bundleIdentifier ?? "art.anjing.TigerTV")
         let repository = TigerTVRepository(
             configDataSource: ConfigDataSource(cacheDirectory: cacheDirectory),
@@ -90,12 +100,13 @@ final class TigerTVViewModel: ObservableObject {
         selectedEpisode = nil
         resolvedPlaybackUrl = nil
 
+        searchGeneration += 1
+        let gen = searchGeneration
         searchTask = Task {
             let result = await repository.search(keyword: trimmed)
-            guard !Task.isCancelled else {
-                isSearching = false
-                return
-            }
+            // 仅当仍是当前 generation 且未被取消时才提交结果；
+            // 否则丢弃，避免旧请求污染新请求的 UI 状态。
+            guard gen == searchGeneration, !Task.isCancelled else { return }
             switch result {
             case .success(let response):
                 isSearching = false
@@ -121,12 +132,11 @@ final class TigerTVViewModel: ObservableObject {
         fetchErrorMessage = nil
         playbackErrorMessage = nil
 
+        fetchGeneration += 1
+        let gen = fetchGeneration
         fetchTask = Task {
             let result = await repository.fetch(siteName: result.site, vodId: result.vodId)
-            guard !Task.isCancelled else {
-                isFetching = false
-                return
-            }
+            guard gen == fetchGeneration, !Task.isCancelled else { return }
             switch result {
             case .success(let response):
                 isFetching = false
@@ -145,12 +155,11 @@ final class TigerTVViewModel: ObservableObject {
         isResolvingPlayback = true
         playbackErrorMessage = nil
 
+        playbackGeneration += 1
+        let gen = playbackGeneration
         playbackTask = Task {
             let result = await repository.resolvePlaybackUrl(url: episode.url)
-            guard !Task.isCancelled else {
-                isResolvingPlayback = false
-                return
-            }
+            guard gen == playbackGeneration, !Task.isCancelled else { return }
             switch result {
             case .success(let url):
                 isResolvingPlayback = false
