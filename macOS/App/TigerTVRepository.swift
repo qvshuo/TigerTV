@@ -92,7 +92,7 @@ actor TigerTVRepository {
             )
             return .success(response)
         } catch {
-            return .failure(error)
+            return .failure(TigerTVError.network(error.localizedDescription))
         }
     }
 
@@ -100,8 +100,10 @@ actor TigerTVRepository {
         do {
             let resolved = try await playbackResolver.resolve(url)
             return .success(resolved)
-        } catch {
+        } catch let error as TigerTVError {
             return .failure(error)
+        } catch {
+            return .failure(.network(error.localizedDescription))
         }
     }
 

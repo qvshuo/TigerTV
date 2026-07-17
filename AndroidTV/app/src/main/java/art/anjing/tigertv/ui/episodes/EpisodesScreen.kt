@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,7 +84,7 @@ fun EpisodesScreen(
                     message = viewModel.fetchErrorMessage ?: stringResource(R.string.error_generic),
                     onRetry = {
                         viewModel.clearFetchError()
-                        result?.let { viewModel.selectResult(it) }
+                        viewModel.retryFetch()
                     }
                 )
                 response == null || response.vodPlayUrl.isEmpty() -> Box(
@@ -99,6 +98,7 @@ fun EpisodesScreen(
                 }
                 else -> EpisodesGrid(
                     episodes = response.vodPlayUrl,
+                    selectedEpisodeIndex = viewModel.selectedEpisodeIndex,
                     onPlay = onPlay,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -111,15 +111,15 @@ fun EpisodesScreen(
 @Composable
 private fun EpisodesGrid(
     episodes: List<EpisodeLink>,
+    selectedEpisodeIndex: Int,
     onPlay: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val firstCardFocusRequester = remember { FocusRequester() }
-    val focused = remember { mutableStateOf(false) }
 
+    // 每当 episodes 变更即恢复首项焦点，去掉一次性 `focused` 标志避免二次重入时焦点丢失。
     LaunchedEffect(episodes) {
-        if (!focused.value && episodes.isNotEmpty()) {
-            focused.value = true
+        if (episodes.isNotEmpty()) {
             requestFocusSafely(firstCardFocusRequester)
         }
     }
@@ -132,6 +132,7 @@ private fun EpisodesGrid(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         itemsIndexed(episodes) { index, episode ->
+            val isSelected = index == selectedEpisodeIndex
             val focusModifier = if (index == 0) {
                 Modifier.focusRequester(firstCardFocusRequester)
             } else {
@@ -144,8 +145,13 @@ private fun EpisodesGrid(
                     .height(76.dp),
                 shape = CardDefaults.shape(shape = TvCardShape),
                 border = tvCardFocusedBorder(),
+                // 高亮当前正在播放的剧集，让用户从播放页返回后能立即看到自己的位置。
                 colors = CardDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    containerColor = if (isSelected) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    }
                 )
             ) {
                 Box(
@@ -157,6 +163,8 @@ private fun EpisodesGrid(
                     Text(
                         text = episode.name,
                         style = MaterialTheme.typography.bodyLarge,
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )

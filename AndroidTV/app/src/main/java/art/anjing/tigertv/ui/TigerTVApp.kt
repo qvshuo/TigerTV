@@ -30,16 +30,20 @@ sealed class Screen(val route: String) {
 fun TigerTVApp(
     navController: NavHostController = rememberNavController()
 ) {
+    // 使用 applicationContext 构建长生命周期依赖（ConfigDataSource/SearchHistoryStore），
+    // 避免被 ViewModel 间接持有 Activity 导致 Activity 无法回收。
+    // Activity context 仅用于短期内 ExoPlayer 等生命周期与 Activity 绑定的对象。
     val context = LocalContext.current
+    val appContext = context.applicationContext
     val repository = remember {
         TigerTVRepository(
-            ConfigDataSource(context),
+            ConfigDataSource(appContext),
             MacCMSApiClient(),
             PlaybackUrlResolver()
         )
     }
     val viewModel: TigerTVViewModel = viewModel(
-        factory = TigerTVViewModelFactory(repository, context)
+        factory = TigerTVViewModelFactory(repository, appContext)
     )
 
     NavHost(navController = navController, startDestination = Screen.Home.route) {

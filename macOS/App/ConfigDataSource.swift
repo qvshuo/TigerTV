@@ -15,8 +15,7 @@ actor ConfigDataSource {
     init(
         cacheDirectory: URL = FileManager.default
             .urls(for: .cachesDirectory, in: .userDomainMask)
-            .first!
-            .appendingPathComponent("TigerTV"),
+            .first ?? FileManager.default.temporaryDirectory.appendingPathComponent("TigerTV"),
         httpClient: HTTPClient = HTTPClient()
     ) {
         self.cacheDirectory = cacheDirectory
@@ -28,8 +27,9 @@ actor ConfigDataSource {
     func loadConfig() async -> LoadResult<SourceConfig> {
         lastFetchError = nil
 
-        let cached = try? readCache()
-        if let cached, isCacheFresh() {
+        // 读取时再过滤：缓存保留原始完整配置（含 _comment 站点），与 CLI 行为一致。
+        // 这样过滤规则变更后无需等缓存过期即可生效，且缓存可回放历史。
+        if let cached = try? readCache(), isCacheFresh() {
             if let filtered = filterConfig(cached) {
                 return .success(filtered)
             }
@@ -40,7 +40,7 @@ actor ConfigDataSource {
             remote = await fetchRemote(urlString: Self.configURL, timeout: 5)
         }
         if let remote {
-            try? writeCache(remote)
+            try? writeCache(remote)  // 缓存原始（未过滤）配置
             if let filtered = filterConfig(remote) {
                 return .success(filtered)
             }
@@ -79,7 +79,8 @@ actor ConfigDataSource {
     private func writeCache(_ config: SourceConfig) throws {
         try ensureCacheDirectory()
         let data = try encoder.encode(config)
-        try data.write(to: cacheFile())
+        // 原子写入：避免崩溃留下半截 JSON 使 isCacheFresh 误判。
+        try data.write(to: cacheFile(), options: .atomic)
         let timestamp = String(Int(Date().timeIntervalSince1970))
         try timestamp.write(to: timestampFile(), atomically: true, encoding: .utf8)
     }
@@ -107,8 +108,17 @@ actor ConfigDataSource {
     }
 
     private func filterConfig(_ config: SourceConfig) -> SourceConfig? {
-        let filtered = config.apiSite.filter { _, site in
-            site.name.contains(Self.movieEmoji) && site.comment == nil
+        // 过滤：含 🎬、无 _comment、api 非空（与 CLI `if api and "🎬" in name and "_comment" not in value` 一致）。
+        // 去重：按 api URL 去重（与 CLI `api_name_map[api] = name` 一致），避免同 api 站点发重复请求。
+        var seenApi = Set<String>()
+        var filtered: [String: SourceSite] = [:]
+        for (_, site) in config.apiSite {
+            guard !site.api.isEmpty,
+                  site.name.contains(Self.movieEmoji),
+                  site.comment == nil,
+                  !seenApi.contains(site.api) else { continue }
+            seenApi.insert(site.api)
+            filtered[site.api] = site
         }
         return filtered.isEmpty ? nil : SourceConfig(cacheTime: config.cacheTime, apiSite: filtered)
     }

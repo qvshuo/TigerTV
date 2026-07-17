@@ -143,8 +143,9 @@ class TigerTVViewModel(
         return true
     }
 
-    fun selectResult(result: SearchResult) {
-        if (selectedResult?.let { it.site == result.site && it.vodId == result.vodId } == true) return
+    fun selectResult(result: SearchResult, forceRefresh: Boolean = false) {
+        // forceRefresh=true 时跳过"同一结果"短路，专用于重试按钮。
+        if (!forceRefresh && selectedResult?.let { it.site == result.site && it.vodId == result.vodId } == true) return
         fetchJob?.cancel()
         playbackJob?.cancel()
         selectedResult = result
@@ -157,17 +158,23 @@ class TigerTVViewModel(
         playbackErrorMessage = null
 
         fetchJob = viewModelScope.launch {
-            when (val result = repository.fetch(result.site, result.vodId)) {
+            when (val fetched = repository.fetch(result.site, result.vodId)) {
                 is Result.Success -> {
-                    fetchResponse = result.data
+                    fetchResponse = fetched.data
                     isFetching = false
                 }
                 is Result.Error -> {
                     isFetching = false
-                    fetchErrorMessage = result.exception.message ?: "Fetch failed"
+                    fetchErrorMessage = fetched.exception.message ?: "Fetch failed"
                 }
             }
         }
+    }
+
+    /** 重试上次 fetch：绕过"同一结果"短路，确保下次真正发起请求。 */
+    fun retryFetch() {
+        val current = selectedResult ?: return
+        selectResult(current, forceRefresh = true)
     }
 
     fun selectEpisode(index: Int) {

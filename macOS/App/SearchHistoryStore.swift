@@ -1,5 +1,8 @@
 import Foundation
 
+// UserDefaults 本身线程安全，存储的均为不可变 `let`，`@unchecked Sendable` 是诚实的：
+// 之所以不改为 actor，是因为 UserDefaults 非 Sendable，传入 actor init 会触发
+// Swift 6 严格并发检查（调用方在非隔离上下文无法 send 非 Sendable 值）。
 final class SearchHistoryStore: @unchecked Sendable {
     private let defaults: UserDefaults
     private let key: String

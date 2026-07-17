@@ -420,6 +420,30 @@ class TigerTvRequestTests(unittest.TestCase):
         self.assertIn("wd=%E9%80%90%E7%8E%89", inner)
         self.assertIn("ac=list", inner)
 
+    def test_search_coerces_string_vod_id_and_float_code(self):
+        """暴风等站 vod_id 为字符串、部分站 code 为 1.0 时，CLI 仍应收编结果。"""
+        module = load_module()
+        payload = {
+            "code": 1.0,
+            "msg": "ok",
+            "list": [
+                {
+                    "vod_id": "136872",
+                    "vod_name": "逐玉",
+                    "vod_time": "2026-03-21 20:41:19",
+                    "vod_remarks": "更新至第40集",
+                }
+            ],
+        }
+        with mock.patch.object(module, "make_request", return_value=payload), \
+             mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            args = mock.Mock(keyword="逐玉")
+            module.cmd_search(args, {"https://api.test/vod": "🎬暴风资源"})
+            out = json.loads(stdout.getvalue())
+        self.assertEqual(len(out["results"]), 1)
+        self.assertEqual(out["results"][0]["vod_id"], 136872)
+        self.assertEqual(out["results"][0]["site"], "🎬暴风资源")
+
     def test_request_vod_list_rejects_non_list_value(self):
         module = load_module()
         with mock.patch.object(module, "make_request", return_value={"code": 1, "list": ""}):

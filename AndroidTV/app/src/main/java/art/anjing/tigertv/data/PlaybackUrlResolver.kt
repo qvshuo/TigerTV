@@ -33,7 +33,15 @@ class PlaybackUrlResolver(
             .execute()
             .use { response ->
                 if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
-                response.body?.string() ?: throw IOException("Empty body")
+                val body = response.body ?: throw IOException("Empty body")
+                // 10MB 上限：request(MAX+1) 读到上限或 EOF 即停；
+                // 返回 true 说明响应 > MAX 直接拒绝，否则 buffer 即完整 body。
+                val source = body.source()
+                if (source.request((MAX_RESPONSE_SIZE + 1).toLong())) {
+                    throw IOException("Response exceeds 10MB limit")
+                }
+                val bytes = source.readByteArray(source.buffer.size)
+                String(bytes, body.contentType()?.charset() ?: Charsets.UTF_8)
             }
 
         if (html.trimStart().startsWith("#EXTM3U", ignoreCase = true)) {
@@ -65,7 +73,8 @@ class PlaybackUrlResolver(
     }
 
     companion object {
-        private const val USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
+        private const val USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15"
+        private const val MAX_RESPONSE_SIZE = 10 * 1024 * 1024  // 10MB
 
         private val ABSOLUTE_M3U8 = Pattern.compile(
             "(https?://[^\\s\"'<>]+\\.m3u8(?:\\?[^\\s\"'<>]+)?)",

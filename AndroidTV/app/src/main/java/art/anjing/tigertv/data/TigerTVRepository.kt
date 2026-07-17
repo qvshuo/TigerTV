@@ -103,6 +103,9 @@ class TigerTVRepository(
     suspend fun resolvePlaybackUrl(url: String): Result<String> {
         return try {
             Result.Success(playbackUrlResolver.resolve(url))
+        } catch (e: CancellationException) {
+            // 结构化取消必须重抛，否则 viewModelScope.cancel 无法中断子 job。
+            throw e
         } catch (e: Exception) {
             Result.Error(e)
         }

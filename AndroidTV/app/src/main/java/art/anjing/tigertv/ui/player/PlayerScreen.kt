@@ -54,6 +54,9 @@ fun PlayerScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val url = viewModel.resolvedPlaybackUrl
     val activity = context as? Activity
+    // 任何覆盖层出现时都不显示 ExoPlayer 自带控件，避免半透明浮层下露出 seekBar/play 按钮
+    // 造成视觉重叠。也避免错误态下控件抢走遥控器焦点干扰重试按钮 D-pad 导航。
+    val overlayVisible = viewModel.isResolvingPlayback || viewModel.playbackErrorMessage != null
 
     BackHandler {
         viewModel.clearPlayback()
@@ -105,8 +108,9 @@ fun PlayerScreen(
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_PAUSE -> exoPlayer.pause()
+                // ON_RESUME 只要有媒体项就恢复播放；mediaItemCount>0 已隐含 url 解析完成并装入了媒体。
                 Lifecycle.Event.ON_RESUME -> {
-                    if (exoPlayer.mediaItemCount > 0 && viewModel.resolvedPlaybackUrl != null) exoPlayer.play()
+                    if (exoPlayer.mediaItemCount > 0) exoPlayer.play()
                 }
                 else -> Unit
             }
@@ -122,12 +126,17 @@ fun PlayerScreen(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     player = exoPlayer
-                    useController = true
+                    useController = !overlayVisible
+                    controllerAutoShow = false
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
                 }
+            },
+            update = { view ->
+                // 覆盖层出现时立即隐藏播放器控件，避免与错误/加载浮层视觉重叠。
+                view.useController = !overlayVisible
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -171,6 +180,20 @@ fun PlayerScreen(
                             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                         ) {
                             Text(stringResource(R.string.retry))
+                        }
+                        // 下一集：若存在下一集，直接跳到下一集重试，符合 TV 用户的"快速跳过坏集"心智。
+                        val episodes = viewModel.fetchResponse?.vodPlayUrl
+                        val hasNext = episodes != null && viewModel.selectedEpisodeIndex + 1 < episodes.size
+                        if (hasNext) {
+                            Button(
+                                onClick = {
+                                    viewModel.selectEpisode(viewModel.selectedEpisodeIndex + 1)
+                                },
+                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                            ) {
+                                Text(stringResource(R.string.next_episode))
+                            }
                         }
                         Button(
                             onClick = {

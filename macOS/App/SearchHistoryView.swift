@@ -59,30 +59,32 @@ private struct HistoryChip: View {
     }
 
     var body: some View {
-        HStack(spacing: AppSpacing.xs) {
-            Text(displayText)
-                .font(.callout)
-                .lineLimit(1)
+        Button(action: onSelect) {
+            HStack(spacing: AppSpacing.xs) {
+                Text(displayText)
+                    .font(.callout)
+                    .lineLimit(1)
 
-            if isHovered {
-                Button(action: onDelete) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 13))
-                        .symbolRenderingMode(.hierarchical)
+                if isHovered {
+                    Button(action: onDelete) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 13))
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .buttonStyle(.plain)
+                    .help("删除")
+                    .transition(.scale.combined(with: .opacity))
                 }
-                .buttonStyle(.plain)
-                .help("删除")
-                .transition(.scale.combined(with: .opacity))
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isHovered ? Color.secondary.opacity(0.14) : Color.secondary.opacity(0.06))
+            )
+            .contentShape(Capsule(style: .continuous))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(
-            Capsule(style: .continuous)
-                .fill(isHovered ? Color.secondary.opacity(0.14) : Color.secondary.opacity(0.06))
-        )
-        .contentShape(Capsule(style: .continuous))
-        .onTapGesture(perform: onSelect)
+        .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .scaleEffect(reduceMotion ? 1.0 : (isHovered ? 1.04 : 1.0))

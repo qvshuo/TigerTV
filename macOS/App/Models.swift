@@ -63,7 +63,7 @@ struct SearchResult: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-struct FetchResponse: Codable, Identifiable, Hashable, Sendable {
+struct FetchResponse: Identifiable, Hashable, Sendable {
     let vodId: Int
     let site: String
     let vodPlayUrl: [EpisodeLink]
@@ -71,11 +71,11 @@ struct FetchResponse: Codable, Identifiable, Hashable, Sendable {
 
     var id: String { "\(site)-\(vodId)" }
 
-    enum CodingKeys: String, CodingKey {
-        case vodId = "vod_id"
-        case site
-        case vodPlayUrl = "vod_play_url"
-        case vodDownUrl = "vod_down_url"
+    init(vodId: Int, site: String, vodPlayUrl: [EpisodeLink], vodDownUrl: [EpisodeLink]) {
+        self.vodId = vodId
+        self.site = site
+        self.vodPlayUrl = vodPlayUrl
+        self.vodDownUrl = vodDownUrl
     }
 }
 
