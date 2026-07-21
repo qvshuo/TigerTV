@@ -109,7 +109,7 @@ actor ConfigDataSource {
 
     private func filterConfig(_ config: SourceConfig) -> SourceConfig? {
         // 过滤：含 🎬、无 _comment、api 非空（与 CLI `if api and "🎬" in name and "_comment" not in value` 一致）。
-        // 去重：按 api URL 去重（与 CLI `api_name_map[api] = name` 一致），避免同 api 站点发重复请求。
+        // 去重：按 api URL 去重，保留第一个遇到的站点（与 CLI、Android TV 一致），避免同 api 站点发重复请求。
         var seenApi = Set<String>()
         var filtered: [String: SourceSite] = [:]
         for (_, site) in config.apiSite {

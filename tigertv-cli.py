@@ -143,6 +143,7 @@ def _parse_config(config):
     """将原始配置 JSON 解析为 {api_url: site_name} 映射。
 
     过滤逻辑：只保留名称含 🎬 且无 _comment 的站点，_comment 用于标记备用/失效源。
+    去重逻辑：相同 api URL 保留第一个遇到的站点（与 macOS / Android TV 一致）。
     """
     if not isinstance(config, dict):
         raise ConfigError("配置文件顶层必须是 JSON 对象")
@@ -152,13 +153,18 @@ def _parse_config(config):
         raise ConfigError("配置缺少 api_site 对象")
 
     api_name_map = {}
+    seen_apis = set()
     for value in api_site.values():
         if not isinstance(value, dict):
             continue
         api = value.get("api", "")
         name = value.get("name", "")
-        if api and "🎬" in name and "_comment" not in value:
-            api_name_map[api] = name
+        if not api or "🎬" not in name or "_comment" in value:
+            continue
+        if api in seen_apis:
+            continue
+        seen_apis.add(api)
+        api_name_map[api] = name
     if not api_name_map:
         raise ConfigError("未找到可用站点，请检查配置格式或过滤条件")
     return api_name_map

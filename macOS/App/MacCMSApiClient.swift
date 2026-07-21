@@ -30,6 +30,7 @@ actor MacCMSApiClient {
                 )
             }
         } catch {
+            // 解码异常（含 list 元素非对象）视为该站失败，空结果继续，与 CLI 对 `{"list":[null]}` 的处理一致。
             logger.warning("Search failed for \(siteName): \(error.localizedDescription)")
             return []
         }

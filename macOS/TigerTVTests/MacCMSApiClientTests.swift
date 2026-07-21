@@ -94,4 +94,27 @@ final class MacCMSApiClientTests: XCTestCase {
         XCTAssertEqual(detail.list.first?.vodId, 73480)
         XCTAssertEqual(detail.list.first?.vodPlayUrl, "第01集$https://a.com/1.m3u8")
     }
+
+    func testMalformedListElementsAreSwallowedInSearch() async {
+        enqueueJSON(#"{"code":1,"msg":"ok","list":[null]}"#)
+        let results = await makeClient().search(
+            siteName: "🎬-测试站-",
+            api: "https://example.com/api.php/provide/vod",
+            keyword: "666"
+        )
+        XCTAssertEqual(results.count, 0)
+    }
+
+    func testMalformedListElementsArePropagatedInFetch() async {
+        enqueueJSON(#"{"code":1,"msg":"ok","list":[null]}"#)
+        do {
+            _ = try await makeClient().fetchDetail(
+                api: "https://example.com/api.php/provide/vod",
+                vodId: 1
+            )
+            XCTFail("Expected decode error")
+        } catch {
+            // Expected: typed decode fails on non-object list elements.
+        }
+    }
 }

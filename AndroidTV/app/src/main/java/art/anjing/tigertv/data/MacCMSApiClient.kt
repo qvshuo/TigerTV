@@ -47,6 +47,7 @@ class MacCMSApiClient(
                 // 结构化取消必须重抛，否则 viewModelScope.cancel() 无法中断子 job。
                 throw e
             } catch (e: Exception) {
+                // 反序列化异常（含 list 元素非对象）视为该站失败，空结果继续，与 CLI 对 `{"list":[null]}` 的处理一致。
                 Log.w(TAG, "Search failed for $siteName", e)
                 emptyList()
             }
