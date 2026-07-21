@@ -98,4 +98,33 @@ final class ConfigDataSourceTests: XCTestCase {
         }
         XCTAssertEqual(config.apiSite.count, 1)
     }
+
+    func testDedupsApiUrlsFirstWins() async throws {
+        // 相同 api URL 的去重策略为 first-wins；因 macOS JSON 解码到 Dictionary 的遍历顺序
+        // 由平台决定，这里只验证去重后只剩一个站点（与 CLI / Android TV 的行为契约一致）。
+        let json = """
+        {
+          "api_site": {
+            "first": {"name": "🎬-First-", "api": "https://dup.com"},
+            "second": {"name": "🎬-Second-", "api": "https://dup.com"}
+          }
+        }
+        """
+        try writeCache(json, timestamp: Int(Date().timeIntervalSince1970))
+
+        MockURLProtocol.requestHandler = { _ in
+            throw NSError(domain: "test", code: 1)
+        }
+
+        let result = await source().loadConfig()
+        guard case .success(let config) = result else {
+            XCTFail("Expected success")
+            return
+        }
+        XCTAssertEqual(config.apiSite.count, 1)
+        XCTAssertTrue(
+            config.apiSite.values.first?.name == "🎬-First-" ||
+            config.apiSite.values.first?.name == "🎬-Second-"
+        )
+    }
 }

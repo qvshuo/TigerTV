@@ -180,6 +180,17 @@ class TigerTvConfigTests(unittest.TestCase):
         with self.assertRaises(module.ConfigError):
             module.require_api_sites({})
 
+    def test_parse_config_dedups_api_first_wins(self):
+        module = load_module()
+        payload = {
+            "api_site": {
+                "first": {"name": "🎬-First-", "api": "http://dup.test/api"},
+                "second": {"name": "🎬-Second-", "api": "http://dup.test/api"},
+            }
+        }
+        result = module._parse_config(payload)
+        self.assertEqual(result, {"http://dup.test/api": "🎬-First-"})
+
     def test_load_config_from_source_file(self):
         module = load_module()
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -447,6 +458,14 @@ class TigerTvRequestTests(unittest.TestCase):
     def test_request_vod_list_rejects_non_list_value(self):
         module = load_module()
         with mock.patch.object(module, "make_request", return_value={"code": 1, "list": ""}):
+            with self.assertRaises(module.RequestError):
+                module.request_vod_list("https://api.test/vod", "test", wd="逐玉")
+
+    def test_request_vod_list_rejects_non_dict_elements(self):
+        module = load_module()
+        with mock.patch.object(
+            module, "make_request", return_value={"code": 1, "list": [None]}
+        ):
             with self.assertRaises(module.RequestError):
                 module.request_vod_list("https://api.test/vod", "test", wd="逐玉")
 

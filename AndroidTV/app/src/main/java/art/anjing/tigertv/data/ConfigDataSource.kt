@@ -150,7 +150,7 @@ class ConfigDataSource(
 
     /**
      * 过滤：name 含 🎬、无 _comment、api 非空（与 CLI `if api and "🎬" in name and "_comment" not in value` 一致）。
-     * 去重：按 api URL 去重（与 CLI `api_name_map[api] = name` 一致）。
+     * 去重：按 api URL 去重，保留第一个遇到的站点（与 CLI、macOS 一致）。
      */
     private fun filterConfigSafe(config: SourceConfig): SourceConfig? {
         val seenApi = mutableSetOf<String>()

@@ -145,4 +145,19 @@ class MacCMSApiClientTest {
         assertEquals("逐玉", result[0].vodName)
         assertEquals("🎬暴风资源", result[0].site)
     }
+
+    @Test
+    fun `malformed list elements are swallowed in search`() = runBlocking {
+        // list 中出现 null 元素时 search 应视为该站失败，返回空结果并继续，与 CLI 行为一致。
+        server.enqueue(MockResponse().setBody("""{"code":1,"msg":"ok","list":[null]}"""))
+        val result = client.search("🎬-测试站-", server.url("/api.php/provide/vod").toString(), "666")
+        assertTrue(result.isEmpty())
+    }
+
+    @Test(expected = Exception::class)
+    fun `malformed list elements are propagated in fetch`(): Unit = runBlocking {
+        // fetch 时 list 元素非对象应抛反序列化异常，由调用方作为错误处理，与 CLI 行为一致。
+        server.enqueue(MockResponse().setBody("""{"code":1,"msg":"ok","list":[null]}"""))
+        client.fetchDetail(server.url("/api.php/provide/vod").toString(), 1)
+    }
 }
