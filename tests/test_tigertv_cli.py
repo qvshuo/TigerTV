@@ -96,6 +96,7 @@ class TigerTvCliTests(unittest.TestCase):
                                 "vod_name": "逐玉",
                                 "vod_time": "2026-04-28",
                                 "vod_remarks": "全40集",
+                                "vod_pic": "http://media.test/pic/101.jpg",
                             }
                         ],
                     }
@@ -133,6 +134,10 @@ class TigerTvCliTests(unittest.TestCase):
             self.assertEqual(search_payload["keyword"], "逐玉")
             self.assertEqual(search_payload["results"][0]["site"], "🎬-测试站-")
             self.assertEqual(search_payload["results"][0]["vod_id"], 101)
+            self.assertEqual(
+                search_payload["results"][0]["vod_pic"],
+                "http://media.test/pic/101.jpg",
+            )
 
             out, err = self.run_main(
                 module,
@@ -454,6 +459,22 @@ class TigerTvRequestTests(unittest.TestCase):
         self.assertEqual(len(out["results"]), 1)
         self.assertEqual(out["results"][0]["vod_id"], 136872)
         self.assertEqual(out["results"][0]["site"], "🎬暴风资源")
+
+    def test_search_defaults_missing_vod_pic_to_empty_string(self):
+        """响应缺 vod_pic 时输出空串，不抛错、不丢结果。"""
+        module = load_module()
+        payload = {
+            "code": 1,
+            "msg": "ok",
+            "list": [{"vod_id": 1, "vod_name": "逐玉", "vod_time": "", "vod_remarks": ""}],
+        }
+        with mock.patch.object(module, "make_request", return_value=payload), \
+             mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            args = mock.Mock(keyword="逐玉")
+            module.cmd_search(args, {"https://api.test/vod": "🎬测试站"})
+            out = json.loads(stdout.getvalue())
+        self.assertEqual(len(out["results"]), 1)
+        self.assertEqual(out["results"][0]["vod_pic"], "")
 
     def test_request_vod_list_rejects_non_list_value(self):
         module = load_module()

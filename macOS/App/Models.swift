@@ -33,6 +33,7 @@ struct SearchResult: Codable, Identifiable, Hashable, Sendable {
     let vodName: String
     let vodTime: String
     let vodRemarks: String
+    let vodPic: String
 
     var id: String { "\(site)-\(vodId)" }
     var displayTitle: String { vodName }
@@ -43,14 +44,16 @@ struct SearchResult: Codable, Identifiable, Hashable, Sendable {
         case vodName = "vod_name"
         case vodTime = "vod_time"
         case vodRemarks = "vod_remarks"
+        case vodPic = "vod_pic"
     }
 
-    init(site: String, vodId: Int, vodName: String, vodTime: String = "", vodRemarks: String = "") {
+    init(site: String, vodId: Int, vodName: String, vodTime: String = "", vodRemarks: String = "", vodPic: String = "") {
         self.site = site
         self.vodId = vodId
         self.vodName = vodName
         self.vodTime = vodTime
         self.vodRemarks = vodRemarks
+        self.vodPic = vodPic
     }
 
     init(from decoder: Decoder) throws {
@@ -60,6 +63,7 @@ struct SearchResult: Codable, Identifiable, Hashable, Sendable {
         vodName = try container.decode(String.self, forKey: .vodName)
         vodTime = try container.decodeIfPresent(String.self, forKey: .vodTime) ?? ""
         vodRemarks = try container.decodeIfPresent(String.self, forKey: .vodRemarks) ?? ""
+        vodPic = try container.decodeIfPresent(String.self, forKey: .vodPic) ?? ""
     }
 }
 

@@ -25,6 +25,11 @@ final class TigerTVViewModel: ObservableObject {
 
     @Published private(set) var searchHistory: [String] = []
 
+    /// 空封面卡片的懒加载兜底 URL（key 为 result.id）。
+    /// 仅在卡片可见时按需填充；失败不入表，卡片重入视口时自然重试。
+    @Published private(set) var coverFallbacks: [String: URL] = [:]
+    private var coverLoadsInFlight: Set<String> = []
+
     private var searchTask: Task<Void, Never>?
     private var fetchTask: Task<Void, Never>?
     private var playbackTask: Task<Void, Never>?
@@ -47,7 +52,8 @@ final class TigerTVViewModel: ObservableObject {
         let repository = TigerTVRepository(
             configDataSource: ConfigDataSource(cacheDirectory: cacheDirectory),
             apiClient: MacCMSApiClient(),
-            playbackResolver: PlaybackURLResolver()
+            playbackResolver: PlaybackURLResolver(),
+            coverURLStore: CoverFallbackURLStore(directory: cacheDirectory)
         )
         self.init(repository: repository, historyStore: SearchHistoryStore())
     }
@@ -71,6 +77,17 @@ final class TigerTVViewModel: ObservableObject {
 
     func retryLoadConfig() {
         Task { await loadConfig() }
+    }
+
+    /// 卡片可见时调用：`vod_pic` 为空才发起 detail 兜底请求。
+    func loadCoverFallbackIfPossible(for result: SearchResult) async {
+        guard result.vodPic.isEmpty, coverFallbacks[result.id] == nil else { return }
+        guard !coverLoadsInFlight.contains(result.id) else { return }
+        coverLoadsInFlight.insert(result.id)
+        defer { coverLoadsInFlight.remove(result.id) }
+        if let url = await repository.coverFallbackURL(siteName: result.site, vodId: result.vodId) {
+            coverFallbacks[result.id] = url
+        }
     }
 
     func clearActiveError() {

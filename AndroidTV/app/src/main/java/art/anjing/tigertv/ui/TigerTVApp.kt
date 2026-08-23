@@ -39,7 +39,8 @@ fun TigerTVApp(
         TigerTVRepository(
             ConfigDataSource(appContext),
             MacCMSApiClient(),
-            PlaybackUrlResolver()
+            PlaybackUrlResolver(),
+            coverUrlCacheDir = appContext.cacheDir
         )
     }
     val viewModel: TigerTVViewModel = viewModel(

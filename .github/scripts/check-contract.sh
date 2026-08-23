@@ -29,7 +29,7 @@ with open('shared/api-contract/fixtures/search.sample.json') as f:
 assert 'keyword' in search
 assert 'results' in search
 for r in search['results']:
-    assert all(k in r for k in ('site', 'vod_id', 'vod_name'))
+    assert all(k in r for k in ('site', 'vod_id', 'vod_name', 'vod_pic'))
 
 # Validate fetch fixture shape
 with open('shared/api-contract/fixtures/fetch.sample.json') as f:

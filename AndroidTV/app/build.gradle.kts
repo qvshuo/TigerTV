@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "art.anjing.tigertv"
-        minSdk = 23
+        minSdk = 34
         targetSdk = 37
         versionCode = 6
         versionName = "3.1.1"
@@ -23,10 +23,14 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file(System.getenv("CI_RELEASE_STORE_FILE") ?: "")
-            storePassword = System.getenv("CI_RELEASE_STORE_PASSWORD")
-            keyAlias = System.getenv("CI_RELEASE_KEY_ALIAS")
-            keyPassword = System.getenv("CI_RELEASE_KEY_PASSWORD")
+            // CI 注入临时 keystore；本地无该环境变量时不配置，避免 file("") 抛错。
+            val ciStoreFile = System.getenv("CI_RELEASE_STORE_FILE")?.takeIf { it.isNotEmpty() }
+            if (ciStoreFile != null) {
+                storeFile = file(ciStoreFile)
+                storePassword = System.getenv("CI_RELEASE_STORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("CI_RELEASE_KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("CI_RELEASE_KEY_PASSWORD") ?: ""
+            }
         }
     }
 
@@ -68,13 +72,17 @@ dependencies {
     implementation("androidx.tv:tv-material:1.1.0")
 
     // Media3 ExoPlayer
-    implementation("androidx.media3:media3-exoplayer:1.10.1")
-    implementation("androidx.media3:media3-exoplayer-hls:1.10.1")
-    implementation("androidx.media3:media3-ui:1.10.1")
+    implementation("androidx.media3:media3-exoplayer:1.11.0")
+    implementation("androidx.media3:media3-exoplayer-hls:1.11.0")
+    implementation("androidx.media3:media3-ui:1.11.0")
 
     // Network / Serialization
     implementation("com.squareup.okhttp3:okhttp:5.4.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+
+    // Image loading (search result covers)
+    implementation("io.coil-kt.coil3:coil-compose:3.5.0")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.5.0")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")

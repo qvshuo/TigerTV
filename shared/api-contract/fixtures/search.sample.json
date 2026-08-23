@@ -6,14 +6,16 @@
       "vod_id": 73480,
       "vod_name": "逐玉",
       "vod_time": "2026-01-01",
-      "vod_remarks": "更新至 10 集"
+      "vod_remarks": "更新至 10 集",
+      "vod_pic": "https://pic.example-iqiyi.com/cover/73480.jpg"
     },
     {
       "site": "🎬金鹰点播",
       "vod_id": 104571,
       "vod_name": "逐玉",
       "vod_time": "2025-12-28",
-      "vod_remarks": "完结"
+      "vod_remarks": "完结",
+      "vod_pic": "https://pic.example-jy.com/cover/104571.jpg"
     }
   ]
 }

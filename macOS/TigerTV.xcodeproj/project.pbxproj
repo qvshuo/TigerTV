@@ -25,6 +25,7 @@
 		A00000000000000000000201 /* ConfigDataSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000200 /* ConfigDataSource.swift */; };
 		A00000000000000000000301 /* MacCMSApiClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000300 /* MacCMSApiClient.swift */; };
 		A00000000000000000000401 /* SearchHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000400 /* SearchHistoryStore.swift */; };
+		A00000000000000000000901 /* CoverCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000900 /* CoverCache.swift */; };
 		A00000000000000000000501 /* TigerTVRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000500 /* TigerTVRepository.swift */; };
 		A00000000000000000000601 /* LoadResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000600 /* LoadResult.swift */; };
 		A00000000000000000000701 /* TigerTVError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000700 /* TigerTVError.swift */; };
@@ -50,6 +51,7 @@
 		A00000000000000000000200 /* ConfigDataSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigDataSource.swift; sourceTree = "<group>"; };
 		A00000000000000000000300 /* MacCMSApiClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCMSApiClient.swift; sourceTree = "<group>"; };
 		A00000000000000000000400 /* SearchHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchHistoryStore.swift; sourceTree = "<group>"; };
+		A00000000000000000000900 /* CoverCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverCache.swift; sourceTree = "<group>"; };
 		A00000000000000000000500 /* TigerTVRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TigerTVRepository.swift; sourceTree = "<group>"; };
 		A00000000000000000000600 /* LoadResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadResult.swift; sourceTree = "<group>"; };
 		A00000000000000000000700 /* TigerTVError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TigerTVError.swift; sourceTree = "<group>"; };
@@ -91,6 +93,7 @@
 				A00000000000000000000200 /* ConfigDataSource.swift */,
 				A00000000000000000000300 /* MacCMSApiClient.swift */,
 				A00000000000000000000400 /* SearchHistoryStore.swift */,
+				A00000000000000000000900 /* CoverCache.swift */,
 				A00000000000000000000500 /* TigerTVRepository.swift */,
 				000000000000000000000208 /* PlaybackURLResolver.swift */,
 				000000000000000000000209 /* PlayerView.swift */,
@@ -204,6 +207,7 @@
 				A00000000000000000000201 /* ConfigDataSource.swift in Sources */,
 				A00000000000000000000301 /* MacCMSApiClient.swift in Sources */,
 				A00000000000000000000401 /* SearchHistoryStore.swift in Sources */,
+				A00000000000000000000901 /* CoverCache.swift in Sources */,
 				A00000000000000000000501 /* TigerTVRepository.swift in Sources */,
 				000000000000000000000108 /* PlaybackURLResolver.swift in Sources */,
 				000000000000000000000109 /* PlayerView.swift in Sources */,
@@ -237,7 +241,7 @@
 				PRODUCT_MODULE_NAME = TigerTV;
 				PRODUCT_NAME = "小老虎爱看剧";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
+				SWIFT_VERSION = 6.2;
 			};
 			name = Debug;
 		};
@@ -265,7 +269,7 @@
 				PRODUCT_MODULE_NAME = TigerTV;
 				PRODUCT_NAME = "小老虎爱看剧";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
+				SWIFT_VERSION = 6.2;
 			};
 			name = Release;
 		};

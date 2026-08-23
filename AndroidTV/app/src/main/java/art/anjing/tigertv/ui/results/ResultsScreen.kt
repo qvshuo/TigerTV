@@ -1,11 +1,13 @@
 package art.anjing.tigertv.ui.results
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +22,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,6 +35,7 @@ import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import coil3.compose.SubcomposeAsyncImage
 import art.anjing.tigertv.R
 import art.anjing.tigertv.domain.SearchResult
 import art.anjing.tigertv.ui.components.ErrorMessage
@@ -88,6 +94,8 @@ fun ResultsScreen(
                 }
                 else -> ResultsGrid(
                     results = viewModel.results,
+                    coverFallbacks = viewModel.coverFallbacks,
+                    onLoadCoverFallback = viewModel::loadCoverFallbackIfNeeded,
                     onSelectResult = onSelectResult,
                     modifier = Modifier.weight(1f)
                 )
@@ -100,6 +108,8 @@ fun ResultsScreen(
 @Composable
 private fun ResultsGrid(
     results: List<SearchResult>,
+    coverFallbacks: Map<String, String>,
+    onLoadCoverFallback: (SearchResult) -> Unit,
     onSelectResult: (SearchResult) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -126,45 +136,121 @@ private fun ResultsGrid(
             } else {
                 Modifier
             }
+            val coverKey = "${result.site}-${result.vodId}"
+            // 仅空封面卡片进入组合（即可见）时触发 detail 兜底请求；已取到兜底则跳过。
+            LaunchedEffect(result.site, result.vodId) {
+                if (result.vodPic.isBlank() && coverFallbacks[coverKey] == null) {
+                    onLoadCoverFallback(result)
+                }
+            }
             Card(
                 onClick = { onSelectResult(result) },
                 modifier = focusModifier
-                    .fillMaxWidth()
-                    .height(140.dp),
+                    .fillMaxWidth(),
                 shape = CardDefaults.shape(shape = TvCardShape),
                 border = tvCardFocusedBorder(),
                 colors = CardDefaults.colors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = result.vodName,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                Column {
+                    CoverImage(
+                        url = result.vodPic.ifBlank { coverFallbacks[coverKey].orEmpty() },
+                        title = result.vodName,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(2f / 3f)
                     )
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
                         Text(
-                            text = result.site,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary
+                            text = result.vodName,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        if (result.vodRemarks.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             Text(
-                                text = result.vodRemarks,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = result.site,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
+                            if (result.vodRemarks.isNotEmpty()) {
+                                Text(
+                                    text = result.vodRemarks,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * 封面图：加载中显示占位背景，失败或无 URL 时回落到标题首字占位图。
+ * 不同站点封面横竖版不一，统一 Crop 裁切到固定纵横比避免布局抖动。
+ */
+@Composable
+private fun CoverImage(
+    url: String,
+    title: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center
+    ) {
+        val resolvedUrl = url.trim().takeIf { it.isNotEmpty() }
+        if (resolvedUrl == null) {
+            CoverPlaceholder(title)
+        } else {
+            SubcomposeAsyncImage(
+                model = resolvedUrl,
+                contentDescription = title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                loading = { CoverPlaceholder(title) },
+                error = { CoverPlaceholder(title) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun CoverPlaceholder(title: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.06f),
+                        Color.Black.copy(alpha = 0.18f)
+                    )
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = title.take(1).ifEmpty { "?" },
+            style = MaterialTheme.typography.displayMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        )
     }
 }

@@ -41,9 +41,17 @@ actor HTTPClient {
     }
 
     private func encodedURL(_ url: URL) -> URL {
-        let string = url.absoluteString
-        if string.allSatisfy(\.isASCII) { return url }
-        guard var components = URLComponents(string: string) else { return url }
+        Self.percentEncodedURL(from: url.absoluteString) ?? url
+    }
+
+    /// 百分号编码非 ASCII URL 字符串（含首尾空白 trim），供网络请求与封面图等
+    /// 外部字符串 URL 统一使用——上游封面路径常含非 ASCII 字符，直接 `URL(string:)`
+    /// 会得到 nil 而静默丢失图片。
+    static func percentEncodedURL(from string: String) -> URL? {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.allSatisfy(\.isASCII), let url = URL(string: trimmed) { return url }
+        guard var components = URLComponents(string: trimmed) else { return nil }
         if let encodedPath = components.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) {
             components.percentEncodedPath = encodedPath
         }
@@ -54,6 +62,6 @@ actor HTTPClient {
             components.queryItems = nil
             components.queryItems = items
         }
-        return components.url ?? url
+        return components.url
     }
 }

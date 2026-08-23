@@ -40,7 +40,8 @@ class MacCMSApiClient(
                         vodId = item.vodId,
                         vodName = item.vodName,
                         vodTime = item.vodTime,
-                        vodRemarks = item.vodRemarks
+                        vodRemarks = item.vodRemarks,
+                        vodPic = item.vodPic
                     )
                 }
             } catch (e: CancellationException) {
@@ -116,7 +117,8 @@ data class MacCMSListItem(
     @SerialName("vod_id") @Serializable(with = LenientIntSerializer::class) val vodId: Int = 0,
     @SerialName("vod_name") val vodName: String = "",
     @SerialName("vod_time") val vodTime: String = "",
-    @SerialName("vod_remarks") val vodRemarks: String = ""
+    @SerialName("vod_remarks") val vodRemarks: String = "",
+    @SerialName("vod_pic") val vodPic: String = ""
 )
 
 @Serializable
@@ -130,6 +132,7 @@ data class MacCMSDetailResponse(
 data class MacCMSDetailItem(
     @SerialName("vod_id") @Serializable(with = LenientIntSerializer::class) val vodId: Int = 0,
     @SerialName("vod_name") val vodName: String = "",
+    @SerialName("vod_pic") val vodPic: String = "",
     @SerialName("vod_play_url") val vodPlayUrl: String = "",
     @SerialName("vod_down_url") val vodDownUrl: String = ""
 )
