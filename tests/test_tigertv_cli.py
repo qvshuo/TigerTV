@@ -476,6 +476,16 @@ class TigerTvRequestTests(unittest.TestCase):
         self.assertEqual(len(out["results"]), 1)
         self.assertEqual(out["results"][0]["vod_pic"], "")
 
+    def test_contract_fixture_search_sample_matches_output_schema(self):
+        """契约 fixture 必须与 CLI search 输出 schema 一致（含 vod_pic），两端测试共用。"""
+        fixture_path = REPO_ROOT / "shared" / "api-contract" / "fixtures" / "search.sample.json"
+        data = json.loads(fixture_path.read_text(encoding="utf-8"))
+        self.assertIn("keyword", data)
+        self.assertTrue(data["results"], "fixture 必须包含至少一条结果")
+        required = {"site", "vod_id", "vod_name", "vod_time", "vod_remarks", "vod_pic"}
+        for result in data["results"]:
+            self.assertTrue(required <= set(result), f"缺字段: {required - set(result)}")
+
     def test_request_vod_list_rejects_non_list_value(self):
         module = load_module()
         with mock.patch.object(module, "make_request", return_value={"code": 1, "list": ""}):

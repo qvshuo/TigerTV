@@ -17,7 +17,13 @@ data class SearchResult(
     @SerialName("vod_time") val vodTime: String = "",
     @SerialName("vod_remarks") val vodRemarks: String = "",
     @SerialName("vod_pic") val vodPic: String = ""
-)
+) {
+    /** 封面兜底缓存统一 key（内存 / 磁盘 / UI 三处共用，禁止手拼）。 */
+    val coverKey: String get() = coverCacheKey(site, vodId)
+}
+
+/** 封面兜底缓存 key 的唯一构造点：`site-vodId`。 */
+fun coverCacheKey(site: String, vodId: Int): String = "$site-$vodId"
 
 @Serializable
 data class FetchResponse(

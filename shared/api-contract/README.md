@@ -138,3 +138,22 @@ Rules (same for CLI, macOS, and Android):
 ## Fixtures
 
 See [`fixtures/`](./fixtures/) for sample config, search responses, detail responses, and HTML samples used by tests on all platforms.
+
+## Cover fallback URL disk cache
+
+All GUI platforms persist lazily-resolved cover URLs (most sites omit `vod_pic` in
+`ac=list` but return it in `ac=detail`) so a process restart does not re-issue detail
+requests. The on-disk schema is shared and must stay in sync:
+
+- File name: `cover-fallback-cache.json` (macOS: `~/Library/Caches/TigerTV/...`;
+  Android: app cache dir). Written atomically (temp file + rename / `.atomic`).
+- Top level: JSON object keyed by `"<site>-<vodId>"`.
+- Entry shape: `{"url": "<cover url>", "fetchedAt": "<RFC3339 Date>"}` (macOS) /
+  `{"url": "<cover url>", "fetchedAtMillis": <epoch ms>}` (Android — same field set,
+  timestamp encoding differs by platform serializer).
+- TTL: **7 days** for both the URL store and the cover *image* byte cache
+  (macOS deletes expired files by mtime; Android prunes its Coil DiskCache directory
+  at app start — Coil itself has no TTL, only an LRU bound).
+- Failures are never cached: an empty/failed detail lookup leaves no entry, so the
+  card retries naturally when it re-enters the viewport.
+
