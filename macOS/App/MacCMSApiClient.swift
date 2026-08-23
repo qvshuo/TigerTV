@@ -26,7 +26,8 @@ actor MacCMSApiClient {
                     vodId: item.vodId,
                     vodName: item.vodName,
                     vodTime: item.vodTime,
-                    vodRemarks: item.vodRemarks
+                    vodRemarks: item.vodRemarks,
+                    vodPic: item.vodPic
                 )
             }
         } catch {
@@ -97,12 +98,14 @@ struct MacCMSListItem: Codable, Sendable {
     let vodName: String
     let vodTime: String
     let vodRemarks: String
+    let vodPic: String
 
     enum CodingKeys: String, CodingKey {
         case vodId = "vod_id"
         case vodName = "vod_name"
         case vodTime = "vod_time"
         case vodRemarks = "vod_remarks"
+        case vodPic = "vod_pic"
     }
 
     init(from decoder: Decoder) throws {
@@ -111,6 +114,7 @@ struct MacCMSListItem: Codable, Sendable {
         vodName = try container.decodeIfPresent(String.self, forKey: .vodName) ?? ""
         vodTime = try container.decodeIfPresent(String.self, forKey: .vodTime) ?? ""
         vodRemarks = try container.decodeIfPresent(String.self, forKey: .vodRemarks) ?? ""
+        vodPic = try container.decodeIfPresent(String.self, forKey: .vodPic) ?? ""
     }
 }
 
@@ -134,12 +138,14 @@ struct MacCMSDetailResponse: Codable, Sendable {
 struct MacCMSDetailItem: Codable, Sendable {
     let vodId: Int
     let vodName: String?
+    let vodPic: String?
     let vodPlayUrl: String?
     let vodDownUrl: String?
 
     enum CodingKeys: String, CodingKey {
         case vodId = "vod_id"
         case vodName = "vod_name"
+        case vodPic = "vod_pic"
         case vodPlayUrl = "vod_play_url"
         case vodDownUrl = "vod_down_url"
     }
@@ -148,6 +154,7 @@ struct MacCMSDetailItem: Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         vodId = container.decodeLenientInt(forKey: .vodId)
         vodName = try container.decodeIfPresent(String.self, forKey: .vodName)
+        vodPic = try container.decodeIfPresent(String.self, forKey: .vodPic)
         vodPlayUrl = try container.decodeIfPresent(String.self, forKey: .vodPlayUrl)
         vodDownUrl = try container.decodeIfPresent(String.self, forKey: .vodDownUrl)
     }

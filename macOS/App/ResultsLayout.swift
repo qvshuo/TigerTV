@@ -13,6 +13,8 @@ struct ResultsLayout: View {
     let player: AVPlayer?
     let selectedEpisode: EpisodeLink?
     let isResolvingPlayback: Bool
+    let coverFallbacks: [String: URL]
+    let onLoadCoverFallback: (SearchResult) async -> Void
     let onBack: () -> Void
     let onSearch: () -> Void
     let onSelectResult: (SearchResult) -> Void
@@ -134,12 +136,14 @@ struct ResultsLayout: View {
                 .font(.title3)
         } else {
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: AppSpacing.md)], spacing: AppSpacing.md) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: AppSpacing.md)], spacing: AppSpacing.md) {
                     ForEach(results) { result in
                         SearchResultCard(
                             result: result,
                             isSelected: selectedResult?.id == result.id,
                             isLoading: selectedResult?.id == result.id && isFetching,
+                            fallbackCoverURL: coverFallbacks[result.id],
+                            onLoadCoverFallback: { await onLoadCoverFallback(result) },
                             onTap: { onSelectResult(result) }
                         )
                     }

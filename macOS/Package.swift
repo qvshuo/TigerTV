@@ -4,7 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "TigerTV",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS("26.0")],
     products: [
         .library(name: "TigerTVKit", targets: ["TigerTVKit"]),
     ],

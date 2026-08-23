@@ -84,6 +84,31 @@ final class MacCMSApiClientTests: XCTestCase {
         XCTAssertEqual(results[0].site, "🎬暴风资源")
     }
 
+    func testSearchParsesVodPicCoverURL() async {
+        enqueueJSON(
+            #"{"code":1,"msg":"ok","list":[{"vod_id":73480,"vod_name":"逐玉","vod_time":"2026-01-01","vod_remarks":"更新至 10 集","vod_pic":"https://pic.example.com/cover/73480.jpg"}]}"#
+        )
+        let results = await makeClient().search(
+            siteName: "🎬-测试站-",
+            api: "https://example.com/api.php/provide/vod",
+            keyword: "逐玉"
+        )
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0].vodPic, "https://pic.example.com/cover/73480.jpg")
+    }
+
+    func testMissingVodPicDefaultsToEmptyString() async {
+        // 响应缺 vod_pic 时回落空串，不丢结果（与 CLI 输出契约一致）。
+        enqueueJSON(#"{"code":1,"msg":"ok","list":[{"vod_id":1,"vod_name":"x"}]}"#)
+        let results = await makeClient().search(
+            siteName: "🎬-测试站-",
+            api: "https://example.com/api.php/provide/vod",
+            keyword: "666"
+        )
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0].vodPic, "")
+    }
+
     func testFetchDetailAcceptsStringVodId() async throws {
         enqueueJSON(#"{"code":1,"msg":"ok","list":[{"vod_id":"73480","vod_name":"逐玉","vod_play_url":"第01集$https://a.com/1.m3u8","vod_down_url":""}]}"#)
         let detail = try await makeClient().fetchDetail(

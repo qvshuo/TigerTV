@@ -428,7 +428,7 @@ def cmd_search(args, api_name_map):
     _log("INFO", "search", f"total_results={total}")
 
     output = {"keyword": keyword, "results": []}
-    fields = ["vod_id", "vod_name", "vod_time", "vod_remarks"]
+    fields = ["vod_id", "vod_name", "vod_time", "vod_remarks", "vod_pic"]
     for name, vods in results:
         for vod in vods:
             item = {"site": name}

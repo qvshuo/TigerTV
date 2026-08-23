@@ -68,6 +68,15 @@ class TigerTVViewModel(
 
     val searchHistory = mutableStateListOf<String>()
 
+    /**
+     * 空封面卡片的懒加载兜底 URL（key 为 "site-vodId"）。
+     * 仅在卡片可见时按需填充；失败不入表，卡片重入视口时自然重试。
+     */
+    var coverFallbacks by mutableStateOf<Map<String, String>>(emptyMap())
+        private set
+    private val coverLoadsInFlight = mutableSetOf<String>()
+    private val coverLoadsMutex = Any()
+
     private var searchJob: Job? = null
     private var fetchJob: Job? = null
     private var playbackJob: Job? = null
@@ -102,6 +111,25 @@ class TigerTVViewModel(
 
     fun retryLoadConfig() {
         loadConfig()
+    }
+
+    /** 卡片可见时调用：`vod_pic` 为空才发起 detail 兜底请求。 */
+    fun loadCoverFallbackIfNeeded(result: SearchResult) {
+        if (result.vodPic.isNotBlank()) return
+        val key = "${result.site}-${result.vodId}"
+        synchronized(coverLoadsMutex) {
+            if (coverFallbacks.containsKey(key) || !coverLoadsInFlight.add(key)) return
+        }
+        viewModelScope.launch {
+            try {
+                val url = repository.resolveCoverFallback(result.site, result.vodId)
+                if (url != null) {
+                    coverFallbacks = coverFallbacks + (key to url)
+                }
+            } finally {
+                synchronized(coverLoadsMutex) { coverLoadsInFlight.remove(key) }
+            }
+        }
     }
 
     fun onKeywordChange(value: String) {

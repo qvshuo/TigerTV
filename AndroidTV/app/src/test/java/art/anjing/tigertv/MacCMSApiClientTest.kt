@@ -75,6 +75,25 @@ class MacCMSApiClientTest {
         assertEquals(1, result.size)
         assertEquals("逐玉", result[0].vodName)
         assertEquals(73480, result[0].vodId)
+        // 响应缺 vod_pic 时回落空串，不丢结果（与 CLI 输出契约一致）。
+        assertEquals("", result[0].vodPic)
+    }
+
+    @Test
+    fun `search parses vod_pic cover url`() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {"code":1,"msg":"ok","list":[
+                    {"vod_id":73480,"vod_name":"逐玉","vod_time":"2024-01-01","vod_remarks":"HD",
+                     "vod_pic":"https://pic.example.com/cover/73480.jpg"}
+                ]}
+                """.trimIndent()
+            )
+        )
+        val result = client.search("🎬-测试站-", server.url("/api.php/provide/vod").toString(), "逐玉")
+        assertEquals(1, result.size)
+        assertEquals("https://pic.example.com/cover/73480.jpg", result[0].vodPic)
     }
 
     @Test

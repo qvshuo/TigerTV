@@ -43,6 +43,8 @@ struct ContentView: View {
                     player: player,
                     selectedEpisode: viewModel.selectedEpisode,
                     isResolvingPlayback: viewModel.isResolvingPlayback,
+                    coverFallbacks: viewModel.coverFallbacks,
+                    onLoadCoverFallback: viewModel.loadCoverFallbackIfPossible,
                     onBack: goBack,
                     onSearch: startSearch,
                     onSelectResult: selectResult,

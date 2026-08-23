@@ -32,6 +32,7 @@ Fields:
   - `vod_name`: display title.
   - `vod_time`: update/release time string; missing values are output as `""`.
   - `vod_remarks`: status string (e.g. episode count, resolution); missing values are output as `""`.
+  - `vod_pic`: cover image URL (already a full, directly fetchable URL from the upstream MacCMS `ac=list` response); missing values are output as `""`. May be plain HTTP — both apps allow cleartext image loads.
 
 ### `FetchResponse`
 

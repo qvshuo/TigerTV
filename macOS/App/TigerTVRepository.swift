@@ -8,17 +8,23 @@ actor TigerTVRepository {
 
     private var cachedConfig: SourceConfig?
     private var searchCache: [String: CacheEntry<SearchResponse>] = [:]
+    private var coverCache: [String: URL] = [:]
+    private let coverSemaphore = AsyncSemaphore(value: 4)
+    /// 兜底 URL 的磁盘持久层（7 天 TTL）；nil 表示仅进程内缓存。
+    private let coverURLStore: CoverFallbackURLStore?
 
     init(
         configDataSource: ConfigDataSource,
         apiClient: MacCMSApiClient,
         playbackResolver: PlaybackURLResolver,
-        searchCacheTtl: TimeInterval = 10 * 60
+        searchCacheTtl: TimeInterval = 10 * 60,
+        coverURLStore: CoverFallbackURLStore? = nil
     ) {
         self.configDataSource = configDataSource
         self.apiClient = apiClient
         self.playbackResolver = playbackResolver
         self.searchCacheTtl = searchCacheTtl
+        self.coverURLStore = coverURLStore
     }
 
     func loadConfig() async -> LoadResult<SourceConfig> {
@@ -104,6 +110,55 @@ actor TigerTVRepository {
             return .failure(error)
         } catch {
             return .failure(.network(error.localizedDescription))
+        }
+    }
+
+    /// 搜索封面懒加载兜底：多数站点 `ac=list` 响应不含 `vod_pic`（仅 detail 返回），
+    /// 空封面卡片可见时按需取 detail 补齐。命中内存缓存不发请求；失败不缓存，
+    /// 卡片再次进入视口时自然重试。并发受信号量限制，避免滚动时打爆站点。
+    func coverFallbackURL(siteName: String, vodId: Int) async -> URL? {
+        let key = "\(siteName)-\(vodId)"
+        if let cached = coverCache[key] { return cached }
+
+        // 磁盘持久层命中：回填内存缓存即可，无需发 detail 请求（7 天 TTL 内稳定有效）。
+        if let persisted = coverURLStore?.url(forKey: key),
+           let url = HTTPClient.percentEncodedURL(from: persisted) {
+            coverCache[key] = url
+            return url
+        }
+
+        let config: SourceConfig
+        switch await loadConfig() {
+        case .success(let c): config = c
+        case .failure: return nil
+        }
+        guard let site = config.apiSite.values.first(where: { $0.name == siteName }) else {
+            return nil
+        }
+
+        await coverSemaphore.wait()
+        // 拿到许可后二次检查：排队期间同 key 可能已被其他任务填入缓存。
+        if let cached = coverCache[key] {
+            await coverSemaphore.signal()
+            return cached
+        }
+        do {
+            let detail = try await apiClient.fetchDetail(api: site.api, vodId: vodId)
+            await coverSemaphore.signal()
+            guard detail.code == 1,
+                  let pic = detail.list.first?.vodPic?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !pic.isEmpty else {
+                return nil
+            }
+            let url = HTTPClient.percentEncodedURL(from: pic)
+            if let url {
+                coverCache[key] = url
+                coverURLStore?.store(pic, forKey: key)
+            }
+            return url
+        } catch {
+            await coverSemaphore.signal()
+            return nil
         }
     }
 
