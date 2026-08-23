@@ -6,6 +6,7 @@ import art.anjing.tigertv.domain.FetchResponse
 import art.anjing.tigertv.domain.SearchResponse
 import art.anjing.tigertv.domain.SearchResult
 import art.anjing.tigertv.domain.SourceConfig
+import art.anjing.tigertv.domain.coverCacheKey
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -41,7 +42,7 @@ class TigerTVRepository(
      * 卡片再次进入视口时自然重试。并发受信号量限制，避免滚动时打爆站点。
      */
     suspend fun resolveCoverFallback(siteName: String, vodId: Int): String? {
-        val key = "$siteName-$vodId"
+        val key = coverCacheKey(siteName, vodId)
         coverCacheMutex.withLock {
             coverCache[key]?.let { return it }
         }
@@ -60,14 +61,14 @@ class TigerTVRepository(
         return try {
             coverSemaphore.withPermit {
                 // 拿到许可后二次检查：排队期间同 key 可能已被其他任务填入缓存。
-                val cached = coverCacheMutex.withLock { coverCache["$siteName-$vodId"] }
+                val cached = coverCacheMutex.withLock { coverCache[key] }
                 cached ?: run {
                     val detail = apiClient.fetchDetail(site.api, vodId)
                     val pic = if (detail.code == 1) detail.list.firstOrNull()?.vodPic?.trim() else null
                     val url = pic?.takeIf { it.isNotEmpty() }
                     if (url != null) {
-                        coverCacheMutex.withLock { coverCache["$siteName-$vodId"] = url }
-                        coverDiskCache?.put("$siteName-$vodId", url)
+                        coverCacheMutex.withLock { coverCache[key] = url }
+                        coverDiskCache?.put(key, url)
                     }
                     url
                 }

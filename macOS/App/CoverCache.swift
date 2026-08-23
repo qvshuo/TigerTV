@@ -82,9 +82,11 @@ final class CoverImageCache: @unchecked Sendable {
         self.directory = base
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         // ephemeral + 20s 超时：与 API 请求超时对齐，且不污染共享会话的 cookie/缓存语义。
+        // UA 必须与其他网络路径一致（AGENTS.md 约定所有平台统一 Safari UA）。
         self.session = session ?? {
             let configuration = URLSessionConfiguration.ephemeral
             configuration.timeoutIntervalForRequest = 20
+            configuration.httpAdditionalHeaders = ["User-Agent": HTTPClient.userAgent]
             return URLSession(configuration: configuration)
         }()
     }

@@ -113,10 +113,10 @@ class TigerTVViewModel(
         loadConfig()
     }
 
-    /** 卡片可见时调用：`vod_pic` 为空才发起 detail 兜底请求。 */
-    fun loadCoverFallbackIfNeeded(result: SearchResult) {
+    /** 卡片可见时调用：`vod_pic` 为空才发起 detail 兜底请求。命名与 macOS 端保持一致。 */
+    fun loadCoverFallbackIfPossible(result: SearchResult) {
         if (result.vodPic.isNotBlank()) return
-        val key = "${result.site}-${result.vodId}"
+        val key = result.coverKey
         synchronized(coverLoadsMutex) {
             if (coverFallbacks.containsKey(key) || !coverLoadsInFlight.add(key)) return
         }
