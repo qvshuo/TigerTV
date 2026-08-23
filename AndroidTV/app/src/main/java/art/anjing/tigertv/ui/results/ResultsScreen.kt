@@ -133,7 +133,14 @@ private fun ResultsGrid(
         LazyVerticalGrid(
             columns = GridCells.Fixed(derivedColumnCount(maxWidth, maxHeight)),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(GridContentPadding),
+            // 上下额外留出焦点放大的余量：Card 聚焦时默认 scale≈1.1，
+            // 不留余量则首行卡片放大后的上边缘会被视口裁剪、视觉上被标题栏压住。
+            contentPadding = PaddingValues(
+                start = GridContentPadding,
+                end = GridContentPadding,
+                top = GridContentPadding + FocusScaleHeadroom,
+                bottom = GridContentPadding + FocusScaleHeadroom
+            ),
             horizontalArrangement = Arrangement.spacedBy(ColumnSpacing),
             verticalArrangement = Arrangement.spacedBy(RowSpacing)
         ) {
@@ -212,6 +219,9 @@ private fun ResultsGrid(
 /** 卡片文字区（标题 + 站点/remarks 行 + 内边距）的高度预算。 */
 private val TextBlockHeight = 84.dp
 private val GridContentPadding = 8.dp
+
+/** 焦点放大（scale≈1.1）时卡片上下边缘超出单元格的预留量。 */
+private val FocusScaleHeadroom = 16.dp
 private val ColumnSpacing = 16.dp
 private val RowSpacing = 16.dp
 
@@ -230,9 +240,10 @@ private const val MaxColumns = 6
  * 屏幕越高列数越多，任何分辨率下每张海报卡都完整可见、不超出垂直范围。
  */
 private fun derivedColumnCount(availableWidth: Dp, availableHeight: Dp): Int {
+    val verticalPadding = GridContentPadding * 2 + FocusScaleHeadroom * 2
     val rowBudget = (
         availableHeight -
-            GridContentPadding * 2 -
+            verticalPadding -
             RowSpacing * (TargetVisibleRows - 1)
         ) / TargetVisibleRows
     val maxCardWidthFromHeight =
