@@ -67,27 +67,26 @@ jobs:
       - name: Check shared contract and CLI
         run: .github/scripts/check-contract.sh
 
-      - name: Generate release keystore
+      - name: Decode release keystore
         working-directory: ./AndroidTV
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          keytool -genkey \
-            -v \
-            -keystore release.keystore \
-            -alias tigertv \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass tigertv \
-            -keypass tigertv \
-            -dname "CN=TigerTV"
+          # 固定签名密钥（repo secret），保证各版本 APK 签名一致、电视可原地升级。
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is not set"
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > release.keystore
+          keytool -list -keystore release.keystore -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" -alias "${{ secrets.ANDROID_KEY_ALIAS }}" > /dev/null
 
       - name: Build Android TV (universal)
         working-directory: ./AndroidTV
         env:
           CI_RELEASE_STORE_FILE: ${{ github.workspace }}/AndroidTV/release.keystore
-          CI_RELEASE_STORE_PASSWORD: tigertv
-          CI_RELEASE_KEY_ALIAS: tigertv
-          CI_RELEASE_KEY_PASSWORD: tigertv
+          CI_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CI_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          CI_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           ./gradlew test assembleRelease
 
