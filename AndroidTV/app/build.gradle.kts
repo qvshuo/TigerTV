@@ -12,8 +12,8 @@ android {
         applicationId = "art.anjing.tigertv"
         minSdk = 34
         targetSdk = 37
-        versionCode = 8
-        versionName = "3.2.1"
+        versionCode = 9
+        versionName = "3.2.2"
 
         // Include both 32-bit (TV) and 64-bit (modern devices/emulators) ABIs.
         ndk {

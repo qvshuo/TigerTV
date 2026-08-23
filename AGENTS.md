@@ -136,7 +136,7 @@ CI uses `xcodebuild -project macOS/TigerTV.xcodeproj ... -configuration Release 
 
 Native Android TV app implemented in Kotlin with Jetpack Compose for TV, Material 3, and Media3 ExoPlayer. It replicates the CLI search/fetch/playback-resolution logic in Kotlin so both platforms share the same output contract and config behavior. The authoritative business rules live in `tigertv-cli.py`; Android mirrors them using the shared API contract in `shared/api-contract/`.
 
-Current version: `3.2.1` (`versionCode 8`). **minSdk = 34（Android 14）** — 设备实证依据：Sony BRAVIA 4K AE2（Android 14 / SDK 34）主 ABI 为 `armeabi-v7a`，因此 universal APK 必须同时包含 `armeabi-v7a` 与 `arm64-v8a`，去掉 v7a 会让该类 32 位 Android 14 TV 无法安装。Toolchain: Kotlin **2.4.10**（serialization/compose 插件同版本联动）、AGP 9.2.1、Gradle 9.6、Media3 1.11.0、Coil 3.5.0。
+Current version: `3.2.2` (`versionCode 9`). **minSdk = 34（Android 14）** — 设备实证依据：Sony BRAVIA 4K AE2（Android 14 / SDK 34）主 ABI 为 `armeabi-v7a`，因此 universal APK 必须同时包含 `armeabi-v7a` 与 `arm64-v8a`，去掉 v7a 会让该类 32 位 Android 14 TV 无法安装。Toolchain: Kotlin **2.4.10**（serialization/compose 插件同版本联动）、AGP 9.2.1、Gradle 9.6、Media3 1.11.0、Coil 3.5.0。
 
 ### Build
 
