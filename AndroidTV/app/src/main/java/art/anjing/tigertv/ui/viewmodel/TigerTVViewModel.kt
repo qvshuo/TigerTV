@@ -14,7 +14,16 @@ import art.anjing.tigertv.data.SearchHistoryStore
 import art.anjing.tigertv.data.TigerTVRepository
 import art.anjing.tigertv.domain.FetchResponse
 import art.anjing.tigertv.domain.SearchResult
+import art.anjing.tigertv.util.normalizeCoverUrl
+import coil3.SingletonImageLoader
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class TigerTVViewModel(
@@ -22,6 +31,7 @@ class TigerTVViewModel(
     context: Context
 ) : ViewModel() {
 
+    private val appContext = context.applicationContext
     private val historyStore = SearchHistoryStore(context)
 
     var keyword by mutableStateOf("")
@@ -77,6 +87,10 @@ class TigerTVViewModel(
     private val coverLoadsInFlight = mutableSetOf<String>()
     private val coverLoadsMutex = Any()
 
+    private var prefetchJob: Job? = null
+    private val prefetchedKeys = mutableSetOf<String>()
+    private val prefetchedKeysMutex = Any()
+
     private var searchJob: Job? = null
     private var fetchJob: Job? = null
     private var playbackJob: Job? = null
@@ -115,6 +129,8 @@ class TigerTVViewModel(
 
     /** 卡片可见时调用：`vod_pic` 为空才发起 detail 兜底请求。命名与 macOS 端保持一致。 */
     fun loadCoverFallbackIfPossible(result: SearchResult) {
+        // 每张卡片进入组合都会经过这里，正好作为渐进式预取的触发点。
+        ensureCoverPrefetch()
         if (result.vodPic.isNotBlank()) return
         val key = result.coverKey
         synchronized(coverLoadsMutex) {
@@ -132,6 +148,56 @@ class TigerTVViewModel(
         }
     }
 
+    /**
+     * 封面渐进式预取：当前曝光卡片的兜底请求收敛后，按批次预取未曝光结果
+     * （解析兜底 URL + 把图片字节预热进 Coil 内存/磁盘缓存），一批完成再取下一批，
+     * 直到列表末尾。用户滚到时直接命中缓存，无需再等网络。
+     * 已处理过的 key 跳过；新搜索会取消并清空预取状态。
+     */
+    private fun ensureCoverPrefetch() {
+        if (results.isEmpty() || prefetchJob?.isActive == true) return
+        val snapshot = results
+        prefetchJob = viewModelScope.launch {
+            // 等曝光中的兜底请求收敛，避免与可见卡片抢并发闸门。
+            while (synchronized(coverLoadsMutex) { coverLoadsInFlight.isNotEmpty() }) {
+                delay(PREFETCH_IDLE_POLL_MILLIS)
+            }
+            var index = 0
+            while (index < snapshot.size && isActive) {
+                val end = minOf(index + PREFETCH_BATCH, snapshot.size)
+                coroutineScope {
+                    snapshot.subList(index, end).map { result ->
+                        async { prefetchCover(appContext, result) }
+                    }.awaitAll()
+                }
+                index = end
+            }
+        }
+    }
+
+    private suspend fun prefetchCover(context: Context, result: SearchResult) {
+        synchronized(prefetchedKeysMutex) {
+            if (!prefetchedKeys.add(result.coverKey)) return
+        }
+        try {
+            val url = if (result.vodPic.isNotBlank()) {
+                result.vodPic
+            } else {
+                repository.resolveCoverFallback(result.site, result.vodId) ?: return
+            }
+            val normalized = normalizeCoverUrl(url) ?: return
+            SingletonImageLoader.get(context).execute(
+                ImageRequest.Builder(context)
+                    .data(normalized)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .build()
+            )
+        } catch (_: Exception) {
+            // 预取失败静默放弃：卡片真正可见时 UI 自己的加载路径仍会重试。
+        }
+    }
+
     fun onKeywordChange(value: String) {
         keyword = value
     }
@@ -142,6 +208,8 @@ class TigerTVViewModel(
         searchJob?.cancel()
         fetchJob?.cancel()
         playbackJob?.cancel()
+        prefetchJob?.cancel()
+        synchronized(prefetchedKeysMutex) { prefetchedKeys.clear() }
         submittedKeyword = trimmed
         addHistory(trimmed)
         isSearching = true
@@ -279,10 +347,17 @@ class TigerTVViewModel(
         searchJob?.cancel()
         fetchJob?.cancel()
         playbackJob?.cancel()
+        prefetchJob?.cancel()
     }
 
     companion object {
         private const val MAX_HISTORY = 20
+
+        /** 每批预取的结果数。 */
+        private const val PREFETCH_BATCH = 6
+
+        /** 等待曝光兜底请求收敛的轮询间隔。 */
+        private const val PREFETCH_IDLE_POLL_MILLIS = 100L
     }
 }
 

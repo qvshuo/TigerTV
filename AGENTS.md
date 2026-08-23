@@ -136,7 +136,7 @@ CI uses `xcodebuild -project macOS/TigerTV.xcodeproj ... -configuration Release 
 
 Native Android TV app implemented in Kotlin with Jetpack Compose for TV, Material 3, and Media3 ExoPlayer. It replicates the CLI search/fetch/playback-resolution logic in Kotlin so both platforms share the same output contract and config behavior. The authoritative business rules live in `tigertv-cli.py`; Android mirrors them using the shared API contract in `shared/api-contract/`.
 
-Current version: `3.2.3` (`versionCode 10`). **minSdk = 34（Android 14）** — 设备实证依据：Sony BRAVIA 4K AE2（Android 14 / SDK 34）主 ABI 为 `armeabi-v7a`，因此 universal APK 必须同时包含 `armeabi-v7a` 与 `arm64-v8a`，去掉 v7a 会让该类 32 位 Android 14 TV 无法安装。Toolchain: Kotlin **2.4.10**（serialization/compose 插件同版本联动）、AGP 9.2.1、Gradle 9.6、Media3 1.11.0、Coil 3.5.0。
+Current version: `3.2.4` (`versionCode 11`). **minSdk = 34（Android 14）** — 设备实证依据：Sony BRAVIA 4K AE2（Android 14 / SDK 34）主 ABI 为 `armeabi-v7a`，因此 universal APK 必须同时包含 `armeabi-v7a` 与 `arm64-v8a`，去掉 v7a 会让该类 32 位 Android 14 TV 无法安装。Toolchain: Kotlin **2.4.10**（serialization/compose 插件同版本联动）、AGP 9.2.1、Gradle 9.6、Media3 1.11.0、Coil 3.5.0。
 
 ### Build
 
@@ -187,6 +187,7 @@ cd AndroidTV
 - **Results grid columns are height-constrained**: 竖版海报 2:3，只按宽度自适应列数会让一行 4 张的海报高度超出电视垂直显示范围。`ResultsScreen.derivedColumnCount` 用 `BoxWithConstraints` 按目标两行完整可见反推卡片最大宽度再定列数（clamp 2~6），屏幕越高列数越多；改卡片文字区高度时要同步 `TextBlockHeight` 常量。
 - **Cover cache key 单一构造点**: 封面兜底缓存 key 统一为 `site-vodId`，Android 由 `domain/Models.kt` 的 `coverCacheKey()` / `SearchResult.coverKey` 构造，禁止各处手拼字符串漂移；兜底方法两端同名为 `loadCoverFallbackIfPossible`。
 - **Cover URL 非 ASCII 编码对齐**: Android 侧封面 URL 经 `util/CoverUrl.kt` 的 `normalizeCoverUrl`（仅编非 ASCII 字符为 UTF-8 百分号，已编码 `%XX` 与 ASCII 原样透传避免双重编码）再交给 Coil，语义与 macOS `HTTPClient.percentEncodedURL(from:)` 一致——部分站点中文路径封面直接丢给图片库会静默 404。
+- **Cover 渐进式预取**: `TigerTVViewModel.ensureCoverPrefetch` 在曝光卡片的兜底请求收敛后（`coverLoadsInFlight` 清空轮询），按 `PREFETCH_BATCH=6` 一批批预取未曝光结果：解析兜底 URL + `SingletonImageLoader.execute` 把图片字节预热进 Coil 内存/磁盘缓存，直到列表末尾；已处理 key 跳过、失败不标记（可见时 UI 路径仍会重试）、新搜索取消并清空。触发点为每张卡片组合时的 `loadCoverFallbackIfPossible`（含有封面的卡片，保证纯命中站点也会启动预取）。
 - **Config cache**: stores the **raw** (pre-filter) `SourceConfig` and filters at read time; cache file written atomically (tmp + rename). Per-remote errors collected in a local `fetchError` (not a shared mutable field).
 - **Source filtering**: same parity as CLI/macOS — `🎬` in name, no `_comment`, non-empty `api`, dedup by `api` URL (the first entry for a given `api` URL is kept).
 - **Lenient numeric parsing**: `MacCMSListResponse.code`, `MacCMSListItem.vodId`, `MacCMSDetailResponse.code`, `MacCMSDetailItem.vodId` are decoded with a custom `LenientIntSerializer` that coerces int / float (`1.0`) / numeric-string (`"102405"`) / null → `Int`, mirroring the CLI's `int(code)` / `int(vod.get("vod_id",0) or 0)`. ⚠️ This is the **root cause** of "Android搜到的比 macOS 少": macOS `JSONDecoder` auto-coerces `1.0`→`Int`, but kotlinx.serialization strict-matches and throws — the whole response was silently dropped, losing those sites. String `vod_id` (e.g. 暴风资源) was missed by BOTH macOS and Android before; now Android matches CLI and reaches them. `coerceInputValues = true` still handles plain-null fields → default.
