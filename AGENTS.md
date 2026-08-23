@@ -145,7 +145,7 @@ cd AndroidTV
 ./gradlew test assembleDebug
 ```
 
-Release build (CI generates a temporary keystore):
+Release build (CI signs with the **fixed** keystore stored in repo secrets — `ANDROID_KEYSTORE_BASE64` + `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`；签名跨版本一致，APK 可原地 `adb install -r` 升级。⚠️ 勿改回每次 `keytool -genkey` 的临时签名——那会导致每个 release 签名不同、电视上无法覆盖安装):
 
 ```bash
 cd AndroidTV
