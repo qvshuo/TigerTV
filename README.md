@@ -69,7 +69,7 @@ xattr -cr "/Applications/小老虎爱看剧.app"
 1. 从 [Releases](https://github.com/qvshuo/TigerTV/releases) 下载 `TigerTV-AndroidTV-universal-<version>.apk`
 2. 安装到 Android TV 设备
 
-**系统要求：** Android 6.0+（API 23+）
+**系统要求：** Android 14+（API 34+）
 
 ### 命令行工具
 
