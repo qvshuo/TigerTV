@@ -20,9 +20,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.tv.material3.Button
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
@@ -31,6 +33,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import art.anjing.tigertv.R
 import art.anjing.tigertv.domain.EpisodeLink
+import art.anjing.tigertv.domain.SearchResult
 import art.anjing.tigertv.ui.components.ErrorMessage
 import art.anjing.tigertv.ui.components.LoadingOverlay
 import art.anjing.tigertv.ui.components.TvCardShape
@@ -67,12 +70,22 @@ fun EpisodesScreen(
                         text = result?.vodName ?: stringResource(R.string.episodes_title),
                         style = MaterialTheme.typography.headlineLarge
                     )
-                    result?.site?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary
+                    // 合并组内多源时展示源切换行；单源组与旧行为一致（仅文本）。
+                    if (viewModel.selectedSources.size > 1) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SourceSwitcher(
+                            sources = viewModel.selectedSources,
+                            current = result,
+                            onSwitch = { viewModel.switchSource(it) }
                         )
+                    } else {
+                        result?.site?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             }
@@ -101,6 +114,48 @@ fun EpisodesScreen(
                     selectedEpisodeIndex = viewModel.selectedEpisodeIndex,
                     onPlay = onPlay,
                     modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 合并组内多源切换行：每个源一张可聚焦小卡，D-pad 左右移动、OK 切换。
+ * 当前源高亮；切换即触发对应源剧集重新 fetch。
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun SourceSwitcher(
+    sources: List<SearchResult>,
+    current: SearchResult?,
+    onSwitch: (SearchResult) -> Unit
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(sources, key = { "${it.site}-${it.vodId}" }) { source ->
+            val isCurrent = current?.let { it.site == source.site && it.vodId == source.vodId } == true
+            Card(
+                onClick = { if (!isCurrent) onSwitch(source) },
+                shape = CardDefaults.shape(shape = TvCardShape),
+                border = tvCardFocusedBorder(),
+                colors = CardDefaults.colors(
+                    containerColor = if (isCurrent) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    }
+                )
+            ) {
+                Text(
+                    text = source.site,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isCurrent) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.95f)
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                 )
             }
         }

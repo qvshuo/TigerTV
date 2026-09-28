@@ -30,6 +30,7 @@
 		A00000000000000000000601 /* LoadResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000600 /* LoadResult.swift */; };
 		A00000000000000000000701 /* TigerTVError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000700 /* TigerTVError.swift */; };
 		A00000000000000000000801 /* TigerTVViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000800 /* TigerTVViewModel.swift */; };
+		A00000000000000000000A01 /* SearchMerger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000A00 /* SearchMerger.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -56,6 +57,7 @@
 		A00000000000000000000600 /* LoadResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadResult.swift; sourceTree = "<group>"; };
 		A00000000000000000000700 /* TigerTVError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TigerTVError.swift; sourceTree = "<group>"; };
 		A00000000000000000000800 /* TigerTVViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TigerTVViewModel.swift; sourceTree = "<group>"; };
+		A00000000000000000000A00 /* SearchMerger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchMerger.swift; sourceTree = "<group>"; };
 		000000000000000000000300 /* TigerTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TigerTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000301 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		000000000000000000000302 /* TigerTV.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TigerTV.entitlements; sourceTree = "<group>"; };
@@ -86,6 +88,7 @@
 				000000000000000000000215 /* EpisodePanel.swift */,
 				000000000000000000000216 /* DesignSystem.swift */,
 				A00000000000000000000800 /* TigerTVViewModel.swift */,
+				A00000000000000000000A00 /* SearchMerger.swift */,
 				A00000000000000000000600 /* LoadResult.swift */,
 				A00000000000000000000700 /* TigerTVError.swift */,
 				000000000000000000000202 /* Models.swift */,
@@ -200,6 +203,7 @@
 				000000000000000000000115 /* EpisodePanel.swift in Sources */,
 				000000000000000000000116 /* DesignSystem.swift in Sources */,
 				A00000000000000000000801 /* TigerTVViewModel.swift in Sources */,
+				A00000000000000000000A01 /* SearchMerger.swift in Sources */,
 				A00000000000000000000601 /* LoadResult.swift in Sources */,
 				A00000000000000000000701 /* TigerTVError.swift in Sources */,
 				000000000000000000000102 /* Models.swift in Sources */,

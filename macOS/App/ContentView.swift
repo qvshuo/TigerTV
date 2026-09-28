@@ -11,7 +11,8 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var activeErrorMessage: String? {
-        viewModel.searchErrorMessage ?? viewModel.fetchErrorMessage ?? viewModel.playbackErrorMessage
+        // fetch 失败已由右侧 EpisodeErrorPanel 内联展示（含重试/换源），不再重复弹 alert。
+        viewModel.searchErrorMessage ?? viewModel.playbackErrorMessage
     }
 
     var body: some View {
@@ -36,10 +37,13 @@ struct ContentView: View {
                     keyword: $viewModel.keyword,
                     submittedKeyword: viewModel.submittedKeyword,
                     results: viewModel.results,
+                    mergedResults: viewModel.mergedResults,
                     isSearching: viewModel.isSearching,
                     selectedResult: viewModel.selectedResult,
+                    selectedSources: viewModel.selectedSources,
                     fetchResponse: viewModel.fetchResponse,
                     isFetching: viewModel.isFetching,
+                    fetchErrorMessage: viewModel.fetchErrorMessage,
                     player: player,
                     selectedEpisode: viewModel.selectedEpisode,
                     isResolvingPlayback: viewModel.isResolvingPlayback,
@@ -48,6 +52,8 @@ struct ContentView: View {
                     onBack: goBack,
                     onSearch: startSearch,
                     onSelectResult: selectResult,
+                    onSwitchSource: switchSource,
+                    onRetryFetch: viewModel.retryFetch,
                     onSelectEpisode: selectEpisode
                 )
                 .transition(.asymmetric(
@@ -90,10 +96,16 @@ struct ContentView: View {
         startSearch()
     }
 
-    private func selectResult(_ result: SearchResult) {
+    private func selectResult(_ merged: MergedSearchResult) {
         player?.pause()
         player = nil
-        viewModel.selectResult(result)
+        viewModel.selectMerged(merged)
+    }
+
+    private func switchSource(_ result: SearchResult) {
+        player?.pause()
+        player = nil
+        viewModel.switchSource(result)
     }
 
     private func selectEpisode(_ episode: EpisodeLink) {

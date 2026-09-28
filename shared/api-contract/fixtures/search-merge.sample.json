@@ -1,0 +1,30 @@
+{
+  "keyword": "逐玉",
+  "comment": "跨站同名：两条结果应被客户端合并为一组（primary=有封面的爱奇艺），另一部剧单独成组。仅用于客户端合并展示层测试，不改变 search 契约。",
+  "results": [
+    {
+      "site": "🎬金鹰点播",
+      "vod_id": 104571,
+      "vod_name": "逐玉",
+      "vod_time": "2025-12-28",
+      "vod_remarks": "完结",
+      "vod_pic": ""
+    },
+    {
+      "site": "🎬-爱奇艺-",
+      "vod_id": 73480,
+      "vod_name": "逐玉",
+      "vod_time": "2026-01-01",
+      "vod_remarks": "更新至 10 集",
+      "vod_pic": "https://pic.example-iqiyi.com/cover/73480.jpg"
+    },
+    {
+      "site": "🎬金鹰点播",
+      "vod_id": 90001,
+      "vod_name": "苍兰诀",
+      "vod_time": "2022-08-07",
+      "vod_remarks": "完结",
+      "vod_pic": ""
+    }
+  ]
+}

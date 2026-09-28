@@ -135,6 +135,34 @@ Rules (same for CLI, macOS, and Android):
 6. Support query strings and escaped slashes (`\/`).
 7. Failure to find a media URL → playback error.
 
+## Client-side result merging (display layer)
+
+This is a **pure client display behavior**; it does not change the `search`/`fetch` JSON
+contract, the CLI, or any cache key. Both GUI platforms merge results that refer to the
+same title so a single card represents one show across multiple source sites.
+
+- **Grouping key**: `normalize(vod_name)` + `#` + `year(vod_time)`.
+  - `normalize`: trim, drop all internal whitespace, lowercase, fold full-width
+    `Ａ-Ｚａ-ｚ０-９` to half-width. Implemented as `normalizeVodName` on both platforms.
+  - `year`: the leading 4 digits of `vod_time` when present, else `""`. When the year is
+    missing the key degenerates to the normalized name only, so a remake with a different
+    year is **not** merged into the same group.
+- **Primary (display) source**, chosen deterministically:
+  1. has `vod_pic`,
+  2. has non-empty `vod_remarks`,
+  3. newer `vod_time`,
+  4. earliest in the original result order (stable tie-break).
+- **Group ordering**: a group takes the position of its earliest member, so merging never
+  pushes an originally-early result further down.
+- **Interaction**: the card shows the primary source badge plus a `+N` count for merged
+  extra sources. Tapping opens episodes from the primary source; the episode panel/screen
+  exposes a source switcher (macOS `Menu`, Android TV focusable row) listing all sources
+  in the group, and switching re-fetches episodes for that source. Groups with a single
+  source render exactly as before (no UI change).
+- Implementations: macOS `App/SearchMerger.swift` (`mergeSearchResults`,
+  `MergedSearchResult`), Android `domain/SearchMerger.kt` (same names). Both are covered
+  by unit tests mirroring the cases above.
+
 ## Fixtures
 
 See [`fixtures/`](./fixtures/) for sample config, search responses, detail responses, and HTML samples used by tests on all platforms.

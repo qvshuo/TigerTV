@@ -13,7 +13,9 @@ import art.anjing.tigertv.data.Result
 import art.anjing.tigertv.data.SearchHistoryStore
 import art.anjing.tigertv.data.TigerTVRepository
 import art.anjing.tigertv.domain.FetchResponse
+import art.anjing.tigertv.domain.MergedSearchResult
 import art.anjing.tigertv.domain.SearchResult
+import art.anjing.tigertv.domain.mergeSearchResults
 import art.anjing.tigertv.util.normalizeCoverUrl
 import coil3.SingletonImageLoader
 import coil3.request.CachePolicy
@@ -43,7 +45,15 @@ class TigerTVViewModel(
     var results by mutableStateOf<List<SearchResult>>(emptyList())
         private set
 
+    /** 归并后的展示单元：同一部剧多源只出一张卡。由 [results] 派生，保持同步。 */
+    var mergedResults by mutableStateOf<List<MergedSearchResult>>(emptyList())
+        private set
+
     var selectedResult by mutableStateOf<SearchResult?>(null)
+        private set
+
+    /** 当前选中合并组内的全部源（含主源），用于剧集页源切换。 */
+    var selectedSources by mutableStateOf<List<SearchResult>>(emptyList())
         private set
 
     var fetchResponse by mutableStateOf<FetchResponse?>(null)
@@ -219,7 +229,9 @@ class TigerTVViewModel(
         fetchErrorMessage = null
         playbackErrorMessage = null
         results = emptyList()
+        mergedResults = emptyList()
         selectedResult = null
+        selectedSources = emptyList()
         fetchResponse = null
         selectedEpisodeIndex = -1
         resolvedPlaybackUrl = null
@@ -228,6 +240,7 @@ class TigerTVViewModel(
             when (val result = repository.search(trimmed)) {
                 is Result.Success -> {
                     results = result.data.results
+                    mergedResults = mergeSearchResults(result.data.results)
                     isSearching = false
                 }
                 is Result.Error -> {
@@ -239,12 +252,27 @@ class TigerTVViewModel(
         return true
     }
 
-    fun selectResult(result: SearchResult, forceRefresh: Boolean = false) {
-        // forceRefresh=true 时跳过"同一结果"短路，专用于重试按钮。
+    /** 点击合并卡：以主源为默认源，记录组内全部源供剧集页切换。 */
+    fun selectMerged(merged: MergedSearchResult) {
+        selectResult(merged.primary, sources = merged.sources)
+    }
+
+    /** 剧集页切换到组内另一源：重新 fetch 该源剧集。 */
+    fun switchSource(result: SearchResult) {
+        selectResult(result, sources = selectedSources, forceRefresh = true)
+    }
+
+    fun selectResult(
+        result: SearchResult,
+        sources: List<SearchResult> = listOf(result),
+        forceRefresh: Boolean = false
+    ) {
+        // forceRefresh=true 时跳过"同一结果"短路，专用于重试/切源按钮。
         if (!forceRefresh && selectedResult?.let { it.site == result.site && it.vodId == result.vodId } == true) return
         fetchJob?.cancel()
         playbackJob?.cancel()
         selectedResult = result
+        selectedSources = sources
         fetchResponse = null
         selectedEpisodeIndex = -1
         resolvedPlaybackUrl = null
@@ -270,7 +298,7 @@ class TigerTVViewModel(
     /** 重试上次 fetch：绕过"同一结果"短路，确保下次真正发起请求。 */
     fun retryFetch() {
         val current = selectedResult ?: return
-        selectResult(current, forceRefresh = true)
+        selectResult(current, sources = selectedSources, forceRefresh = true)
     }
 
     fun selectEpisode(index: Int) {
