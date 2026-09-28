@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SearchResultCard: View {
     let result: SearchResult
+    var extraSourceCount: Int = 0
     let isSelected: Bool
     let isLoading: Bool
     var fallbackCoverURL: URL? = nil
@@ -34,6 +35,22 @@ struct SearchResultCard: View {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
                             .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
                     )
+
+                // 合并徽标：组内有额外源时提示可切换数量。
+                if extraSourceCount > 0 {
+                    Text("+\(extraSourceCount)")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.accentColor)
+                        .lineLimit(1)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.accentColor.opacity(0.18))
+                        )
+                        .help("同一部剧还有 \(extraSourceCount) 个其他源")
+                }
 
                 if !result.vodRemarks.isEmpty {
                     Text(result.vodRemarks)

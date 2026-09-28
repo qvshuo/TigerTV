@@ -40,6 +40,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.SubcomposeAsyncImage
 import art.anjing.tigertv.R
+import art.anjing.tigertv.domain.MergedSearchResult
 import art.anjing.tigertv.domain.SearchResult
 import art.anjing.tigertv.ui.components.ErrorMessage
 import art.anjing.tigertv.ui.components.LoadingOverlay
@@ -54,7 +55,7 @@ import art.anjing.tigertv.util.normalizeCoverUrl
 fun ResultsScreen(
     viewModel: TigerTVViewModel,
     onBack: () -> Unit,
-    onSelectResult: (SearchResult) -> Unit
+    onSelectResult: (MergedSearchResult) -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -87,7 +88,7 @@ fun ResultsScreen(
                         viewModel.search()
                     }
                 )
-                viewModel.results.isEmpty() -> Box(
+                viewModel.mergedResults.isEmpty() -> Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
@@ -97,7 +98,7 @@ fun ResultsScreen(
                     )
                 }
                 else -> ResultsGrid(
-                    results = viewModel.results,
+                    results = viewModel.mergedResults,
                     coverFallbacks = viewModel.coverFallbacks,
                     onLoadCoverFallback = viewModel::loadCoverFallbackIfPossible,
                     onSelectResult = onSelectResult,
@@ -111,10 +112,10 @@ fun ResultsScreen(
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun ResultsGrid(
-    results: List<SearchResult>,
+    results: List<MergedSearchResult>,
     coverFallbacks: Map<String, String>,
     onLoadCoverFallback: (SearchResult) -> Unit,
-    onSelectResult: (SearchResult) -> Unit,
+    onSelectResult: (MergedSearchResult) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val firstCardFocusRequester = remember { FocusRequester() }
@@ -144,20 +145,21 @@ private fun ResultsGrid(
             horizontalArrangement = Arrangement.spacedBy(ColumnSpacing),
             verticalArrangement = Arrangement.spacedBy(RowSpacing)
         ) {
-            itemsIndexed(results) { index, result ->
+            itemsIndexed(results, key = { _, item -> item.id }) { index, merged ->
+                val primary = merged.primary
                 val focusModifier = if (index == 0) {
                     Modifier.focusRequester(firstCardFocusRequester)
                 } else {
                     Modifier
                 }
                 // 仅空封面卡片进入组合（即可见）时触发 detail 兜底请求；已取到兜底则跳过。
-                LaunchedEffect(result.site, result.vodId) {
-                    if (result.vodPic.isBlank() && coverFallbacks[result.coverKey] == null) {
-                        onLoadCoverFallback(result)
+                LaunchedEffect(primary.site, primary.vodId) {
+                    if (primary.vodPic.isBlank() && coverFallbacks[primary.coverKey] == null) {
+                        onLoadCoverFallback(primary)
                     }
                 }
                 Card(
-                    onClick = { onSelectResult(result) },
+                    onClick = { onSelectResult(merged) },
                     modifier = focusModifier
                         .fillMaxWidth(),
                     shape = CardDefaults.shape(shape = TvCardShape),
@@ -168,8 +170,8 @@ private fun ResultsGrid(
                 ) {
                     Column {
                         CoverImage(
-                            url = result.vodPic.ifBlank { coverFallbacks[result.coverKey].orEmpty() },
-                            title = result.vodName,
+                            url = primary.vodPic.ifBlank { coverFallbacks[primary.coverKey].orEmpty() },
+                            title = primary.vodName,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(CoverAspectRatio)
@@ -180,7 +182,7 @@ private fun ResultsGrid(
                                 .padding(horizontal = 12.dp, vertical = 10.dp)
                         ) {
                             Text(
-                                text = result.vodName,
+                                text = primary.vodName,
                                 style = MaterialTheme.typography.titleMedium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -191,16 +193,30 @@ private fun ResultsGrid(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text(
-                                    text = result.site,
+                                    text = primary.site,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.primary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f, fill = false)
                                 )
-                                if (result.vodRemarks.isNotEmpty()) {
+                                // 合并徽标：组内有额外源时提示可切换数量。
+                                if (merged.extraCount > 0) {
                                     Text(
-                                        text = result.vodRemarks,
+                                        text = "+${merged.extraCount}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier
+                                            .background(
+                                                MaterialTheme.colorScheme.primary,
+                                                androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+                                            )
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                                if (primary.vodRemarks.isNotEmpty()) {
+                                    Text(
+                                        text = primary.vodRemarks,
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,

@@ -60,8 +60,8 @@ fun TigerTVApp(
             ResultsScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onSelectResult = { result ->
-                    viewModel.selectResult(result)
+                onSelectResult = { merged ->
+                    viewModel.selectMerged(merged)
                     navController.navigate(Screen.Episodes.route)
                 }
             )
