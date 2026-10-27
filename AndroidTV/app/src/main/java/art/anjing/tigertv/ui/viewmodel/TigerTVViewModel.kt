@@ -10,7 +10,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import art.anjing.tigertv.data.Result
-import art.anjing.tigertv.data.SearchHistoryStore
 import art.anjing.tigertv.data.TigerTVRepository
 import art.anjing.tigertv.domain.FetchResponse
 import art.anjing.tigertv.domain.SearchResult
@@ -32,7 +31,6 @@ class TigerTVViewModel(
 ) : ViewModel() {
 
     private val appContext = context.applicationContext
-    private val historyStore = SearchHistoryStore(context)
 
     var keyword by mutableStateOf("")
         private set
@@ -76,6 +74,10 @@ class TigerTVViewModel(
     var resolvedPlaybackUrl by mutableStateOf<String?>(null)
         private set
 
+    /** Changes on every successful resolution, including retries of the same URL. */
+    var playbackRevision by mutableIntStateOf(0)
+        private set
+
     val searchHistory = mutableStateListOf<String>()
 
     /**
@@ -111,7 +113,7 @@ class TigerTVViewModel(
 
     private fun loadSearchHistory() {
         viewModelScope.launch {
-            val saved = historyStore.load()
+            val saved = repository.loadHistory()
             searchHistory.clear()
             searchHistory.addAll(saved)
         }
@@ -119,7 +121,7 @@ class TigerTVViewModel(
 
     private fun saveSearchHistory() {
         viewModelScope.launch {
-            historyStore.save(searchHistory.toList())
+            repository.saveHistory(searchHistory.toList())
         }
     }
 
@@ -287,6 +289,7 @@ class TigerTVViewModel(
             when (val result = repository.resolvePlaybackUrl(episode.url)) {
                 is Result.Success -> {
                     resolvedPlaybackUrl = result.data
+                    playbackRevision++
                     isResolvingPlayback = false
                 }
                 is Result.Error -> {
@@ -348,6 +351,7 @@ class TigerTVViewModel(
         fetchJob?.cancel()
         playbackJob?.cancel()
         prefetchJob?.cancel()
+        repository.close()
     }
 
     companion object {
@@ -363,12 +367,16 @@ class TigerTVViewModel(
 
 @Suppress("UNCHECKED_CAST")
 class TigerTVViewModelFactory(
-    private val repository: TigerTVRepository,
     private val context: Context
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(TigerTVViewModel::class.java)) {
-            return TigerTVViewModel(repository, context) as T
+            val app = context.applicationContext
+            val core = art.anjing.tigertv.core.CoreService(
+                java.io.File(app.cacheDir, "shared-v1").absolutePath,
+                historyDirectory = java.io.File(app.filesDir, "shared-v1").absolutePath
+            )
+            return TigerTVViewModel(TigerTVRepository(core), app) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

@@ -12,8 +12,8 @@ android {
         applicationId = "art.anjing.tigertv"
         minSdk = 34
         targetSdk = 37
-        versionCode = 11
-        versionName = "3.2.4"
+        versionCode = providers.gradleProperty("androidVersionCode").orElse("12").get().toInt()
+        versionName = providers.gradleProperty("releaseVersion").orElse("3.3.0").get()
 
         // Include both 32-bit (TV) and 64-bit (modern devices/emulators) ABIs.
         ndk {
@@ -22,8 +22,13 @@ android {
     }
 
     signingConfigs {
+        getByName("debug") {
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            keyAlias = "androiddebugkey"
+        }
         create("release") {
-            // CI 注入临时 keystore；本地无该环境变量时不配置，避免 file("") 抛错。
+            initWith(getByName("debug"))
+            // Local builds share Interlude's key; CI restores the same key from secrets.
             val ciStoreFile = System.getenv("CI_RELEASE_STORE_FILE")?.takeIf { it.isNotEmpty() }
             if (ciStoreFile != null) {
                 storeFile = file(ciStoreFile)
@@ -59,6 +64,8 @@ android {
 }
 
 dependencies {
+    implementation(project(":core"))
+    testImplementation("io.ktor:ktor-client-mock:3.6.0")
     implementation("androidx.core:core-ktx:1.19.0")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")

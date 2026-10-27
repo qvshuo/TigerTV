@@ -1,136 +1,138 @@
 name: Build and Release
 
 on:
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., 3.1.1)'
+        description: 'Release version (MAJOR.MINOR.PATCH)'
         required: true
-        default: '3.1.1'
+        default: '3.3.0'
+      android_version_code:
+        description: 'Increasing Android versionCode'
+        required: true
+        default: '12'
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_VERSION: ${{ inputs.version || '3.3.0' }}
+  ANDROID_VERSION_CODE: ${{ inputs.android_version_code || '12' }}
+  ANDROID_SIGNING_CERT_SHA256: 0d81ab7cb1a16d58d91a953fe62049eb77fc840cc544a297ae1854f54bc73b96
 
 jobs:
   build-macos:
     runs-on: macos-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Build macOS (arm64)
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Validate version and test reference
         run: |
-          xcodebuild \
-            -project "macOS/TigerTV.xcodeproj" \
-            -scheme "TigerTV" \
-            -configuration Release \
-            -derivedDataPath DerivedData \
-            ARCHS=arm64 \
-            ONLY_ACTIVE_ARCH=NO \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            build
-
-      - name: Package macOS
+          [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          python3 -m unittest tests.test_tigertv_cli
+      - name: Test core, Native bridge and CLI
         run: |
-          APP_PATH="DerivedData/Build/Products/Release/小老虎爱看剧.app"
-          VERSION="${{ github.event.inputs.version }}"
-          ZIP_NAME="TigerTV-macOS-arm64-${VERSION}.zip"
-
-          ditto -c -k --keepParent "${APP_PATH}" "${ZIP_NAME}"
-
-          echo "version=${VERSION}" >> "$GITHUB_ENV"
-          echo "macos_asset_path=${ZIP_NAME}" >> "$GITHUB_ENV"
-          echo "Version: ${VERSION}"
-
-      - name: Upload macOS artifact
-        uses: actions/upload-artifact@v7
+          ./gradlew :core:jvmTest :core:macosArm64Test :nativeBridge:macosArm64Test :nativeBridge:linkDebugFrameworkMacosArm64 :cli:linkReleaseExecutableMacosArm64 -PreleaseVersion="$RELEASE_VERSION"
+          python3 scripts/check-cli-parity.py cli/build/bin/macosArm64/releaseExecutable/tigertv.kexe
+          swiftc -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -framework TigerTVCore scripts/check-native-bridge.swift -o build/check-native-bridge
+          build/check-native-bridge
+          swift test --package-path macOS
+      - name: Build native macOS app
+        run: |
+          xcodebuild -quiet -project macOS/TigerTV.xcodeproj -scheme TigerTV -configuration Release -derivedDataPath DerivedData ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$RELEASE_VERSION" build
+      - name: Package unsigned macOS app and CLI
+        run: |
+          mkdir -p artifacts build/cli-package
+          ditto -c -k --keepParent 'DerivedData/Build/Products/Release/小老虎爱看剧.app' artifacts/TigerTV-macOS-arm64.zip
+          cp cli/build/bin/macosArm64/releaseExecutable/tigertv.kexe build/cli-package/tigertv
+          tar -czf artifacts/TigerTV-CLI-macOS-arm64.tar.gz -C build/cli-package tigertv
+          cd artifacts
+          for asset in *.zip *.tar.gz; do shasum -a 256 "$asset" > "$asset.sha256"; done
+      - uses: actions/upload-artifact@v7
         with:
           name: tigertv-macos
-          path: ${{ env.macos_asset_path }}
+          path: artifacts/*
 
   build-android:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up JDK
-        uses: actions/setup-java@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '21'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Check shared contract and CLI
-        run: .github/scripts/check-contract.sh
-
-      - name: Decode release keystore
-        working-directory: ./AndroidTV
+      - name: Install Android SDK
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "cmdline-tools;latest"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0"
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Test core and Android TV
+        run: ./gradlew -Pandroid=true :core:jvmTest :androidApp:testDebugUnitTest :androidApp:assembleDebug
+      - name: Decode fixed release signing key
+        if: github.event_name == 'workflow_dispatch'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          CI_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CI_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          # 固定签名密钥（repo secret），保证各版本 APK 签名一致、电视可原地升级。
-          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "::error::ANDROID_KEYSTORE_BASE64 secret is not set"
-            exit 1
-          fi
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > release.keystore
-          keytool -list -keystore release.keystore -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" -alias "${{ secrets.ANDROID_KEY_ALIAS }}" > /dev/null
-
-      - name: Build Android TV (universal)
-        working-directory: ./AndroidTV
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > AndroidTV/release.keystore
+          keytool -exportcert -keystore AndroidTV/release.keystore -storepass "$CI_RELEASE_STORE_PASSWORD" -alias "$CI_RELEASE_KEY_ALIAS" | sha256sum | grep -F "$ANDROID_SIGNING_CERT_SHA256"
+      - name: Build signed release
+        if: github.event_name == 'workflow_dispatch'
         env:
           CI_RELEASE_STORE_FILE: ${{ github.workspace }}/AndroidTV/release.keystore
           CI_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           CI_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           CI_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          ./gradlew test assembleRelease
-
-      - name: Package Android TV
+          [[ "$ANDROID_VERSION_CODE" =~ ^[0-9]+$ ]] && [ "$ANDROID_VERSION_CODE" -gt 11 ]
+          ./gradlew -Pandroid=true :androidApp:assembleRelease -PreleaseVersion="$RELEASE_VERSION" -PandroidVersionCode="$ANDROID_VERSION_CODE"
+      - name: Package universal APK
         run: |
-          APK_PATH=$(find AndroidTV/app/build/outputs/apk/release -name '*.apk' | head -n 1)
-          VERSION="${{ github.event.inputs.version }}"
-          APK_NAME="TigerTV-AndroidTV-universal-${VERSION}.apk"
-
-          cp "${APK_PATH}" "${APK_NAME}"
-          echo "android_asset_path=${APK_NAME}" >> "$GITHUB_ENV"
-          echo "APK: ${APK_NAME}"
-
-      - name: Upload Android TV artifact
-        uses: actions/upload-artifact@v7
+          mkdir -p artifacts
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then VARIANT=release; NAME=universal; else VARIANT=debug; NAME=debug; fi
+          APK_DIR="AndroidTV/app/build/outputs/apk/$VARIANT"
+          APK_FILE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["elements"][0]["outputFile"])' "$APK_DIR/output-metadata.json")
+          if [ "$VARIANT" = release ]; then
+            "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs "$APK_DIR/$APK_FILE" | grep -F "certificate SHA-256 digest: $ANDROID_SIGNING_CERT_SHA256"
+          fi
+          cp "$APK_DIR/$APK_FILE" "artifacts/TigerTV-AndroidTV-$NAME.apk"
+          cd artifacts
+          for asset in *.apk; do sha256sum "$asset" > "$asset.sha256"; done
+      - uses: actions/upload-artifact@v7
         with:
           name: tigertv-android
-          path: ${{ env.android_asset_path }}
+          path: artifacts/*
+
+      - name: Remove signing key
+        if: always()
+        run: rm -f AndroidTV/release.keystore
 
   release:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     needs: [build-macos, build-android]
     permissions:
       contents: write
-
     steps:
-      - name: Download macOS artifact
-        uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8
         with:
-          name: tigertv-macos
-          path: ./artifacts
-
-      - name: Download Android TV artifact
-        uses: actions/download-artifact@v8
+          pattern: tigertv-*
+          merge-multiple: true
+          path: artifacts
+      - uses: softprops/action-gh-release@v3
         with:
-          name: tigertv-android
-          path: ./artifacts
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: v${{ github.event.inputs.version }}
-          name: v${{ github.event.inputs.version }}
+          tag_name: v${{ inputs.version }}
+          name: v${{ inputs.version }}
           generate_release_notes: true
-          files: ./artifacts/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          body: 'Desktop app and CLI assets are unsigned. Android APK now shares Interlude’s fixed signing key; installations signed with the former TigerTV key require uninstalling before installation. Automated checks do not cover manual TV or macOS GUI playback acceptance. See docs/cross-platform.md for installation and manual playback acceptance.'
+          files: artifacts/*

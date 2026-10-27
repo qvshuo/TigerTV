@@ -1,6 +1,6 @@
 # TigerTV Cross-Platform API Contract
 
-This directory documents the shared contract between `tigertv-cli.py`, the macOS app, and the Android TV app.
+This directory documents the shared contract implemented by Kotlin Multiplatform core, the native Agent CLI, macOS and Android TV. `tigertv-cli.py` remains the migration test oracle.
 
 Any change to the CLI output format, config loading rules, or playback URL resolution behavior must be reflected here so the platforms stay in sync.
 
@@ -52,7 +52,7 @@ Fields:
 
 Fields:
 
-- `vod_id`: same id passed to fetch.
+- `vod_id`: same id passed to fetch (not an upstream detail ID).
 - `site`: exact source name.
 - `vod_play_url`: list of playable episodes.
 - `vod_down_url`: list of downloadable episodes (may be empty).
@@ -92,20 +92,22 @@ Source filtering:
 
 - Keep entries where `name` contains `🎬`.
 - Discard entries that contain a `_comment` key (disabled / backup sources).
-- macOS and Android mirror this filtering before searching.
+- Discard entries with an empty API URL. Deduplicate by exact API URL, preserving the first entry.
+- `_comment` presence disables the entry even when its value is null.
+- All production clients use the same core implementation.
 
 ## MacCMS API rules
 
 Search:
 
 - Endpoint: `{api}?ac=list&wd={keyword}&pagesize=100`
-- Success response has `code == 1`.
+- When `code` is present and non-null, Python integer coercion must yield 1. Missing/null code is tolerated for reference compatibility.
 - `list` contains items with `vod_id` and `vod_name`.
 
 Detail:
 
 - Endpoint: `{api}?ac=detail&ids={vod_id}`
-- Success response has `code == 1`.
+- When `code` is present and non-null, Python integer coercion must yield 1. Missing/null code is tolerated for reference compatibility.
 - `list[0]` contains `vod_play_url` and `vod_down_url`.
 
 Play URL format:
@@ -139,21 +141,16 @@ Rules (same for CLI, macOS, and Android):
 
 See [`fixtures/`](./fixtures/) for sample config, search responses, detail responses, and HTML samples used by tests on all platforms.
 
-## Cover fallback URL disk cache
+## Shared cache and bridge contracts
 
-All GUI platforms persist lazily-resolved cover URLs (most sites omit `vod_pic` in
-`ac=list` but return it in `ac=detail`) so a process restart does not re-issue detail
-requests. The on-disk schema is shared and must stay in sync:
+New GUI services use a `shared-v1` directory. Existing history/cache migration is not required.
 
-- File name: `cover-fallback-cache.json` (macOS: `~/Library/Caches/TigerTV/...`;
-  Android: app cache dir). Written atomically (temp file + rename / `.atomic`).
-- Top level: JSON object keyed by `"<site>-<vodId>"`.
-- Entry shape: `{"url": "<cover url>", "fetchedAt": "<RFC3339 Date>"}` (macOS) /
-  `{"url": "<cover url>", "fetchedAtMillis": <epoch ms>}` (Android — same field set,
-  timestamp encoding differs by platform serializer).
-- TTL: **7 days** for both the URL store and the cover *image* byte cache
-  (macOS deletes expired files by mtime; Android prunes its Coil DiskCache directory
-  at app start — Coil itself has no TTL, only an LRU bound).
-- Failures are never cached: an empty/failed detail lookup leaves no entry, so the
-  card retries naturally when it re-enters the viewport.
+- Config file `tigertv-cli-config-cache.json`: `{"fetchedAtMillis": <epoch ms>, "config": <raw object>}`. Store pre-filter config, apply filtering at read time; TTL 1 day. Platform atomic replacement is required.
+- `cover-fallback-cache.json`: JSON object keyed by `site-vodId`, each entry `{"url":"...","fetchedAtMillis":<epoch ms>}`. TTL 7 days. Failed/empty detail lookups are not cached; concurrent fallback requests are capped at 4.
+- Image byte caches remain GUI-specific with a 7-day TTL. macOS uses CoverImageCache; Android uses Coil plus pruning.
+- Search cache is 10 minutes for GUI, disabled for the CLI. History file `search-history.json` is a distinct ordered JSON array capped at 20, kept in the GUI persistent data directory (Application Support / Android filesDir), independently of disposable caches.
+- API, config and HTML/HLS responses are capped at 10MB; Unicode URL bytes are percent-encoded without changing existing escapes or plus signs.
 
+The native GUI JSON envelope is versioned independently from CLI output: `{"version":1,"data":...}` or `{"version":1,"error":"..."}`. See [bridge lifecycle and operations](../../docs/cross-platform.md). GUI calls the library directly, never the CLI.
+
+CLI output remains unwrapped. Success/help/closed downstream pipe exit 0; business errors exit 1; parameter errors exit 2. Errors use stderr, logs use files. The macOS native CLI must run without JVM or Python.

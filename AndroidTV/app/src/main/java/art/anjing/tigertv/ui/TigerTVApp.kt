@@ -8,10 +8,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import art.anjing.tigertv.data.ConfigDataSource
-import art.anjing.tigertv.data.MacCMSApiClient
-import art.anjing.tigertv.data.PlaybackUrlResolver
-import art.anjing.tigertv.data.TigerTVRepository
 import art.anjing.tigertv.ui.episodes.EpisodesScreen
 import art.anjing.tigertv.ui.home.HomeScreen
 import art.anjing.tigertv.ui.player.PlayerScreen
@@ -30,21 +26,10 @@ sealed class Screen(val route: String) {
 fun TigerTVApp(
     navController: NavHostController = rememberNavController()
 ) {
-    // 使用 applicationContext 构建长生命周期依赖（ConfigDataSource/SearchHistoryStore），
-    // 避免被 ViewModel 间接持有 Activity 导致 Activity 无法回收。
-    // Activity context 仅用于短期内 ExoPlayer 等生命周期与 Activity 绑定的对象。
-    val context = LocalContext.current
-    val appContext = context.applicationContext
-    val repository = remember {
-        TigerTVRepository(
-            ConfigDataSource(appContext),
-            MacCMSApiClient(),
-            PlaybackUrlResolver(),
-            coverUrlCacheDir = appContext.cacheDir
-        )
-    }
+    // Create the network service only when a new ViewModel is needed, not on Activity recreation.
+    val appContext = LocalContext.current.applicationContext
     val viewModel: TigerTVViewModel = viewModel(
-        factory = TigerTVViewModelFactory(repository, appContext)
+        factory = remember(appContext) { TigerTVViewModelFactory(appContext) }
     )
 
     NavHost(navController = navController, startDestination = Screen.Home.route) {

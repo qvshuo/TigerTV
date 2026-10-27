@@ -17,20 +17,24 @@ triggers:
 
 ## 安装
 
-首次使用，或当前环境中不存在 `tigertv-cli.py` 命令时：
+首次使用，或当前环境中不存在 `tigertv` 命令时：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/skills/scripts/install.sh | bash
 ```
 
-搜索、获取链接和生成规则只依赖 `tigertv-cli.py`；下载剧集时，还需要 `yt-dlp` 和 `ffmpeg`。
+CLI 当前提供 macOS arm64 独立原生二进制，无需 Python 或 Java；保留 `tigertv-cli.py` 兼容入口。
+
+可通过 `TIGERTV_VERSION` 固定版本、`TIGERTV_INSTALL_DIR` 自定义安装目录。安装程序验证发布包 SHA-256，不自动修改 PATH。
+
+搜索、获取链接和生成规则只依赖 `tigertv`；下载剧集时，还需要 `yt-dlp` 和 `ffmpeg`。
 
 ## 全局参数
 
 除 `logs` 外，所有子命令均可使用：
 
 ```bash
-tigertv-cli.py --source <path> search <keyword>
+tigertv --source <path> search <keyword>
 ```
 
 `--source` 用于指定本地 JSON 配置文件（格式与远程配置一致），会完全跳过远程配置加载和本地缓存。
@@ -40,7 +44,7 @@ tigertv-cli.py --source <path> search <keyword>
 ### 1. 搜索
 
 ```bash
-tigertv-cli.py search <keyword>
+tigertv search <keyword>
 ```
 
 日志和诊断信息不写入 stdout；搜索结果以 JSON 输出到 stdout。示例输出：
@@ -65,7 +69,7 @@ tigertv-cli.py search <keyword>
 命令示例：
 
 ```bash
-tigertv-cli.py fetch --site "🎬金鹰点播" --vod_id 104571
+tigertv fetch --site "🎬金鹰点播" --vod_id 104571
 ```
 
 `--site` 必须完整匹配站点名称（包括 emoji 和标点），`--vod_id` 为整数；二者均可从 `search` 输出中获取。若站点名不匹配，脚本会报错并列出可用站点名，可据此修正。
@@ -98,7 +102,7 @@ yt-dlp \
 ### 4. 生成 Quantumult X 规则
 
 ```bash
-tigertv-cli.py quanx <keyword>
+tigertv quanx <keyword>
 ```
 
 输出分为三段：资源站 API 域名、播放/下载域名、m3u8 及相关 CDN 域名。
@@ -106,7 +110,7 @@ tigertv-cli.py quanx <keyword>
 ### 5. 查看日志
 
 ```bash
-tigertv-cli.py logs
+tigertv logs
 ```
 
 默认显示最近 50 行。使用 `--full` 查看全部日志，使用 `--clear` 清空日志文件。
@@ -115,7 +119,7 @@ tigertv-cli.py logs
 
 ```text
 1. 搜索 -> 获取链接 -> 使用 yt-dlp 下载
-tigertv-cli.py search <keyword> -> tigertv-cli.py fetch --site "..." --vod_id ... -> yt-dlp ...
+tigertv search <keyword> -> tigertv fetch --site "..." --vod_id ... -> yt-dlp ...
 2. 生成 Quantumult X 直连规则
-tigertv-cli.py quanx <keyword>
+tigertv quanx <keyword>
 ```

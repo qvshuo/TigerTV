@@ -30,6 +30,7 @@
 		A00000000000000000000601 /* LoadResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000600 /* LoadResult.swift */; };
 		A00000000000000000000701 /* TigerTVError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000700 /* TigerTVError.swift */; };
 		A00000000000000000000801 /* TigerTVViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000800 /* TigerTVViewModel.swift */; };
+		B00000000000000000000101 /* SharedCoreRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000100; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,6 +60,7 @@
 		000000000000000000000300 /* TigerTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TigerTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000301 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		000000000000000000000302 /* TigerTV.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TigerTV.entitlements; sourceTree = "<group>"; };
+		B00000000000000000000100 /* SharedCoreRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedCoreRepository.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -72,11 +74,26 @@
 		};
 /* End PBXFrameworksBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+        B00000000000000000000200 /* Build shared core */ = {
+            isa = PBXShellScriptBuildPhase;
+            buildActionMask = 2147483647;
+            files = ();
+            inputPaths = ();
+            outputPaths = ("$(SRCROOT)/../nativeBridge/build/bin/macosArm64/$(TIGERTV_NATIVE_VARIANT)Framework/TigerTVCore.framework/TigerTVCore");
+            shellPath = /bin/sh;
+            shellScript = "cd \"$SRCROOT/..\"\n./gradlew :nativeBridge:link${CONFIGURATION}FrameworkMacosArm64 --console=plain\n";
+            runOnlyForDeploymentPostprocessing = 0;
+            alwaysOutOfDate = 1;
+        };
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXGroup section */
 		000000000000000000000400 /* App */ = {
 			isa = PBXGroup;
 			children = (
 				000000000000000000000200 /* TigerTVApp.swift */,
+                B00000000000000000000100 /* SharedCoreRepository.swift */,
 				000000000000000000000201 /* ContentView.swift */,
 				000000000000000000000210 /* HomeScreen.swift */,
 				000000000000000000000213 /* ResultsLayout.swift */,
@@ -128,7 +145,8 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 000000000000000000000900 /* Build configuration list for PBXNativeTarget "TigerTV" */;
 			buildPhases = (
-				000000000000000000000500 /* Sources */,
+				B00000000000000000000200 /* Build shared core */,
+                000000000000000000000500 /* Sources */,
 				000000000000000000000501 /* Frameworks */,
 				000000000000000000000502 /* Resources */,
 			);
@@ -191,6 +209,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				000000000000000000000100 /* TigerTVApp.swift in Sources */,
+                B00000000000000000000101 /* SharedCoreRepository.swift in Sources */,
 				000000000000000000000101 /* ContentView.swift in Sources */,
 				000000000000000000000110 /* HomeScreen.swift in Sources */,
 				000000000000000000000113 /* ResultsLayout.swift in Sources */,
@@ -225,7 +244,7 @@
 				CODE_SIGN_ENTITLEMENTS = App/TigerTV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -236,12 +255,15 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 3.2.4;
+				MARKETING_VERSION = 3.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = art.anjing.TigerTV;
 				PRODUCT_MODULE_NAME = TigerTV;
 				PRODUCT_NAME = "小老虎爱看剧";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.2;
+                TIGERTV_NATIVE_VARIANT = debug;
+                FRAMEWORK_SEARCH_PATHS = ("$(inherited)", "$(SRCROOT)/../nativeBridge/build/bin/macosArm64/$(TIGERTV_NATIVE_VARIANT)Framework");
+                OTHER_LDFLAGS = ("$(inherited)", "-framework", TigerTVCore);
 			};
 			name = Debug;
 		};
@@ -253,7 +275,7 @@
 				CODE_SIGN_ENTITLEMENTS = App/TigerTV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -264,12 +286,15 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 3.2.4;
+				MARKETING_VERSION = 3.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = art.anjing.TigerTV;
 				PRODUCT_MODULE_NAME = TigerTV;
 				PRODUCT_NAME = "小老虎爱看剧";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.2;
+                TIGERTV_NATIVE_VARIANT = release;
+                FRAMEWORK_SEARCH_PATHS = ("$(inherited)", "$(SRCROOT)/../nativeBridge/build/bin/macosArm64/$(TIGERTV_NATIVE_VARIANT)Framework");
+                OTHER_LDFLAGS = ("$(inherited)", "-framework", TigerTVCore);
 			};
 			name = Release;
 		};

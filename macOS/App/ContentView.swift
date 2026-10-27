@@ -5,7 +5,8 @@ struct ContentView: View {
     @StateObject private var viewModel = TigerTVViewModel()
 
     @State private var hasSearched = false
-    @State private var player: AVPlayer?
+    @StateObject private var controller = AVPlayerController()
+    private var player: AVPlayer? { controller.hasItem ? controller.player : nil }
     @State private var showError = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -64,15 +65,15 @@ struct ContentView: View {
         }, message: {
             Text(activeErrorMessage ?? "未知错误")
         })
+        .onDisappear { controller.close() }
         .onChange(of: activeErrorMessage) { _, newValue in
             showError = newValue != nil
         }
-        .onChange(of: viewModel.resolvedPlaybackUrl) { _, url in
-            guard let url, let playbackURL = URL(string: url) else { return }
-            player?.pause()
-            let newPlayer = AVPlayer(url: playbackURL)
-            player = newPlayer
-            newPlayer.play()
+        .onChange(of: viewModel.playbackRevision) { _, _ in
+            guard let url = viewModel.resolvedPlaybackUrl else { return }
+            controller.close()
+            controller.load(url: url)
+            controller.play()
         }
     }
 
@@ -80,8 +81,7 @@ struct ContentView: View {
         let trimmed = viewModel.keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         hasSearched = true
-        player?.pause()
-        player = nil
+        controller.close()
         viewModel.search()
     }
 
@@ -91,22 +91,19 @@ struct ContentView: View {
     }
 
     private func selectResult(_ result: SearchResult) {
-        player?.pause()
-        player = nil
+        controller.close()
         viewModel.selectResult(result)
     }
 
     private func selectEpisode(_ episode: EpisodeLink) {
-        player?.pause()
-        player = nil
+        controller.close()
         viewModel.selectEpisode(episode)
     }
 
     private func goBack() {
         if player != nil || viewModel.selectedEpisode != nil || viewModel.isResolvingPlayback {
             viewModel.clearPlayback()
-            player?.pause()
-            player = nil
+            controller.close()
             return
         }
 

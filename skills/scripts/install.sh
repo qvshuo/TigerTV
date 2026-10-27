@@ -1,23 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-INSTALL_DIR="${HOME}/.local/bin"
-TARGET_PATH="${INSTALL_DIR}/tigertv-cli.py"
-SCRIPT_URL="https://raw.githubusercontent.com/qvshuo/TigerTV/main/tigertv-cli.py"
-
-mkdir -p "${INSTALL_DIR}"
-
-if command -v curl >/dev/null 2>&1; then
-  curl -fsSL "${SCRIPT_URL}" -o "${TARGET_PATH}"
-elif command -v wget >/dev/null 2>&1; then
-  wget -qO "${TARGET_PATH}" "${SCRIPT_URL}"
-else
-  echo "错误: 需要 curl 或 wget 其中之一用于下载安装文件" >&2
-  exit 1
-fi
-
-chmod +x "${TARGET_PATH}"
-
-echo "已安装到: ${TARGET_PATH}"
-echo "如果 ${INSTALL_DIR} 尚未加入 PATH，请先按 README.md 配置环境变量。"
-echo "安装完成后可执行: tigertv-cli.py --help"
+case "$(uname -s)/$(uname -m)" in
+  Darwin/arm64) ASSET="TigerTV-CLI-macOS-arm64.tar.gz" ;;
+  *) echo "当前仅提供 macOS arm64 原生 CLI。" >&2; exit 1 ;;
+esac
+INSTALL_DIR="${TIGERTV_INSTALL_DIR:-${HOME}/.local/bin}"
+RELEASE="${TIGERTV_VERSION:-latest}"
+BASE="https://github.com/qvshuo/TigerTV/releases"
+if [ "$RELEASE" = latest ]; then BASE="$BASE/latest/download"; else BASE="$BASE/download/v${RELEASE#v}"; fi
+TEMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TEMP_DIR"' EXIT
+curl -fLsS "$BASE/$ASSET" -o "$TEMP_DIR/$ASSET"
+curl -fLsS "$BASE/$ASSET.sha256" -o "$TEMP_DIR/$ASSET.sha256"
+(cd "$TEMP_DIR" && shasum -a 256 -c "$ASSET.sha256")
+tar -xzf "$TEMP_DIR/$ASSET" -C "$TEMP_DIR"
+"$TEMP_DIR/tigertv" --version
+mkdir -p "$INSTALL_DIR"
+install -m 755 "$TEMP_DIR/tigertv" "$INSTALL_DIR/tigertv.new"
+mv -f "$INSTALL_DIR/tigertv.new" "$INSTALL_DIR/tigertv"
+ln -sf tigertv "$INSTALL_DIR/tigertv-cli.py"
+echo "已安装到 $INSTALL_DIR/tigertv（无需 Python 或 Java）。请将 $INSTALL_DIR 加入 PATH。"

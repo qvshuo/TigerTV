@@ -3,8 +3,7 @@ import SwiftUI
 
 @MainActor
 final class TigerTVViewModel: ObservableObject {
-    private let repository: TigerTVRepository
-    private let historyStore: SearchHistoryStore
+    private let repository: any VideoRepository
 
     @Published var keyword = ""
     @Published private(set) var submittedKeyword = ""
@@ -13,6 +12,7 @@ final class TigerTVViewModel: ObservableObject {
     @Published private(set) var fetchResponse: FetchResponse?
     @Published private(set) var selectedEpisode: EpisodeLink?
     @Published private(set) var resolvedPlaybackUrl: String?
+    @Published private(set) var playbackRevision = 0
 
     @Published private(set) var isSearching = false
     @Published private(set) var isFetching = false
@@ -49,18 +49,16 @@ final class TigerTVViewModel: ObservableObject {
             .first ?? FileManager.default.temporaryDirectory
         let cacheDirectory = cachesDir
             .appendingPathComponent(Bundle.main.bundleIdentifier ?? "art.anjing.TigerTV")
-        let repository = TigerTVRepository(
-            configDataSource: ConfigDataSource(cacheDirectory: cacheDirectory),
-            apiClient: MacCMSApiClient(),
-            playbackResolver: PlaybackURLResolver(),
-            coverURLStore: CoverFallbackURLStore(directory: cacheDirectory)
-        )
-        self.init(repository: repository, historyStore: SearchHistoryStore())
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let dataDirectory = support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "art.anjing.TigerTV")
+            .appendingPathComponent("shared-v1")
+        let repository = SharedCoreRepository(directory: cacheDirectory.appendingPathComponent("shared-v1"), dataDirectory: dataDirectory)
+        self.init(repository: repository)
     }
 
-    init(repository: TigerTVRepository, historyStore: SearchHistoryStore) {
+    init(repository: any VideoRepository) {
         self.repository = repository
-        self.historyStore = historyStore
         Task {
             await loadConfig()
             await loadSearchHistory()
@@ -181,6 +179,7 @@ final class TigerTVViewModel: ObservableObject {
             case .success(let url):
                 isResolvingPlayback = false
                 resolvedPlaybackUrl = url
+                playbackRevision += 1
             case .failure(let error):
                 isResolvingPlayback = false
                 playbackErrorMessage = error.localizedDescription
@@ -242,12 +241,12 @@ final class TigerTVViewModel: ObservableObject {
 
     private func saveHistory() {
         Task {
-            await historyStore.save(searchHistory)
+            await repository.saveHistory(searchHistory)
         }
     }
 
     private func loadSearchHistory() async {
-        searchHistory = await historyStore.load()
+        searchHistory = await repository.loadHistory()
     }
 
     private func cancelAll() {
