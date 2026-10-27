@@ -141,5 +141,4 @@ jobs:
           tag_name: v${{ inputs.version }}
           name: v${{ inputs.version }}
           generate_release_notes: true
-          body: 'Desktop app and CLI assets are unsigned. Android APK now shares Interlude’s fixed signing key; installations signed with the former TigerTV key require uninstalling before installation. Automated checks do not cover manual TV or macOS GUI playback acceptance. See docs/cross-platform.md for installation and manual playback acceptance.'
           files: artifacts/*
