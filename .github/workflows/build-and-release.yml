@@ -41,6 +41,7 @@ jobs:
         run: |
           ./gradlew :core:jvmTest :core:macosArm64Test :nativeBridge:macosArm64Test :nativeBridge:linkDebugFrameworkMacosArm64 :cli:linkReleaseExecutableMacosArm64 -PreleaseVersion="$RELEASE_VERSION"
           python3 scripts/check-cli-parity.py cli/build/bin/macosArm64/releaseExecutable/tigertv.kexe
+          mkdir -p build
           swiftc -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -framework TigerTVCore scripts/check-native-bridge.swift -o build/check-native-bridge
           build/check-native-bridge
           swift test --package-path macOS
@@ -73,10 +74,8 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "cmdline-tools;latest"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0"
       - uses: gradle/actions/setup-gradle@v6
-      - name: Test core and Android TV
-        run: ./gradlew -Pandroid=true :core:jvmTest :androidApp:testDebugUnitTest :androidApp:assembleDebug
-      - name: Decode fixed release signing key
-        if: github.event_name == 'workflow_dispatch'
+      - name: Restore shared Android signing key
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           CI_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -84,8 +83,14 @@ jobs:
         run: |
           test -n "$ANDROID_KEYSTORE_BASE64"
           umask 077
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > AndroidTV/release.keystore
-          keytool -exportcert -keystore AndroidTV/release.keystore -storepass "$CI_RELEASE_STORE_PASSWORD" -alias "$CI_RELEASE_KEY_ALIAS" | sha256sum | grep -F "$ANDROID_SIGNING_CERT_SHA256"
+          mkdir -p ~/.android
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+          keytool -exportcert -keystore ~/.android/debug.keystore -storepass "$CI_RELEASE_STORE_PASSWORD" -alias "$CI_RELEASE_KEY_ALIAS" | sha256sum | grep -F "$ANDROID_SIGNING_CERT_SHA256"
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then cp ~/.android/debug.keystore AndroidTV/release.keystore; fi
+      - name: Test core and Android TV
+        run: |
+          ./gradlew -Pandroid=true :core:jvmTest :androidApp:testDebugUnitTest
+          if [ -f ~/.android/debug.keystore ]; then ./gradlew -Pandroid=true :androidApp:assembleDebug; fi
       - name: Build signed release
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -97,6 +102,7 @@ jobs:
           [[ "$ANDROID_VERSION_CODE" =~ ^[0-9]+$ ]] && [ "$ANDROID_VERSION_CODE" -gt 11 ]
           ./gradlew -Pandroid=true :androidApp:assembleRelease -PreleaseVersion="$RELEASE_VERSION" -PandroidVersionCode="$ANDROID_VERSION_CODE"
       - name: Package universal APK
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
           mkdir -p artifacts
           if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then VARIANT=release; NAME=universal; else VARIANT=debug; NAME=debug; fi
@@ -109,13 +115,14 @@ jobs:
           cd artifacts
           for asset in *.apk; do sha256sum "$asset" > "$asset.sha256"; done
       - uses: actions/upload-artifact@v7
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         with:
           name: tigertv-android
           path: artifacts/*
 
       - name: Remove signing key
         if: always()
-        run: rm -f AndroidTV/release.keystore
+        run: rm -f AndroidTV/release.keystore ~/.android/debug.keystore
 
   release:
     if: github.event_name == 'workflow_dispatch'
