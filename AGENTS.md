@@ -14,31 +14,43 @@ Production Android and macOS repositories now call the root Kotlin Multiplatform
 - Detailed environment, ABI ownership, tests and release instructions: `docs/cross-platform.md`.
 - Migration version is 3.3.0 (Android versionCode 12, macOS build 9); Kotlin/Compose compiler plugins use 2.4.21. Existing sections below describe reference implementations where superseded by this migration.
 
+### Current build and runtime details
+
+- Toolchain: Kotlin 2.4.21, Gradle 9.6, AGP 9.2.1, JDK 21, and Android SDK 37. The JDK is a build dependency, not part of the macOS app or CLI runtime.
+- `core/` owns shared business logic, models, Ktor networking, config, playback URL resolution, QuanX domain collection, caches, and history. `nativeBridge/` builds the static macOS `TigerTVCore.framework`; `cli/` builds the macOS arm64 Kotlin/Native executable. GUI clients call core in-process, not through a CLI subprocess.
+- Native CLI: `search`/`fetch` emit JSON; `quanx`/`logs` emit text. Business errors use stderr and exit 1; argument errors exit 2; successful commands and closed downstream pipes exit 0. Put `--source` before the subcommand to bypass remote config and its cache.
+- GUI caches use the `shared-v1` subdirectory of the platform cache directory. Search history is stored separately under macOS Application Support or Android `filesDir`, so clearing caches does not erase it. The cache schema and parsing contract are documented in `shared/api-contract/README.md`.
+- `skills/scripts/install.sh` installs the macOS arm64 CLI from the selected GitHub Release, verifies its SHA-256 checksum, and creates a `tigertv-cli.py` compatibility symlink; `uninstall.sh` removes both commands. Both honor `TIGERTV_INSTALL_DIR`; installation also accepts `TIGERTV_VERSION`. Neither modifies `PATH`.
+- CI runs checks on PRs and pushes to `main`; releases require `workflow_dispatch`. It packages `TigerTV-macOS-arm64.zip`, `TigerTV-AndroidTV-universal.apk`, and `TigerTV-CLI-macOS-arm64.tar.gz` with checksums. The macOS app is unsigned; Android builds must use the shared fixed signing key described above and increment `android_version_code` for releases.
+
 ## Project
 
-Single-file Python 3 CLI (`tigertv-cli.py`) that searches video resource sites, fetches play/download links, and generates Quantumult X direct rules. No third-party dependencies — stdlib only. Wrapped by a native SwiftUI macOS app under `macOS/App/` and an Android TV app under `AndroidTV/`.
+Kotlin Multiplatform core shared by the native SwiftUI macOS app, Android TV app, and Kotlin/Native macOS CLI. The original single-file Python CLI (`tigertv-cli.py`) remains a stdlib-only business reference and test oracle.
 
 ## Running
 
 ```bash
+tigertv <command> [options]
+# Reference implementation:
 python3 tigertv-cli.py <command> [options]
-# or after install.sh: tigertv-cli.py <command>
 ```
 
-No build step for the CLI. Tests: `python3 -m pytest tests/` or `python3 -m unittest tests.test_tigertv_cli`. No lint or typecheck configuration exists.
+Build the native CLI with `./gradlew :cli:linkReleaseExecutableMacosArm64`. Reference Python tests: `python3 -m pytest tests/` or `python3 -m unittest tests.test_tigertv_cli`. No lint or typecheck configuration exists.
 
 ## Key Commands
 
 | Command | Example | Output |
 |---|---|---|
-| `search <keyword>` | `tigertv-cli.py search 逐玉` | JSON |
-| `fetch --site <name> --vod_id <id>` | `tigertv-cli.py fetch --site "🎬-爱奇艺-" --vod_id 73480` | JSON |
-| `quanx <keyword>` | `tigertv-cli.py quanx 逐玉` | Plain text (Quantumult X rules) |
-| `logs [--full] [--clear]` | `tigertv-cli.py logs` | Plain text |
+| `search <keyword>` | `tigertv search 逐玉` | JSON |
+| `fetch --site <name> --vod_id <id>` | `tigertv fetch --site "🎬-爱奇艺-" --vod_id 73480` | JSON |
+| `quanx <keyword>` | `tigertv quanx 逐玉` | Plain text (Quantumult X rules) |
+| `logs [--full] [--clear]` | `tigertv logs` | Plain text |
 
-All subcommands except `logs` accept a global `--source <path>` (see below). Errors go to stderr with exit code 1; `search`/`quanx` log per-site failures as warnings and continue.
+All subcommands except `logs` accept a global `--source <path>` before the subcommand. Business errors go to stderr with exit code 1; argument errors exit 2. `search`/`quanx` log per-site failures as warnings and continue.
 
-## Architecture Gotchas
+## Legacy Python Reference: Architecture Gotchas
+
+The names and implementation details in this section describe the retained Python reference; use the shared-core notes above and `shared/api-contract/` for current runtime behavior.
 
 - **Remote config with caching and RAW fallback**: `load_config()` tries (1) `--source` if given, (2) fresh local cache, (3) `CONFIG_CDN_URL` (jsdelivr, 10s timeout), (4) `CONFIG_URL` (GitHub RAW, 5s timeout), (5) expired cache as last resort. Cache: `/tmp/tigertv-cli-config-cache.json`, 1-day TTL. The local `skills/references/LunaTV-config.json` is auto-synced daily by `.github/workflows/sync-from-upstream.yml` and is **not** read by the script.
 - **Source filtering**: keep entries where `name` contains `🎬` and entry has no `_comment` key (used to mark disabled/backup sources); also requires non-empty `api` and dedups by `api` URL (the first entry for a given `api` URL is kept across CLI, macOS, and Android TV).
@@ -58,8 +70,8 @@ All subcommands except `logs` accept a global `--source <path>` (see below). Err
 
 ## Install / Uninstall
 
-- `skills/scripts/install.sh` downloads `tigertv-cli.py` from GitHub RAW (not the local file) into `~/.local/bin/tigertv-cli.py`.
-- `skills/scripts/uninstall.sh` removes it.
+- `skills/scripts/install.sh` downloads the macOS arm64 native CLI from GitHub Releases, verifies the checksum, and installs `~/.local/bin/tigertv` plus a `tigertv-cli.py` compatibility symlink by default.
+- `skills/scripts/uninstall.sh` removes the installed binary and compatibility symlink.
 - Neither script modifies `PATH`; user must add `~/.local/bin` manually.
 
 ## Logs
@@ -70,7 +82,7 @@ All subcommands except `logs` accept a global `--source <path>` (see below). Err
 
 ## macOS GUI (`macOS/`)
 
-Native SwiftUI macOS app that reimplements the CLI logic in Swift (no Python subprocess). Target: macOS 26+, Swift 6.2 (Xcode project `SWIFT_VERSION = 6.2`; SPM package baseline also pinned to macOS 26 so `swift test` matches the app target). App Sandbox is **disabled** in `macOS/App/TigerTV.entitlements` (network and `~/Library/Caches` access fail under sandbox). `Info.plist` declares `NSAppTransportSecurity → NSAllowsArbitraryLoads = true`, matching the CLI's urllib (no ATS) so HTTP-only resource sites work in the GUI too.
+Native SwiftUI macOS app using the shared Kotlin core through `SharedCoreRepository` and the static Native framework (no CLI subprocess). Target: macOS 26+, Swift 6.2 (Xcode project `SWIFT_VERSION = 6.2`; SPM package baseline also pinned to macOS 26). App Sandbox is **disabled** in `macOS/App/TigerTV.entitlements`. `Info.plist` declares `NSAppTransportSecurity → NSAllowsArbitraryLoads = true` so HTTP-only resource sites work.
 
 ```
 macOS/
@@ -90,6 +102,7 @@ macOS/
     ├── PlayerView.swift
     ├── DesignSystem.swift
     ├── TigerTVViewModel.swift
+    ├── SharedCoreRepository.swift
     ├── HTTPClient.swift
     ├── ConfigDataSource.swift
     ├── MacCMSApiClient.swift
@@ -127,15 +140,16 @@ CI uses `xcodebuild -project macOS/TigerTV.xcodeproj ... -configuration Release 
 | `App/SearchHistoryView.swift` / `App/GlassSearchBar.swift` | History and search input |
 | `App/PlayerView.swift` | `AVPlayer` + `VideoPlayer` (AVKit) wrapper |
 | `App/TigerTVViewModel.swift` | `@MainActor` UI state container |
-| `App/HTTPClient.swift` | Shared URL session: Safari UA, 10MB cap, non-ASCII URL encoding |
-| `App/ConfigDataSource.swift` | Config cache → CDN → RAW → expired-cache fallback; filters sites by `🎬` and no `_comment` |
-| `App/MacCMSApiClient.swift` | MacCMS `ac=list/detail` requests |
-| `App/TigerTVRepository.swift` | Concurrent search, 10-minute search cache, episode parsing |
-| `App/PlaybackURLResolver.swift` | HTML → m3u8 URL extraction (mirrors CLI logic) |
-| `App/SearchHistoryStore.swift` | `UserDefaults`-backed search history (max 20) |
+| `App/SharedCoreRepository.swift` | Production adapter to the shared Kotlin/Native framework |
+| `App/HTTPClient.swift` | Image URL encoding and Swift reference HTTP client |
+| `App/ConfigDataSource.swift` / `App/MacCMSApiClient.swift` | Swift reference config and MacCMS clients |
+| `App/TigerTVRepository.swift` / `App/PlaybackURLResolver.swift` | Swift reference repository and playback resolver |
+| `App/SearchHistoryStore.swift` | Swift reference `UserDefaults` history store |
 | `App/Models.swift` / `LoadResult.swift` / `TigerTVError.swift` | Domain models and `Result<T>` wrapper |
 
-### GUI Quirks
+### Historical Swift Reference Notes
+
+The older Swift repository, config client, playback resolver, and history store remain for reference tests. Production uses `SharedCoreRepository` and the shared core; current cache/history locations are described above. Fullscreen and UI behavior remain relevant.
 
 - **No CLI dependency**: the app no longer bundles or shells out to `tigertv-cli.py`.
 - **Config loading**: follows the CLI priority — fresh local cache → CDN (10s) → RAW (5s) → expired cache. Cache stores the **raw** (pre-filter) `SourceConfig` and filters at read time, so rule changes don't require cache expiry. Cache lives in `~/Library/Caches/TigerTV/tigertv-config-cache.json`; the JSON file is written atomically (`.write(options: .atomic)`) alongside a separate timestamp file.
@@ -148,9 +162,9 @@ CI uses `xcodebuild -project macOS/TigerTV.xcodeproj ... -configuration Release 
 
 ## Android TV (`AndroidTV/`)
 
-Native Android TV app implemented in Kotlin with Jetpack Compose for TV, Material 3, and Media3 ExoPlayer. It replicates the CLI search/fetch/playback-resolution logic in Kotlin so both platforms share the same output contract and config behavior. The authoritative business rules live in `tigertv-cli.py`; Android mirrors them using the shared API contract in `shared/api-contract/`.
+Native Android TV app implemented in Kotlin with Jetpack Compose for TV, Material 3, and Media3 ExoPlayer. Its production repository delegates search, fetch, playback resolution, and config behavior to the shared Kotlin core. The Python CLI remains a reference oracle for the contract in `shared/api-contract/`.
 
-Current version: `3.2.4` (`versionCode 11`). **minSdk = 34（Android 14）** — 设备实证依据：Sony BRAVIA 4K AE2（Android 14 / SDK 34）主 ABI 为 `armeabi-v7a`，因此 universal APK 必须同时包含 `armeabi-v7a` 与 `arm64-v8a`，去掉 v7a 会让该类 32 位 Android 14 TV 无法安装。Toolchain: Kotlin **2.4.10**（serialization/compose 插件同版本联动）、AGP 9.2.1、Gradle 9.6、Media3 1.11.0、Coil 3.5.0。
+Current version: `3.3.0` (`versionCode 12`). **minSdk = 34（Android 14）** — 设备实证依据：Sony BRAVIA 4K AE2（Android 14 / SDK 34）主 ABI 为 `armeabi-v7a`，因此 universal APK 必须同时包含 `armeabi-v7a` 与 `arm64-v8a`，去掉 v7a 会让该类 32 位 Android 14 TV 无法安装。Toolchain: Kotlin **2.4.21**（serialization/compose 插件同版本联动）、AGP 9.2.1、Gradle 9.6、Media3 1.11.0、Coil 3.5.0。
 
 ### Build
 
@@ -159,7 +173,7 @@ cd AndroidTV
 ./gradlew test assembleDebug
 ```
 
-Release build (CI signs with the **fixed** keystore stored in repo secrets — `ANDROID_KEYSTORE_BASE64` + `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`；签名跨版本一致，APK 可原地 `adb install -r` 升级。⚠️ 勿改回每次 `keytool -genkey` 的临时签名——那会导致每个 release 签名不同、电视上无法覆盖安装):
+Release build (CI signs with the **fixed** keystore stored in repo secrets — `ANDROID_KEYSTORE_BASE64` + `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`；3.3.0 起沿用上文所述的共享签名，旧签名安装无法直接覆盖升级。⚠️ 勿改回每次 `keytool -genkey` 的临时签名——那会导致每个 release 签名不同、电视上无法覆盖安装):
 
 ```bash
 cd AndroidTV
@@ -170,11 +184,10 @@ cd AndroidTV
 
 | File | Role |
 |---|---|---|
-| `data/TigerTVRepository.kt` | Config load, search, fetch orchestration |
-| `data/MacCMSApiClient.kt` | MacCMS `ac=list/detail` requests |
-| `data/ConfigDataSource.kt` | Remote config + RAW fallback + local cache |
-| `data/PlaybackUrlResolver.kt` | HTML → m3u8 URL extraction |
-| `domain/Models.kt` | `SearchResponse`, `FetchResponse`, `EpisodeLink` |
+| `data/TigerTVRepository.kt` | Android UI adapter to the shared core |
+| `data/MacCMSApiClient.kt` / `data/ConfigDataSource.kt` | Legacy reference clients retained for tests |
+| `data/PlaybackUrlResolver.kt` | Legacy reference playback resolver retained for tests |
+| `core/src/commonMain/kotlin/art/anjing/tigertv/domain/Models.kt` | Shared `SearchResponse`, `FetchResponse`, `EpisodeLink` |
 | `ui/TigerTVApp.kt` | Compose navigation / app entry |
 | `ui/home/HomeScreen.kt` | Search + history |
 | `ui/results/ResultsScreen.kt` | TV result grid |
@@ -188,6 +201,8 @@ cd AndroidTV
 - The app declares `android.software.leanback` and sets `touchscreen` not required.
 
 ### Android specifics
+
+Some historical API-client and cache implementation notes below describe retained reference classes. The production repository delegates those operations to `core/`; UI focus, player, image caching, and Android lifecycle notes remain applicable.
 
 - **Dependency injection**: dependencies are constructed in `TigerTVApp.kt` with `LocalContext.current.applicationContext` (NOT the Activity) to avoid leaking the Activity through the long-lived `TigerTVViewModel` / `ConfigDataSource` / `SearchHistoryStore`.
 - **Coroutine cancellation**: every `catch (e: Exception)` around a `suspend` call rethrows `CancellationException` first (`MacCMSApiClient.search`, `ConfigDataSource.loadConfig`, `TigerTVRepository.resolvePlaybackUrl`) so `viewModelScope.cancel()` / `Job.cancel()` actually interrupts structured concurrency.

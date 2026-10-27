@@ -1,46 +1,121 @@
-# TigerTV · 小老虎爱看剧
+<p align="center">
+  <img width="128" height="128" src="macOS/App/Assets.xcassets/AppIcon.appiconset/icon_256x256.png" alt="TigerTV 图标">
+</p>
 
-影视资源搜索、选集播放与 Agent CLI。
+# 小老虎爱看剧（TigerTV）
 
-| 平台 | 客户端 | 播放器 |
-|---|---|---|
-| macOS 26+ arm64 | SwiftUI | AVPlayer |
-| Android 14+ TV | Compose for TV，v7a / arm64 | Media3 |
+跨平台影视搜索与播放工具，包含 macOS 应用、Android TV 应用，以及供用户和 AI Agent 使用的命令行工具。
 
-业务逻辑由 Kotlin Multiplatform 共享，macOS CLI 为 Kotlin/Native 原生可执行文件。macOS GUI 和 CLI 均不需要 Java 或 Python。Windows 版本暂缓开发。
+## 特性
 
-## Agent CLI
+- **macOS 应用**：搜索多个资源站，选集播放，支持系统明暗模式
+- **Android TV 应用**：为电视遥控器优化的搜索、选集与播放体验
+- **命令行工具**：搜索影视资源、获取播放和下载链接、生成 Quantumult X 直连规则、查看日志
+- **Agent Skill**：为 AI Agent 提供影视搜索、链接获取、直连规则生成和下载流程指引
 
-macOS 安装：
+## 截图
+
+### macOS
+
+<table>
+  <tr>
+    <td width="50%"><img src="screenshots/macOS/1.png" width="100%" alt="macOS 应用截图 1"></td>
+    <td width="50%"><img src="screenshots/macOS/2.png" width="100%" alt="macOS 应用截图 2"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="screenshots/macOS/3.png" width="100%" alt="macOS 应用截图 3"></td>
+    <td width="50%"><img src="screenshots/macOS/4.png" width="100%" alt="macOS 应用截图 4"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="screenshots/macOS/5.png" width="100%" alt="macOS 应用截图 5"></td>
+    <td width="50%"></td>
+  </tr>
+</table>
+
+### Android TV
+
+<table>
+  <tr>
+    <td width="50%"><img src="screenshots/AndroidTV/1.png" width="100%" alt="Android TV 应用截图 1"></td>
+    <td width="50%"><img src="screenshots/AndroidTV/2.png" width="100%" alt="Android TV 应用截图 2"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="screenshots/AndroidTV/3.png" width="100%" alt="Android TV 应用截图 3"></td>
+    <td width="50%"><img src="screenshots/AndroidTV/4.png" width="100%" alt="Android TV 应用截图 4"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="screenshots/AndroidTV/5.png" width="100%" alt="Android TV 应用截图 5"></td>
+    <td width="50%"></td>
+  </tr>
+</table>
+
+## 快速开始
+
+### macOS 应用
+
+1. 从 [Releases](https://github.com/qvshuo/TigerTV/releases) 下载 `TigerTV-macOS-arm64.zip`。
+2. 解压并将「小老虎爱看剧」拖入「应用程序」文件夹。
+
+**系统要求：** macOS 26+（Apple Silicon）。
+
+应用目前未签名。如果 macOS 阻止打开，可在终端执行：
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/小老虎爱看剧.app"
+```
+
+### Android TV 应用
+
+1. 从 [Releases](https://github.com/qvshuo/TigerTV/releases) 下载 `TigerTV-AndroidTV-universal.apk`。
+2. 将 APK 安装到 Android TV 设备。
+
+**系统要求：** Android 14+。
+
+从旧签名版本升级时，需要先卸载旧版本。卸载会删除旧版本的应用数据。
+
+### 命令行工具
+
+目前支持 macOS（Apple Silicon），无需安装 Java 或 Python。
+
+一键安装：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/skills/scripts/install.sh | bash
 ```
 
-安装验证 SHA-256，不修改 PATH。当前原生 CLI 仅提供 macOS arm64。
+安装脚本不会修改 PATH。如 `~/.local/bin` 尚未加入 PATH，在 zsh 中可执行：
 
 ```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+#### 常用命令
+
+```bash
+# 搜索剧集
 tigertv search 逐玉
-tigertv fetch --site '🎬站点完整名称' --vod_id 42
+
+# 获取播放 / 下载链接：使用搜索结果中的完整站点名和视频 ID
+tigertv fetch --site "🎬站点完整名称" --vod_id 73480
+
+# 生成 Quantumult X 直连规则
 tigertv quanx 逐玉
+
+# 查看日志
 tigertv logs
 ```
 
-search/fetch 输出 JSON；quanx/logs 输出文本。支持 `tigertv --source sources.json search 逐玉` 离线指定来源配置。Agent 工作流见 [Skill](skills/SKILL.md)。下载剧集另需 yt-dlp/ffmpeg。
-
-新安装脚本需要包含原生 CLI 资产的 Release。首个此类 Release 发布前，可直接使用本地构建产物。原 Python 文件暂留作业务与测试参考，不再是新客户端的运行时依赖。
+也可以通过 `tigertv --source sources.json search 逐玉` 使用本地来源配置。[Agent Skill](skills/SKILL.md) 提供完整的 Agent 工作流；下载剧集另需 `yt-dlp` 和 `ffmpeg`。
 
 ## 开发
 
-构建需要 JDK 21，但不会把 JVM 打进桌面应用。
+构建、测试和发布说明见 [跨平台开发文档](docs/cross-platform.md)，项目实现细节见 [AGENTS.md](AGENTS.md)。
 
-```bash
-./gradlew :core:jvmTest :core:macosArm64Test :cli:linkReleaseExecutableMacosArm64
-xcodebuild -project macOS/TigerTV.xcodeproj -scheme TigerTV -destination 'platform=macOS' build
-# Android，需设置 ANDROID_HOME
-./gradlew -Pandroid=true :androidApp:testDebugUnitTest :androidApp:assembleDebug
-```
+## 致谢
 
-构建环境、Swift 桥接契约、打包、签名、测试和发布详见 [跨平台开发文档](docs/cross-platform.md)。发布只通过手动 workflow_dispatch 触发，Android 使用固定签名。
+站点配置数据来源：[LunaTV-config](https://github.com/hafrey1/LunaTV-config)。
 
-[验证记录](docs/verification.md) · [共享 API 契约](shared/api-contract/README.md) · [MIT License](LICENSE)
+## License
+
+[MIT](LICENSE)
