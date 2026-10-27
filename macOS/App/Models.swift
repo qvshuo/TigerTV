@@ -67,7 +67,11 @@ struct SearchResult: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-struct FetchResponse: Identifiable, Hashable, Sendable {
+struct FetchResponse: Codable, Identifiable, Hashable, Sendable {
+    enum CodingKeys: String, CodingKey {
+        case vodId = "vod_id", site
+        case vodPlayUrl = "vod_play_url", vodDownUrl = "vod_down_url"
+    }
     let vodId: Int
     let site: String
     let vodPlayUrl: [EpisodeLink]

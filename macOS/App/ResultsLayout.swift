@@ -6,13 +6,10 @@ struct ResultsLayout: View {
     @Binding var keyword: String
     let submittedKeyword: String
     let results: [SearchResult]
-    let mergedResults: [MergedSearchResult]
     let isSearching: Bool
     let selectedResult: SearchResult?
-    let selectedSources: [SearchResult]
     let fetchResponse: FetchResponse?
     let isFetching: Bool
-    let fetchErrorMessage: String?
     let player: AVPlayer?
     let selectedEpisode: EpisodeLink?
     let isResolvingPlayback: Bool
@@ -20,9 +17,7 @@ struct ResultsLayout: View {
     let onLoadCoverFallback: (SearchResult) async -> Void
     let onBack: () -> Void
     let onSearch: () -> Void
-    let onSelectResult: (MergedSearchResult) -> Void
-    let onSwitchSource: (SearchResult) -> Void
-    let onRetryFetch: () -> Void
+    let onSelectResult: (SearchResult) -> Void
     let onSelectEpisode: (EpisodeLink) -> Void
 
     @State private var isFullscreen = false
@@ -85,30 +80,10 @@ struct ResultsLayout: View {
                                     alignment: .leading
                                 )
                                 .transition(.opacity)
-                        } else if let fetchErrorMessage, let selectedResult {
-                            EpisodeErrorPanel(
-                                result: selectedResult,
-                                sources: selectedSources,
-                                message: fetchErrorMessage,
-                                onSwitchSource: onSwitchSource,
-                                onRetry: onRetryFetch
-                            )
-                            .frame(minWidth: 280, idealWidth: 320, maxWidth: 360)
-                            .overlay(
-                                Rectangle()
-                                    .fill(Color.secondary.opacity(0.1))
-                                    .frame(width: 1)
-                                    .frame(maxHeight: .infinity),
-                                alignment: .leading
-                            )
-                            .transition(.opacity)
                         } else if let response = fetchResponse {
                             EpisodePanel(
                                 response: response,
-                                sources: selectedSources,
-                                selectedResult: selectedResult,
                                 selectedEpisode: selectedEpisode,
-                                onSwitchSource: onSwitchSource,
                                 onSelect: onSelectEpisode
                             )
                             .frame(minWidth: 280, idealWidth: 320, maxWidth: 360)
@@ -156,22 +131,20 @@ struct ResultsLayout: View {
                     .foregroundStyle(.secondary)
                 Spacer()
             }
-        } else if mergedResults.isEmpty {
+        } else if results.isEmpty {
             ContentUnavailableView("未找到结果", systemImage: "magnifyingglass")
                 .font(.title3)
         } else {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: AppSpacing.md)], spacing: AppSpacing.md) {
-                    ForEach(mergedResults) { merged in
-                        let primary = merged.primary
+                    ForEach(results) { result in
                         SearchResultCard(
-                            result: primary,
-                            extraSourceCount: merged.extraCount,
-                            isSelected: selectedResult?.id == primary.id,
-                            isLoading: selectedResult?.id == primary.id && isFetching,
-                            fallbackCoverURL: coverFallbacks[primary.id],
-                            onLoadCoverFallback: { await onLoadCoverFallback(primary) },
-                            onTap: { onSelectResult(merged) }
+                            result: result,
+                            isSelected: selectedResult?.id == result.id,
+                            isLoading: selectedResult?.id == result.id && isFetching,
+                            fallbackCoverURL: coverFallbacks[result.id],
+                            onLoadCoverFallback: { await onLoadCoverFallback(result) },
+                            onTap: { onSelectResult(result) }
                         )
                     }
                 }

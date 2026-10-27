@@ -5,14 +5,14 @@ struct ContentView: View {
     @StateObject private var viewModel = TigerTVViewModel()
 
     @State private var hasSearched = false
-    @State private var player: AVPlayer?
+    @StateObject private var controller = AVPlayerController()
+    private var player: AVPlayer? { controller.hasItem ? controller.player : nil }
     @State private var showError = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var activeErrorMessage: String? {
-        // fetch 失败已由右侧 EpisodeErrorPanel 内联展示（含重试/换源），不再重复弹 alert。
-        viewModel.searchErrorMessage ?? viewModel.playbackErrorMessage
+        viewModel.searchErrorMessage ?? viewModel.fetchErrorMessage ?? viewModel.playbackErrorMessage
     }
 
     var body: some View {
@@ -37,13 +37,10 @@ struct ContentView: View {
                     keyword: $viewModel.keyword,
                     submittedKeyword: viewModel.submittedKeyword,
                     results: viewModel.results,
-                    mergedResults: viewModel.mergedResults,
                     isSearching: viewModel.isSearching,
                     selectedResult: viewModel.selectedResult,
-                    selectedSources: viewModel.selectedSources,
                     fetchResponse: viewModel.fetchResponse,
                     isFetching: viewModel.isFetching,
-                    fetchErrorMessage: viewModel.fetchErrorMessage,
                     player: player,
                     selectedEpisode: viewModel.selectedEpisode,
                     isResolvingPlayback: viewModel.isResolvingPlayback,
@@ -52,8 +49,6 @@ struct ContentView: View {
                     onBack: goBack,
                     onSearch: startSearch,
                     onSelectResult: selectResult,
-                    onSwitchSource: switchSource,
-                    onRetryFetch: viewModel.retryFetch,
                     onSelectEpisode: selectEpisode
                 )
                 .transition(.asymmetric(
@@ -70,15 +65,15 @@ struct ContentView: View {
         }, message: {
             Text(activeErrorMessage ?? "未知错误")
         })
+        .onDisappear { controller.close() }
         .onChange(of: activeErrorMessage) { _, newValue in
             showError = newValue != nil
         }
-        .onChange(of: viewModel.resolvedPlaybackUrl) { _, url in
-            guard let url, let playbackURL = URL(string: url) else { return }
-            player?.pause()
-            let newPlayer = AVPlayer(url: playbackURL)
-            player = newPlayer
-            newPlayer.play()
+        .onChange(of: viewModel.playbackRevision) { _, _ in
+            guard let url = viewModel.resolvedPlaybackUrl else { return }
+            controller.close()
+            controller.load(url: url)
+            controller.play()
         }
     }
 
@@ -86,8 +81,7 @@ struct ContentView: View {
         let trimmed = viewModel.keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         hasSearched = true
-        player?.pause()
-        player = nil
+        controller.close()
         viewModel.search()
     }
 
@@ -96,29 +90,20 @@ struct ContentView: View {
         startSearch()
     }
 
-    private func selectResult(_ merged: MergedSearchResult) {
-        player?.pause()
-        player = nil
-        viewModel.selectMerged(merged)
-    }
-
-    private func switchSource(_ result: SearchResult) {
-        player?.pause()
-        player = nil
-        viewModel.switchSource(result)
+    private func selectResult(_ result: SearchResult) {
+        controller.close()
+        viewModel.selectResult(result)
     }
 
     private func selectEpisode(_ episode: EpisodeLink) {
-        player?.pause()
-        player = nil
+        controller.close()
         viewModel.selectEpisode(episode)
     }
 
     private func goBack() {
         if player != nil || viewModel.selectedEpisode != nil || viewModel.isResolvingPlayback {
             viewModel.clearPlayback()
-            player?.pause()
-            player = nil
+            controller.close()
             return
         }
 

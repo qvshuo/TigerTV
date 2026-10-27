@@ -29,3 +29,6 @@ local.properties
 *.idsig
 *.keystore
 *.jks
+
+# Release output
+artifacts/

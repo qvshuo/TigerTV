@@ -19,9 +19,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -30,11 +33,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -42,6 +43,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import art.anjing.tigertv.R
+import art.anjing.tigertv.ui.requestFocusSafely
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
 
 @OptIn(UnstableApi::class, ExperimentalTvMaterial3Api::class)
@@ -57,6 +59,10 @@ fun PlayerScreen(
     // 任何覆盖层出现时都不显示 ExoPlayer 自带控件，避免半透明浮层下露出 seekBar/play 按钮
     // 造成视觉重叠。也避免错误态下控件抢走遥控器焦点干扰重试按钮 D-pad 导航。
     val overlayVisible = viewModel.isResolvingPlayback || viewModel.playbackErrorMessage != null
+    val retryFocus = remember { FocusRequester() }
+    LaunchedEffect(viewModel.playbackErrorMessage) {
+        if (viewModel.playbackErrorMessage != null) requestFocusSafely(retryFocus)
+    }
 
     BackHandler {
         viewModel.clearPlayback()
@@ -70,11 +76,8 @@ fun PlayerScreen(
         }
     }
 
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            repeatMode = Player.REPEAT_MODE_OFF
-        }
-    }
+    val controller = remember { Media3Controller(context) }
+    val exoPlayer = controller.player
 
     DisposableEffect(Unit) {
         val listener = object : Player.Listener {
@@ -86,16 +89,14 @@ fun PlayerScreen(
 
         onDispose {
             exoPlayer.removeListener(listener)
-            exoPlayer.release()
+            controller.close()
         }
     }
 
-    DisposableEffect(url) {
+    DisposableEffect(url, viewModel.playbackRevision) {
         url?.let {
-            val mediaItem = MediaItem.fromUri(it)
-            exoPlayer.setMediaItem(mediaItem)
-            exoPlayer.prepare()
-            exoPlayer.playWhenReady = true
+            controller.load(it)
+            controller.play()
         }
 
         onDispose {
@@ -107,10 +108,10 @@ fun PlayerScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_PAUSE -> exoPlayer.pause()
+                Lifecycle.Event.ON_PAUSE -> controller.pause()
                 // ON_RESUME 只要有媒体项就恢复播放；mediaItemCount>0 已隐含 url 解析完成并装入了媒体。
                 Lifecycle.Event.ON_RESUME -> {
-                    if (exoPlayer.mediaItemCount > 0) exoPlayer.play()
+                    if (exoPlayer.mediaItemCount > 0) controller.play()
                 }
                 else -> Unit
             }
@@ -176,6 +177,7 @@ fun PlayerScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         Button(
                             onClick = { viewModel.retryPlayback() },
+                            modifier = Modifier.focusRequester(retryFocus),
                             shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
                             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                         ) {

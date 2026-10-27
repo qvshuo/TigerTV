@@ -24,7 +24,7 @@ let package = Package(
                 "DesignSystem.swift",
                 "PlayerView.swift",
                 "TigerTVViewModel.swift",
-                "SearchMerger.swift",
+                "SharedCoreRepository.swift",
                 "Assets.xcassets",
                 "Info.plist",
                 "TigerTV.entitlements",

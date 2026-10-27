@@ -3,20 +3,16 @@ import SwiftUI
 
 @MainActor
 final class TigerTVViewModel: ObservableObject {
-    private let repository: TigerTVRepository
-    private let historyStore: SearchHistoryStore
+    private let repository: any VideoRepository
 
     @Published var keyword = ""
     @Published private(set) var submittedKeyword = ""
     @Published private(set) var results: [SearchResult] = []
-    /// 归并后的展示单元：同一部剧多源只出一张卡。由 `results` 派生，保持同步。
-    @Published private(set) var mergedResults: [MergedSearchResult] = []
     @Published private(set) var selectedResult: SearchResult?
-    /// 当前选中合并组内的全部源（含主源），用于剧集面板源切换。
-    @Published private(set) var selectedSources: [SearchResult] = []
     @Published private(set) var fetchResponse: FetchResponse?
     @Published private(set) var selectedEpisode: EpisodeLink?
     @Published private(set) var resolvedPlaybackUrl: String?
+    @Published private(set) var playbackRevision = 0
 
     @Published private(set) var isSearching = false
     @Published private(set) var isFetching = false
@@ -53,18 +49,16 @@ final class TigerTVViewModel: ObservableObject {
             .first ?? FileManager.default.temporaryDirectory
         let cacheDirectory = cachesDir
             .appendingPathComponent(Bundle.main.bundleIdentifier ?? "art.anjing.TigerTV")
-        let repository = TigerTVRepository(
-            configDataSource: ConfigDataSource(cacheDirectory: cacheDirectory),
-            apiClient: MacCMSApiClient(),
-            playbackResolver: PlaybackURLResolver(),
-            coverURLStore: CoverFallbackURLStore(directory: cacheDirectory)
-        )
-        self.init(repository: repository, historyStore: SearchHistoryStore())
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let dataDirectory = support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "art.anjing.TigerTV")
+            .appendingPathComponent("shared-v1")
+        let repository = SharedCoreRepository(directory: cacheDirectory.appendingPathComponent("shared-v1"), dataDirectory: dataDirectory)
+        self.init(repository: repository)
     }
 
-    init(repository: TigerTVRepository, historyStore: SearchHistoryStore) {
+    init(repository: any VideoRepository) {
         self.repository = repository
-        self.historyStore = historyStore
         Task {
             await loadConfig()
             await loadSearchHistory()
@@ -116,9 +110,7 @@ final class TigerTVViewModel: ObservableObject {
         fetchErrorMessage = nil
         playbackErrorMessage = nil
         results = []
-        mergedResults = []
         selectedResult = nil
-        selectedSources = []
         fetchResponse = nil
         selectedEpisode = nil
         resolvedPlaybackUrl = nil
@@ -134,7 +126,6 @@ final class TigerTVViewModel: ObservableObject {
             case .success(let response):
                 isSearching = false
                 results = response.results
-                mergedResults = mergeSearchResults(response.results)
             case .failure(let error):
                 isSearching = false
                 searchErrorMessage = error.localizedDescription
@@ -142,30 +133,12 @@ final class TigerTVViewModel: ObservableObject {
         }
     }
 
-    /// 点击合并卡：以主源为默认源，记录组内全部源供剧集面板切换。
-    func selectMerged(_ merged: MergedSearchResult) {
-        selectResult(merged.primary, sources: merged.sources)
-    }
-
-    /// 剧集面板切换到组内另一源：重新 fetch 该源剧集。
-    func switchSource(_ result: SearchResult) {
-        selectResult(result, sources: selectedSources, forceRefresh: true)
-    }
-
-    /// 重试当前选中源的 fetch（绕过"同一结果"短路）。
-    func retryFetch() {
-        guard let current = selectedResult else { return }
-        selectResult(current, sources: selectedSources, forceRefresh: true)
-    }
-
-    func selectResult(_ result: SearchResult, sources: [SearchResult]? = nil, forceRefresh: Bool = false) {
-        // forceRefresh=true 时跳过"同一结果"短路，专用于切源。
-        if !forceRefresh, selectedResult?.id == result.id { return }
+    func selectResult(_ result: SearchResult) {
+        guard selectedResult?.id != result.id else { return }
 
         cancelAll()
 
         selectedResult = result
-        selectedSources = sources ?? [result]
         fetchResponse = nil
         selectedEpisode = nil
         resolvedPlaybackUrl = nil
@@ -206,6 +179,7 @@ final class TigerTVViewModel: ObservableObject {
             case .success(let url):
                 isResolvingPlayback = false
                 resolvedPlaybackUrl = url
+                playbackRevision += 1
             case .failure(let error):
                 isResolvingPlayback = false
                 playbackErrorMessage = error.localizedDescription
@@ -236,10 +210,8 @@ final class TigerTVViewModel: ObservableObject {
     func clearResults() {
         cancelAll()
         results = []
-        mergedResults = []
         submittedKeyword = ""
         selectedResult = nil
-        selectedSources = []
         fetchResponse = nil
         selectedEpisode = nil
         resolvedPlaybackUrl = nil
@@ -269,12 +241,12 @@ final class TigerTVViewModel: ObservableObject {
 
     private func saveHistory() {
         Task {
-            await historyStore.save(searchHistory)
+            await repository.saveHistory(searchHistory)
         }
     }
 
     private func loadSearchHistory() async {
-        searchHistory = await historyStore.load()
+        searchHistory = await repository.loadHistory()
     }
 
     private func cancelAll() {

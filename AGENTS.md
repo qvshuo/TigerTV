@@ -1,5 +1,19 @@
 # TigerTV – Agent Notes
 
+## Current migration architecture (2026-10)
+
+- Android signing migration (2026-10-27): local Debug and Release share Interlude's existing `~/.android/debug.keystore` (alias `androiddebugkey`, standard Android debug-key credentials). CI restores the same key through the existing four Android signing secrets. Required certificate SHA-256: `0d81ab7cb1a16d58d91a953fe62049eb77fc840cc544a297ae1854f54bc73b96`. This user-requested change supersedes the legacy TigerTV certificate (`fd6656...37bb7`); new APKs cannot directly update old-certificate installations. Obsolete published releases were removed at the user’s request; reuse the shared key for future releases.
+
+Production Android and macOS repositories now call the root Kotlin Multiplatform `core` module. Windows GUI and CLI development is deferred. Desktop GUI and CLI do not ship a JVM. Python CLI and old platform API clients remain migration references, not production GUI dependencies.
+
+- Root build: `./gradlew :core:jvmTest :core:macosArm64Test :nativeBridge:macosArm64Test`.
+- Native CLI: `:cli:linkReleaseExecutableMacosArm64`.
+- Android: `./gradlew -Pandroid=true :androidApp:testDebugUnitTest :androidApp:assembleDebug` (requires SDK); legacy `AndroidTV/gradlew` entry also works.
+- macOS Xcode builds the native framework automatically; Swift-only reference tests remain available via SPM.
+- Authoritative shared parsing rules and cache schema: `core` + `shared/api-contract/`; use `scripts/check-cli-parity.py` to compare native CLI with Python.
+- Detailed environment, ABI ownership, tests and release instructions: `docs/cross-platform.md`.
+- Migration version is 3.3.0 (Android versionCode 12, macOS build 9); Kotlin/Compose compiler plugins use 2.4.21. Existing sections below describe reference implementations where superseded by this migration.
+
 ## Project
 
 Single-file Python 3 CLI (`tigertv-cli.py`) that searches video resource sites, fetches play/download links, and generates Quantumult X direct rules. No third-party dependencies — stdlib only. Wrapped by a native SwiftUI macOS app under `macOS/App/` and an Android TV app under `AndroidTV/`.

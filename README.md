@@ -1,122 +1,46 @@
-<p align="center">
-  <img width="128" height="128" src="macOS/App/Assets.xcassets/AppIcon.appiconset/icon_256x256.png" alt="TigerTV icon">
-</p>
+# TigerTV · 小老虎爱看剧
 
-# 小老虎爱看剧（TigerTV）
+影视资源搜索、选集播放与 Agent CLI。
 
-跨平台影视搜索与播放工具，包含 macOS 应用、Android TV 应用，以及命令行工具 `tigertv-cli.py` 和 Agent 可用的 `skills/SKILL.md`。
+| 平台 | 客户端 | 播放器 |
+|---|---|---|
+| macOS 26+ arm64 | SwiftUI | AVPlayer |
+| Android 14+ TV | Compose for TV，v7a / arm64 | Media3 |
 
-## 特性
+业务逻辑由 Kotlin Multiplatform 共享，macOS CLI 为 Kotlin/Native 原生可执行文件。macOS GUI 和 CLI 均不需要 Java 或 Python。Windows 版本暂缓开发。
 
-- **macOS 应用**：聚合多个资源站，支持搜索与播放剧集
-- **Android TV 应用**：为电视遥控器优化的搜索、选集与播放体验
-- **命令行工具**：搜索影视资源、获取播放/下载链接、生成 Quantumult X 直连规则、查看日志
-- **Agent Skill**：基于 CLI 封装影视搜索、链接获取和 QX 直连规则生成，并提供下载流程建议
+## Agent CLI
 
-## 截图
-
-### macOS
-
-<table>
-  <tr>
-    <td width="50%"><img src="screenshots/macOS/1.png" width="100%"></td>
-    <td width="50%"><img src="screenshots/macOS/2.png" width="100%"></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="screenshots/macOS/3.png" width="100%"></td>
-    <td width="50%"><img src="screenshots/macOS/4.png" width="100%"></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="screenshots/macOS/5.png" width="100%"></td>
-    <td width="50%"></td>
-  </tr>
-</table>
-
-### Android TV
-
-<table>
-  <tr>
-    <td width="50%"><img src="screenshots/AndroidTV/1.png" width="100%"></td>
-    <td width="50%"><img src="screenshots/AndroidTV/2.png" width="100%"></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="screenshots/AndroidTV/3.png" width="100%"></td>
-    <td width="50%"><img src="screenshots/AndroidTV/4.png" width="100%"></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="screenshots/AndroidTV/5.png" width="100%"></td>
-    <td width="50%"></td>
-  </tr>
-</table>
-
-## 快速开始
-
-### macOS 应用
-
-1. 从 [Releases](https://github.com/qvshuo/TigerTV/releases) 下载 `TigerTV-macOS-arm64-<version>.zip`
-2. 解压并拖入「应用程序」文件夹  
-
-首次启动前执行：
-
-```shell
-xattr -cr "/Applications/小老虎爱看剧.app"
-```
-
-**系统要求：** macOS 26+（Apple Silicon）
-
-### Android TV 应用
-
-1. 从 [Releases](https://github.com/qvshuo/TigerTV/releases) 下载 `TigerTV-AndroidTV-universal-<version>.apk`
-2. 安装到 Android TV 设备
-
-**系统要求：** Android 14+（API 34+）
-
-### 命令行工具
-
-一键安装：
+macOS 安装：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/qvshuo/TigerTV/main/skills/scripts/install.sh | bash
 ```
 
-安装脚本不会修改 PATH；如 `~/.local/bin` 尚未加入 PATH，可手动配置：
+安装验证 SHA-256，不修改 PATH。当前原生 CLI 仅提供 macOS arm64。
 
-```shell
-# bash
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-
-# zsh
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
+```bash
+tigertv search 逐玉
+tigertv fetch --site '🎬站点完整名称' --vod_id 42
+tigertv quanx 逐玉
+tigertv logs
 ```
 
-#### 常用命令
+search/fetch 输出 JSON；quanx/logs 输出文本。支持 `tigertv --source sources.json search 逐玉` 离线指定来源配置。Agent 工作流见 [Skill](skills/SKILL.md)。下载剧集另需 yt-dlp/ffmpeg。
 
-```shell
-# 搜索剧集
-tigertv-cli.py search 逐玉
+新安装脚本需要包含原生 CLI 资产的 Release。首个此类 Release 发布前，可直接使用本地构建产物。原 Python 文件暂留作业务与测试参考，不再是新客户端的运行时依赖。
 
-# 获取播放 / 下载链接（site 需完整匹配）
-tigertv-cli.py fetch --site "🎬-爱奇艺-" --vod_id 73480
+## 开发
 
-# 生成 Quantumult X 直连规则
-tigertv-cli.py quanx 逐玉
+构建需要 JDK 21，但不会把 JVM 打进桌面应用。
 
-# 查看日志
-tigertv-cli.py logs
+```bash
+./gradlew :core:jvmTest :core:macosArm64Test :cli:linkReleaseExecutableMacosArm64
+xcodebuild -project macOS/TigerTV.xcodeproj -scheme TigerTV -destination 'platform=macOS' build
+# Android，需设置 ANDROID_HOME
+./gradlew -Pandroid=true :androidApp:testDebugUnitTest :androidApp:assembleDebug
 ```
 
-日志路径：
+构建环境、Swift 桥接契约、打包、签名、测试和发布详见 [跨平台开发文档](docs/cross-platform.md)。发布只通过手动 workflow_dispatch 触发，Android 使用固定签名。
 
-```
-/tmp/tigertv-cli.log
-```
-
-## 致谢
-
-站点配置数据来源：[LunaTV-config](https://github.com/hafrey1/LunaTV-config)
-
-## License
-
-MIT
+[验证记录](docs/verification.md) · [共享 API 契约](shared/api-contract/README.md) · [MIT License](LICENSE)
