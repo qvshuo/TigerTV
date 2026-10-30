@@ -18,15 +18,15 @@ Python CLI and old platform API/config/history/playback implementations have bee
 Kotlin/Compose/serialization plugins 2.4.21, Gradle 9.8.2, AGP 9.5.0, JDK 21, Android SDK 37; Xcode 27.2 stable (27B52), its bundled Swift 6.4.2 toolchain, Swift 6 language mode, SwiftPM tools 6.4, macOS SDK 27.2 and deployment target macOS 26+.
 
 ```bash
-./gradlew -Pandroid=false :core:jvmTest :core:macosArm64Test :nativeBridge:macosArm64Test
-./gradlew -Pandroid=false :cli:linkReleaseExecutableMacosArm64
+./gradlew :core:jvmTest :core:macosArm64Test :nativeBridge:macosArm64Test
+./gradlew :cli:linkReleaseExecutableMacosArm64
 python3 scripts/check-cli-contract.py cli/build/bin/macosArm64/releaseExecutable/tigertv.kexe
 swift test --package-path macOS
 xcodebuild -project macOS/TigerTV.xcodeproj -scheme TigerTV -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO build
-./gradlew -Pandroid=true :androidApp:testDebugUnitTest :androidApp:assembleDebug
+./AndroidTV/gradlew testDebugUnitTest assembleDebug
 ```
 
-CI uses the `xcode-27` arm64 runner, selects Xcode 27.2 and verifies build 27B52 to reject RC 27B48; the hosted image must contain the stable installation. Xcode builds the native framework automatically with recursive script inputs; do not restore an always-out-of-date build phase. `LM_SKIP_METADATA_EXTRACTION=YES` skips unused App Intents extraction for the unsigned app. Android SDK may require `ANDROID_HOME`. Open the repository root in Android Studio. There is one Gradle entry, with Java 21 daemon criteria, Foojay resolver 1.0.0 and configuration cache. Native-only builds pass `-Pandroid=false` and need no Android SDK. Keep dependency/plugin/Wrapper upgrade advisories enabled; do not suppress them to obtain a clean report. Kotlin 2.4.21 has a known Native bundle enum attribute deprecation on Gradle 9.8.2; the upstream fix is in Kotlin 2.5.0-Beta2, not the current stable release.
+CI uses the `xcode-27` arm64 runner, selects Xcode 27.2 and verifies build 27B52 to reject RC 27B48; the hosted image must contain the stable installation. Xcode builds the native framework automatically with recursive script inputs; do not restore an always-out-of-date build phase. `LM_SKIP_METADATA_EXTRACTION=YES` skips unused App Intents extraction for the unsigned app. Android SDK may require `ANDROID_HOME`. Open `AndroidTV/` in Android Studio and `macOS/` in Xcode. Root Gradle builds core/bridge/CLI without an Android SDK; the independent Android build includes the same core sources. Both entries share `gradle/` via a symlink (Wrapper, Java 21 daemon criteria and plugin versions), use Foojay resolver 1.0.0 and configuration cache. Android core build outputs stay under `AndroidTV/build/core` to avoid cross-build conflicts. Keep dependency/plugin/Wrapper upgrade advisories enabled; do not suppress them to obtain a clean report. Kotlin 2.4.21 has a known Native bundle enum attribute deprecation on Gradle 9.8.2; the upstream fix is in Kotlin 2.5.0-Beta2, not the current stable release.
 
 ## Current model and interaction
 

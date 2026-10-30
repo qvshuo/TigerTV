@@ -56,7 +56,7 @@ jobs:
         run: python3 scripts/validate-release.py
       - name: Test core, Native bridge and CLI
         run: |
-          ./gradlew -Pandroid=false :core:jvmTest :core:macosArm64Test :nativeBridge:macosArm64Test :nativeBridge:linkDebugFrameworkMacosArm64 :cli:linkReleaseExecutableMacosArm64 -PreleaseVersion="$RELEASE_VERSION"
+          ./gradlew :core:jvmTest :core:macosArm64Test :nativeBridge:macosArm64Test :nativeBridge:linkDebugFrameworkMacosArm64 :cli:linkReleaseExecutableMacosArm64 -PreleaseVersion="$RELEASE_VERSION"
           python3 scripts/check-cli-contract.py cli/build/bin/macosArm64/releaseExecutable/tigertv.kexe
           mkdir -p build
           swiftc -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -framework TigerTVCore scripts/check-native-bridge.swift -o build/check-native-bridge
@@ -110,10 +110,10 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then cp ~/.android/debug.keystore AndroidTV/release.keystore; fi
       - name: Test core and Android TV
         run: |
-          ./gradlew -Pandroid=true :core:jvmTest :androidApp:testDebugUnitTest :androidApp:lintDebug
+          ./AndroidTV/gradlew :core:jvmTest testDebugUnitTest lintDebug
       - name: Build shared-key debug APK
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        run: ./gradlew -Pandroid=true :androidApp:assembleDebug
+        run: ./AndroidTV/gradlew assembleDebug
       - name: Build signed release
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -122,7 +122,7 @@ jobs:
           CI_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           CI_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          ./gradlew -Pandroid=true :androidApp:assembleRelease -PreleaseVersion="$RELEASE_VERSION" -PandroidVersionCode="$ANDROID_VERSION_CODE"
+          ./AndroidTV/gradlew assembleRelease -PreleaseVersion="$RELEASE_VERSION" -PandroidVersionCode="$ANDROID_VERSION_CODE"
       - name: Package universal APK
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         run: |

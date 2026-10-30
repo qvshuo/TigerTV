@@ -8,8 +8,3 @@ dependencyResolutionManagement {
 }
 rootProject.name = "TigerTV"
 include(":core", ":nativeBridge", ":cli")
-// Native-only builds do not require an Android SDK.
-if (providers.gradleProperty("android").orNull == "true") {
-    include(":androidApp")
-    project(":androidApp").projectDir = file("AndroidTV")
-}

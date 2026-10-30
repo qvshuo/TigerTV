@@ -19,14 +19,14 @@ TigerTV 的业务实现集中在 Kotlin Multiplatform `core`。Android 直接调
 
 工具链：Kotlin 2.4.21、Gradle 9.8.2、AGP 9.5.0、JDK 21、Android SDK 37；Xcode 27.2（27B52）、Swift 6.4.2、macOS SDK 27.2。应用最低 macOS 26／Android 14；macOS 仅 arm64，Android APK 同时包含 v7a 和 arm64。
 
-Android Studio 打开仓库根目录，配置 Android SDK（`local.properties` 的 `sdk.dir` 或 `ANDROID_HOME`）。仓库只有一个 Gradle 入口；纯原生构建用 `-Pandroid=false`，无需 Android SDK。
+Android Studio 打开 `AndroidTV/`，Xcode 打开 `macOS/TigerTV.xcodeproj`。Android SDK 配在 `AndroidTV/local.properties` 或 `ANDROID_HOME`。根 Gradle 只构建核心、桥接和 CLI，无需 Android SDK；Android 工程直接引用同一份核心源码，产物隔离到 `AndroidTV/build/core`。两个入口通过 `AndroidTV/gradle` 符号链接共用 Wrapper、Java 21 规则和插件版本，无 Windows 入口。
 
 ```bash
-./gradlew -Pandroid=false :core:jvmTest :core:macosArm64Test :nativeBridge:macosArm64Test :cli:linkReleaseExecutableMacosArm64
+./gradlew :core:jvmTest :core:macosArm64Test :nativeBridge:macosArm64Test :cli:linkReleaseExecutableMacosArm64
 python3 scripts/check-cli-contract.py cli/build/bin/macosArm64/releaseExecutable/tigertv.kexe
 swift test --package-path macOS
 xcodebuild -project macOS/TigerTV.xcodeproj -scheme TigerTV -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO build
-./gradlew :androidApp:testDebugUnitTest :androidApp:lintDebug :androidApp:assembleDebug
+./AndroidTV/gradlew testDebugUnitTest lintDebug assembleDebug
 ```
 
 Xcode 自动构建 framework，递归跟踪 Kotlin 输入及产物；不要恢复每次必跑的脚本。Gradle 与 Xcode 原生构建应顺序执行，避免同时修改同一 framework。
@@ -34,7 +34,7 @@ Xcode 自动构建 framework，递归跟踪 Kotlin 输入及产物；不要恢�
 桥接进程检查：
 
 ```bash
-./gradlew -Pandroid=false :nativeBridge:linkDebugFrameworkMacosArm64
+./gradlew :nativeBridge:linkDebugFrameworkMacosArm64
 swiftc -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -framework TigerTVCore scripts/check-native-bridge.swift -o /tmp/check-native-bridge
 /tmp/check-native-bridge
 ```

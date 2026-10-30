@@ -3,7 +3,7 @@ plugins {
     kotlin("plugin.serialization")
 }
 val generateContractFixtures = tasks.register("generateContractFixtures") {
-    val source = rootProject.file("docs/fixtures")
+    val source = project.file("../docs/fixtures")
     val output = layout.buildDirectory.file("generated/fixtures/ContractFixtures.kt")
     inputs.dir(source)
     outputs.file(output)
@@ -16,6 +16,7 @@ val generateContractFixtures = tasks.register("generateContractFixtures") {
     }
 }
 if (providers.gradleProperty("android").orNull == "true") {
+    layout.buildDirectory.set(rootProject.layout.buildDirectory.dir("core"))
     apply(plugin = "com.android.kotlin.multiplatform.library")
 }
 kotlin {
