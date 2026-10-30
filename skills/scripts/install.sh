@@ -6,17 +6,17 @@ case "$(uname -s)/$(uname -m)" in
 esac
 INSTALL_DIR="${TIGERTV_INSTALL_DIR:-${HOME}/.local/bin}"
 RELEASE="${TIGERTV_VERSION:-latest}"
+TIGERTV_USER_AGENT="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15"
 BASE="https://github.com/qvshuo/TigerTV/releases"
 if [ "$RELEASE" = latest ]; then BASE="$BASE/latest/download"; else BASE="$BASE/download/v${RELEASE#v}"; fi
 TEMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TEMP_DIR"' EXIT
-curl -fLsS "$BASE/$ASSET" -o "$TEMP_DIR/$ASSET"
-curl -fLsS "$BASE/$ASSET.sha256" -o "$TEMP_DIR/$ASSET.sha256"
+curl -fLsS --user-agent "$TIGERTV_USER_AGENT" --connect-timeout 10 --max-time 120 --retry 2 "$BASE/$ASSET" -o "$TEMP_DIR/$ASSET"
+curl -fLsS --user-agent "$TIGERTV_USER_AGENT" --connect-timeout 10 --max-time 120 --retry 2 "$BASE/$ASSET.sha256" -o "$TEMP_DIR/$ASSET.sha256"
 (cd "$TEMP_DIR" && shasum -a 256 -c "$ASSET.sha256")
 tar -xzf "$TEMP_DIR/$ASSET" -C "$TEMP_DIR"
 "$TEMP_DIR/tigertv" --version
 mkdir -p "$INSTALL_DIR"
 install -m 755 "$TEMP_DIR/tigertv" "$INSTALL_DIR/tigertv.new"
 mv -f "$INSTALL_DIR/tigertv.new" "$INSTALL_DIR/tigertv"
-ln -sf tigertv "$INSTALL_DIR/tigertv-cli.py"
 echo "已安装到 $INSTALL_DIR/tigertv（无需 Python 或 Java）。请将 $INSTALL_DIR 加入 PATH。"

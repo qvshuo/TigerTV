@@ -12,7 +12,7 @@ import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.coroutineContext
 
 const val MAX_RESPONSE_SIZE = 10 * 1024 * 1024
-const val USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15"
+const val USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15"
 
 fun configureClient(client: HttpClient) = client.config { install(HttpTimeout) }
 
@@ -58,7 +58,10 @@ fun apiUrl(api: String, parameters: Map<String, String>): String {
     val nested = builder.parameters["url"]
     if (nested != null && (nested.startsWith("http://") || nested.startsWith("https://"))) {
         builder.parameters["url"] = apiUrl(nested, parameters)
-    } else parameters.forEach { (key, value) -> builder.parameters.append(key, value) }
+    } else {
+        listOf("ac", "wd", "ids", "pg", "pagesize").forEach { builder.parameters.remove(it) }
+        parameters.forEach { (key, value) -> builder.parameters[key] = value }
+    }
     return builder.buildString()
 }
 

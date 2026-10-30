@@ -14,6 +14,7 @@ class NativeFacade internal constructor(private val service: CoreService) {
     private val lock = Mutex()
     private var nextId = 1L
     private val jobs = mutableMapOf<Long, Job>()
+    private val progress = mutableMapOf<Long, String>()
     private val results = mutableMapOf<Long, String>()
     private var closed = false
 
@@ -27,10 +28,17 @@ class NativeFacade internal constructor(private val service: CoreService) {
                     check(payload["version"]?.jsonPrimitive?.int == 1) { "Unsupported bridge version" }
                     val data = when (payload.text("operation")) {
                         "config" -> wireJson.encodeToJsonElement(service.loadConfig())
-                        "search" -> wireJson.encodeToJsonElement(service.search(payload.text("keyword")))
-                        "fetch" -> wireJson.encodeToJsonElement(service.fetch(payload.text("site"), payload["vod_id"]!!.jsonPrimitive.int))
+                        "search" -> wireJson.encodeToJsonElement(service.search(payload.text("query")) { update ->
+                            val snapshot = wireJson.encodeToString(update)
+                            lock.withLock { if (id in jobs) progress[id] = snapshot }
+                        })
+                        "fetch" -> wireJson.encodeToJsonElement(service.fetch(payload.text("site"), payload["video_id"]!!.jsonPrimitive.int))
                         "resolve" -> JsonPrimitive(service.resolvePlaybackUrl(payload.text("url")))
-                        "cover" -> service.resolveCoverFallback(payload.text("site"), payload["vod_id"]!!.jsonPrimitive.int)?.let(::JsonPrimitive) ?: JsonNull
+                        "cover" -> service.resolveCoverFallback(payload.text("site"), payload["video_id"]!!.jsonPrimitive.int)?.let(::JsonPrimitive) ?: JsonNull
+                        "recordPlayback" -> {
+                            service.recordPlayback(payload.text("work_id"), payload.text("site"), payload.text("line"), payload.text("episode"))
+                            JsonPrimitive(true)
+                        }
                         "history" -> wireJson.encodeToJsonElement(service.history())
                         "saveHistory" -> { service.saveHistory(wireJson.decodeFromJsonElement(payload["items"]!!)); JsonPrimitive(true) }
                         else -> error("Unknown operation")
@@ -48,16 +56,18 @@ class NativeFacade internal constructor(private val service: CoreService) {
         }
     }
 
+    fun takeSearchUpdate(id: Long): String? = runBlocking { lock.withLock { progress.remove(id) } }
+
     /** Nonblocking. A non-null result consumes the request and its native job. */
     fun takeResult(id: Long): String? = runBlocking { lock.withLock {
-        results.remove(id)?.also { jobs.remove(id) }
+        results.remove(id)?.also { jobs.remove(id); progress.remove(id) }
     } }
 
     /** Also releases completed results; no callback can escape after cancellation. */
-    fun cancel(id: Long) { runBlocking { lock.withLock { jobs.remove(id)?.cancel(); results.remove(id) } } }
+    fun cancel(id: Long) { runBlocking { lock.withLock { jobs.remove(id)?.cancel(); results.remove(id); progress.remove(id) } } }
 
     fun close() {
-        runBlocking { lock.withLock { closed = true; jobs.values.forEach { it.cancel() }; jobs.clear(); results.clear() } }
+        runBlocking { lock.withLock { closed = true; jobs.values.forEach { it.cancel() }; jobs.clear(); results.clear(); progress.clear() } }
         scope.cancel()
         service.close()
     }

@@ -1,0 +1,4 @@
+# Official GitHub-hosted arm64 label, not yet included in actionlint's built-in list.
+# https://github.blog/changelog/2026-09-10-xcode-27-runner-image-now-runs-on-macos-27/
+self-hosted-runner:
+  labels: [xcode-27]

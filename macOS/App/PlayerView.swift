@@ -1,24 +1,46 @@
 import SwiftUI
 import AVKit
+import Combine
 
-/// Mirrors core.PlayerController while keeping the AVKit surface native.
+/// Owns the AVPlayer item across SwiftUI view updates.
 @MainActor
 final class AVPlayerController: ObservableObject {
     let player = AVPlayer()
     @Published private(set) var hasItem = false
+    @Published private(set) var errorMessage: String?
+    private var observers = Set<AnyCancellable>()
 
     func load(url: String) {
         guard let url = HTTPClient.percentEncodedURL(from: url) else { return }
-        player.replaceCurrentItem(with: AVPlayerItem(url: url))
+        close()
+        let asset = AVURLAsset(url: url, options: [AVURLAssetHTTPUserAgentKey: HTTPClient.userAgent])
+        let item = AVPlayerItem(asset: asset)
+        player.replaceCurrentItem(with: item)
+        item.publisher(for: \.status)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self, weak item] status in
+                MainActor.assumeIsolated {
+                    guard status == .failed, let item, self?.player.currentItem === item else { return }
+                    self?.errorMessage = item.error?.localizedDescription ?? "播放失败"
+                }
+            }.store(in: &observers)
+        NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime, object: item)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                MainActor.assumeIsolated {
+                    self?.errorMessage = (notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?.localizedDescription ?? "播放中断"
+                }
+            }.store(in: &observers)
         hasItem = true
     }
     func play() { player.play() }
-    func pause() { player.pause() }
-    func seek(positionMillis: Int64) {
-        player.seek(to: CMTime(value: max(0, positionMillis), timescale: 1000))
+    func close() {
+        observers.removeAll()
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        hasItem = false
+        errorMessage = nil
     }
-    func setVolume(_ volume: Float) { player.volume = min(1, max(0, volume)) }
-    func close() { player.pause(); player.replaceCurrentItem(with: nil); hasItem = false }
 }
 
 struct PlayerContainer: View {

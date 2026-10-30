@@ -3,11 +3,11 @@ import SwiftUI
 // MARK: - Spacing
 
 enum AppSpacing {
-    static let xs: CGFloat = 6
-    static let sm: CGFloat = 10
+    static let xs: CGFloat = 4
+    static let sm: CGFloat = 8
     static let md: CGFloat = 16
     static let lg: CGFloat = 24
-    static let xl: CGFloat = 36
+    static let xl: CGFloat = 32
 }
 
 // MARK: - Radius
@@ -15,8 +15,8 @@ enum AppSpacing {
 enum AppRadius {
     static let sm: CGFloat = 12
     static let md: CGFloat = 20
-    static let lg: CGFloat = 28
-    static let xl: CGFloat = 34
+    static let lg: CGFloat = 24
+    static let xl: CGFloat = 32
 }
 
 // MARK: - Motion
@@ -40,10 +40,11 @@ struct GlassBackground: ViewModifier {
     
     func body(content: Content) -> some View {
         content
-            .background(
+            .background {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
+                    .fill(.clear)
+                    .glassEffect(.regular, in: .rect(cornerRadius: radius))
+            }
             .overlay(
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(
@@ -100,5 +101,41 @@ extension View {
     
     func hoverLift() -> some View {
         modifier(HoverLift())
+    }
+}
+
+// Shared dimensions for page loading and detail controls.
+enum AppMetrics {
+    static let controlHeight: CGFloat = 40
+    static let loadingRegion: CGFloat = 160
+    static let posterWidth: CGFloat = 144
+    static let posterHeight: CGFloat = 216
+}
+
+struct AppLoadingIndicator: View {
+    var compact = false
+    var light = false
+    var body: some View {
+        Image(systemName: "progress.indicator")
+            .font(.system(size: compact ? 16 : 24))
+            .foregroundStyle(light ? Color.white : Color.secondary)
+            .symbolEffect(.variableColor.iterative.dimInactiveLayers, options: .repeating)
+            .environment(\.isEnabled, true)
+            .frame(width: compact ? 16 : 24, height: compact ? 16 : 24)
+            .accessibilityLabel("加载中")
+    }
+}
+
+struct AppLoadingState: View {
+    let message: String
+    var body: some View {
+        VStack(spacing: AppSpacing.sm) {
+            AppLoadingIndicator()
+            Text(message).font(.callout).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center).lineLimit(2)
+        }
+        .padding(AppSpacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
     }
 }

@@ -22,9 +22,10 @@ class FileLogger(private val storage: Storage, val path: String) : Logger {
     override fun log(level: String, context: String, message: String) {
         runCatching {
             val old = storage.read(path).orEmpty().lines().filter { it.isNotEmpty() }
-            val lines = if (old.size > 5000) old.takeLast(2000) else old
             val timestamp = kotlin.time.Clock.System.now().toString().take(19).replace('T', ' ')
-            storage.writeAtomic(path, (lines + "$timestamp [$level] [$context]: ${message.replace('\n', ' ')}").joinToString("\n", postfix = "\n"))
+            val lines = old + "$timestamp [$level] [$context]: ${message.replace('\n', ' ')}"
+            val retained = if (lines.size > 5000) lines.takeLast(2000) else lines
+            storage.writeAtomic(path, retained.joinToString("\n", postfix = "\n"))
         }
     }
 }

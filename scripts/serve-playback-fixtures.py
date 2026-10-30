@@ -24,10 +24,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.json({"api_site": {"fixture": {"name": "🎬播放验证", "api": base + "/api"}}})
         if parsed.path == "/api":
             query = parse_qs(parsed.query)
-            if query.get("ac") == ["detail"]:
-                return self.json({"code": 1, "list": [{"vod_id": int(query.get("ids", ["1"])[0]), "vod_pic": base + "/cover.png", "vod_play_url": f"HLS${base}/index.m3u8#MP4${base}/sample.mp4#错误重试${base}/missing.m3u8"}]})
-            count = min(8, max(1, int(query.get("pagesize", ["100"])[0])))
-            return self.json({"code": 1, "list": [{"vod_id": index, "vod_name": f"播放验证 {index}", "vod_remarks": "HLS · MP4 · 错误重试", "vod_pic": ""} for index in range(1, count + 1)]})
+            ids = [int(query["ids"][0])] if query.get("ids") else range(1, min(8, max(1, int(query.get("pagesize", ["100"])[0]))) + 1)
+            return self.json({"code": 1, "pagecount": 1, "list": [{
+                "vod_id": index, "vod_name": f"播放验证 {index}", "vod_year": "2026", "type_name": "测试剧集",
+                "vod_remarks": "HLS · MP4 · 错误重试", "vod_pic": base + "/cover.png",
+                "vod_play_from": "HLS$$$MP4$$$错误重试",
+                "vod_play_url": f"第一集${base}/index.m3u8$$$第一集${base}/sample.mp4$$$第一集${base}/missing.m3u8"
+            } for index in ids]})
         path = (self.directory / parsed.path.lstrip("/")).resolve()
         if not path.is_relative_to(self.directory) or not path.is_file() or path.suffix not in {".mp4", ".m3u8", ".ts", ".png"}:
             return self.send_error(404)

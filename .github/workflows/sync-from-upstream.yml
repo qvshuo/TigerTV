@@ -8,51 +8,32 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: sync-lunatv-config
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 10
     steps:
-      - name: Checkout current repository
-        uses: actions/checkout@v6
-
-      - name: Sync LunaTV-config.json
+      - uses: actions/checkout@v7.0.1
+      - name: Download and validate source configuration
+        shell: bash
         run: |
-          FILE_URL="https://raw.githubusercontent.com/hafrey1/LunaTV-config/main/LunaTV-config.json"
-          TARGET_DIR="skills/references"
-          TARGET_PATH="$TARGET_DIR/LunaTV-config.json"
-
-          mkdir -p "$TARGET_DIR"
-
-          echo "Checking if upstream file exists..."
-
-          if curl --output /dev/null --silent --head --fail "$FILE_URL"; then
-            echo "File exists. Downloading..."
-            
-            curl -sSLf "$FILE_URL" -o "$TARGET_PATH"
-            
-            if jq . "$TARGET_PATH" >/dev/null 2>&1; then
-              echo "JSON validation passed. Download completed."
-            else
-              echo "Error: Downloaded file is not valid JSON. Aborting sync."
-              exit 1
-            fi
-            
-          else
-            echo "Upstream file not found. Skipping sync."
-            exit 0
-          fi
-
-      - name: Commit and push if changed
+          download=$(mktemp)
+          trap 'rm -f "$download"' EXIT
+          curl --fail --silent --show-error --location --connect-timeout 10 --max-time 60 --retry 3 \
+            https://raw.githubusercontent.com/hafrey1/LunaTV-config/main/LunaTV-config.json -o "$download"
+          jq -e 'type == "object" and (.api_site | type == "object" and length > 0)' "$download" > /dev/null
+          mkdir -p skills/references
+          cp "$download" skills/references/LunaTV-config.json
+      - name: Commit configuration when changed
+        shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
           git add skills/references/LunaTV-config.json
-
-          if git diff --staged --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "Sync LunaTV-config.json from upstream"
-            git push
-          fi
+          if git diff --staged --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Sync LunaTV-config.json from upstream'
+          git push
