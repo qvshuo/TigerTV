@@ -1,6 +1,7 @@
 package art.anjing.tigertv.ui.home
 
-import androidx.compose.foundation.border
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -136,9 +136,9 @@ private fun SearchInput(
     focusRequester: FocusRequester,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(16.dp)
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
+    val focus = animateFloatAsState(if (isFocused) 1f else 0f, tween(160), label = "search input glass focus")
 
     BasicTextField(
         value = value,
@@ -159,12 +159,7 @@ private fun SearchInput(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .tvGlass(radius = 16.dp)
-                    .border(
-                        width = if (isFocused) 2.dp else 1.dp,
-                        color = if (isFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                        shape = shape
-                    )
+                    .tvGlass(focus, radius = 16.dp)
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
