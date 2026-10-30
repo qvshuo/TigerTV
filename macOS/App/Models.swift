@@ -1,30 +1,20 @@
 import Foundation
 
 struct SourceConfig: Codable, Sendable {
-    let cacheTime: Int?
     let apiSite: [String: SourceSite]
-
-    enum CodingKeys: String, CodingKey {
-        case cacheTime = "cache_time"
-        case apiSite = "api_site"
-    }
+    enum CodingKeys: String, CodingKey { case apiSite = "api_site" }
 }
 
 struct SourceSite: Codable, Sendable {
     let name: String
     let api: String
     let detail: String?
-    let comment: String?
-
-    enum CodingKeys: String, CodingKey {
-        case name, api, detail
-        case comment = "_comment"
-    }
 }
 
 struct SearchResponse: Codable, Sendable {
     let keyword: String
-    let results: [SearchResult]
+    let works: [VideoWork]
+    enum CodingKeys: String, CodingKey { case keyword = "query", works }
 }
 
 struct SearchResult: Codable, Identifiable, Hashable, Sendable {
@@ -34,62 +24,99 @@ struct SearchResult: Codable, Identifiable, Hashable, Sendable {
     let vodTime: String
     let vodRemarks: String
     let vodPic: String
+    let vodYear: String
+    let typeName: String
 
     var id: String { "\(site)-\(vodId)" }
     var displayTitle: String { vodName }
 
     enum CodingKeys: String, CodingKey {
         case site
-        case vodId = "vod_id"
-        case vodName = "vod_name"
-        case vodTime = "vod_time"
-        case vodRemarks = "vod_remarks"
-        case vodPic = "vod_pic"
-    }
-
-    init(site: String, vodId: Int, vodName: String, vodTime: String = "", vodRemarks: String = "", vodPic: String = "") {
-        self.site = site
-        self.vodId = vodId
-        self.vodName = vodName
-        self.vodTime = vodTime
-        self.vodRemarks = vodRemarks
-        self.vodPic = vodPic
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        site = try container.decode(String.self, forKey: .site)
-        vodId = try container.decode(Int.self, forKey: .vodId)
-        vodName = try container.decode(String.self, forKey: .vodName)
-        vodTime = try container.decodeIfPresent(String.self, forKey: .vodTime) ?? ""
-        vodRemarks = try container.decodeIfPresent(String.self, forKey: .vodRemarks) ?? ""
-        vodPic = try container.decodeIfPresent(String.self, forKey: .vodPic) ?? ""
+        case vodId = "vod_id", vodName = "vod_name", vodTime = "vod_time"
+        case vodRemarks = "vod_remarks", vodPic = "vod_pic", vodYear = "vod_year", typeName = "type_name"
     }
 }
 
 struct FetchResponse: Codable, Identifiable, Hashable, Sendable {
-    enum CodingKeys: String, CodingKey {
-        case vodId = "vod_id", site
-        case vodPlayUrl = "vod_play_url", vodDownUrl = "vod_down_url"
-    }
     let vodId: Int
     let site: String
-    let vodPlayUrl: [EpisodeLink]
-    let vodDownUrl: [EpisodeLink]
+    let vodName: String
+    let vodPic: String
+    let vodYear: String
+    let typeName: String
+    let vodRemarks: String
+    let vodContent: String
+    let vodActor: String
+    let vodDirector: String
+    let vodArea: String
+    let vodLang: String
+    let playSources: [PlaybackSource]
+    let downloadSources: [PlaybackSource]
 
     var id: String { "\(site)-\(vodId)" }
 
-    init(vodId: Int, site: String, vodPlayUrl: [EpisodeLink], vodDownUrl: [EpisodeLink]) {
-        self.vodId = vodId
-        self.site = site
-        self.vodPlayUrl = vodPlayUrl
-        self.vodDownUrl = vodDownUrl
+    enum CodingKeys: String, CodingKey {
+        case vodId = "vod_id", site
+        case vodName = "vod_name", vodPic = "vod_pic", vodYear = "vod_year", typeName = "type_name"
+        case vodRemarks = "vod_remarks", vodContent = "vod_content", vodActor = "vod_actor"
+        case vodDirector = "vod_director", vodArea = "vod_area", vodLang = "vod_lang"
+        case playSources = "play_sources", downloadSources = "download_sources"
     }
+}
+
+struct VideoWork: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let title: String
+    let sources: [SearchResult]
+    var playback: PlaybackBookmark? = nil
+    var lastPlayedSite: String?
+    var recentPlayedSite: String?
+    enum CodingKeys: String, CodingKey {
+        case id, title, sources, playback, lastPlayedSite = "last_played_site", recentPlayedSite = "recent_played_site"
+    }
+    var defaultSource: SearchResult? {
+        sources.first(where: { $0.site == lastPlayedSite })
+            ?? sources.first(where: { $0.site == recentPlayedSite })
+            ?? sources.first(where: { !$0.vodPic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) ?? sources.first
+    }
+    var orderedSources: [SearchResult] {
+        let priorities = [lastPlayedSite, recentPlayedSite].compactMap { $0 }
+        var seen = Set<String>()
+        return (priorities.flatMap { site in sources.filter { $0.site == site } } + sources)
+            .filter { seen.insert($0.id).inserted }
+    }
+}
+
+struct PlaybackSource: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let name: String
+    let episodes: [EpisodeLink]
 }
 
 struct EpisodeLink: Codable, Identifiable, Hashable, Sendable {
     let name: String
     let url: String
-
     var id: String { "\(name)-\(url)" }
+}
+
+/// Image selection has no authority over the default playback source.
+@MainActor
+func loadFirstCover<Value>(
+    candidates: [URL], load: (URL) async -> Value?
+) async -> (url: URL, value: Value)? {
+    var seen = Set<URL>()
+    let ordered = candidates.filter { seen.insert($0).inserted }
+    for url in ordered {
+        guard !Task.isCancelled else { return nil }
+        let value = await load(url)
+        guard !Task.isCancelled else { return nil }
+        if let value { return (url, value) }
+    }
+    return nil
+}
+
+struct PlaybackBookmark: Codable, Hashable, Sendable {
+    let site: String
+    let line: String
+    let episode: String
 }

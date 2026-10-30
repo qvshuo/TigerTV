@@ -3,9 +3,7 @@ plugins {
     kotlin("plugin.serialization")
 }
 val generateContractFixtures = tasks.register("generateContractFixtures") {
-    val fixtures = rootProject.file("shared/api-contract/fixtures")
-    // The legacy Android standalone build has a different root directory.
-    val source = if (fixtures.exists()) fixtures else rootProject.file("../shared/api-contract/fixtures")
+    val source = rootProject.file("docs/fixtures")
     val output = layout.buildDirectory.file("generated/fixtures/ContractFixtures.kt")
     inputs.dir(source)
     outputs.file(output)
@@ -29,6 +27,7 @@ kotlin {
             namespace = "art.anjing.tigertv.core"
             compileSdk = 37
             minSdk = 34
+            withHostTest {}
         }
     }
     sourceSets {
@@ -36,21 +35,26 @@ kotlin {
         commonMain.dependencies {
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
             api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
-            implementation("io.ktor:ktor-client-core:3.6.0")
+            implementation("io.ktor:ktor-client-core:3.6.1")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
-            implementation("io.ktor:ktor-client-mock:3.6.0")
+            implementation("io.ktor:ktor-client-mock:3.6.1")
         }
         val jvmAndAndroidMain = create("jvmAndAndroidMain") {
             dependsOn(commonMain.get())
-            dependencies { implementation("io.ktor:ktor-client-okhttp:3.6.0") }
+            dependencies { implementation("io.ktor:ktor-client-okhttp:3.6.1") }
         }
         jvmMain { dependsOn(jvmAndAndroidMain) }
-        macosArm64Main.dependencies { implementation("io.ktor:ktor-client-darwin:3.6.0") }
+        macosArm64Main.dependencies { implementation("io.ktor:ktor-client-darwin:3.6.1") }
         if (providers.gradleProperty("android").orNull == "true") {
             getByName("androidMain").dependsOn(jvmAndAndroidMain)
         }
     }
+}
+
+// Android lint reads generated common-test fixtures as source inputs.
+tasks.matching { it.name == "lintAnalyzeAndroidHostTest" || it.name == "generateAndroidHostTestLintModel" }.configureEach {
+    dependsOn(generateContractFixtures)
 }

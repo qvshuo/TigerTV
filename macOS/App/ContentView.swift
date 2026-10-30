@@ -12,7 +12,7 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var activeErrorMessage: String? {
-        viewModel.searchErrorMessage ?? viewModel.fetchErrorMessage ?? viewModel.playbackErrorMessage
+        viewModel.searchErrorMessage ?? viewModel.playbackErrorMessage ?? controller.errorMessage
     }
 
     var body: some View {
@@ -36,7 +36,16 @@ struct ContentView: View {
                 ResultsLayout(
                     keyword: $viewModel.keyword,
                     submittedKeyword: viewModel.submittedKeyword,
-                    results: viewModel.results,
+                    works: viewModel.works,
+                    availableSources: viewModel.availableSources,
+                    episodes: viewModel.episodes,
+                    selectedPlaybackSourceIndex: viewModel.selectedPlaybackSourceIndex,
+                    fetchErrorMessage: viewModel.fetchErrorMessage,
+                    onRetryFetch: viewModel.retryFetch,
+                    onSelectPlaybackSource: { index in
+                        controller.close()
+                        viewModel.selectPlaybackSource(index)
+                    },
                     isSearching: viewModel.isSearching,
                     selectedResult: viewModel.selectedResult,
                     fetchResponse: viewModel.fetchResponse,
@@ -49,7 +58,8 @@ struct ContentView: View {
                     onBack: goBack,
                     onSearch: startSearch,
                     onSelectResult: selectResult,
-                    onSelectEpisode: selectEpisode
+                    onSelectEpisode: selectEpisode,
+                    resumeEpisode: viewModel.resumeEpisode
                 )
                 .transition(.asymmetric(
                     insertion: .opacity.combined(with: .move(edge: .trailing)),
@@ -59,8 +69,20 @@ struct ContentView: View {
         }
         .animation(reduceMotion ? nil : AppMotion.page, value: hasSearched)
         .alert("错误", isPresented: $showError, actions: {
-            Button("确定") {
-                viewModel.clearActiveError()
+            if viewModel.selectedEpisode != nil {
+                Button("重试") {
+                    controller.close()
+                    viewModel.retryPlayback()
+                }
+                if let next = viewModel.nextEpisode {
+                    Button("下一集") { selectEpisode(next) }
+                }
+                Button("返回", role: .cancel) {
+                    viewModel.clearPlayback()
+                    controller.close()
+                }
+            } else {
+                Button("确定") { viewModel.clearActiveError() }
             }
         }, message: {
             Text(activeErrorMessage ?? "未知错误")
@@ -68,6 +90,11 @@ struct ContentView: View {
         .onDisappear { controller.close() }
         .onChange(of: activeErrorMessage) { _, newValue in
             showError = newValue != nil
+        }
+        .onReceive(controller.player.publisher(for: \.timeControlStatus)) { status in
+            guard status == .playing,
+                  let asset = controller.player.currentItem?.asset as? AVURLAsset else { return }
+            viewModel.playbackDidStart(url: asset.url.absoluteString)
         }
         .onChange(of: viewModel.playbackRevision) { _, _ in
             guard let url = viewModel.resolvedPlaybackUrl else { return }
@@ -112,7 +139,7 @@ struct ContentView: View {
             return
         }
 
-        if !viewModel.results.isEmpty || viewModel.isSearching {
+        if !viewModel.works.isEmpty || viewModel.isSearching {
             viewModel.clearResults()
             hasSearched = false
             return

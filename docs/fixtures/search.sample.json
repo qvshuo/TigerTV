@@ -1,0 +1,31 @@
+{
+  "query": "逐玉",
+  "works": [
+    {
+      "id": "[\"逐玉\",\"2026\"]",
+      "title": "逐玉",
+      "sources": [
+        {
+          "site": "🎬一",
+          "vod_id": 1,
+          "vod_name": "逐玉",
+          "vod_time": "",
+          "vod_remarks": "全24集",
+          "vod_pic": "",
+          "vod_year": "2026",
+          "type_name": "国产剧"
+        },
+        {
+          "site": "🎬二",
+          "vod_id": 99,
+          "vod_name": "逐玉",
+          "vod_time": "",
+          "vod_remarks": "全24集",
+          "vod_pic": "https://pic.example/cover.jpg",
+          "vod_year": "2026",
+          "type_name": "国产剧"
+        }
+      ]
+    }
+  ]
+}

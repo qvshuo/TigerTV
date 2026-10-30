@@ -11,7 +11,7 @@ struct PlaybackSmoke {
         for url in CommandLine.arguments.dropFirst() {
             let controller = AVPlayerController()
             controller.load(url: url)
-            controller.setVolume(0)
+            controller.player.volume = 0
             controller.play()
             var advancing = false
             for _ in 0..<100 {
@@ -20,7 +20,7 @@ struct PlaybackSmoke {
                 try await Task.sleep(for: .milliseconds(100))
             }
             guard advancing else { fatalError("Playback did not advance: \(url)") }
-            controller.pause()
+            controller.player.pause()
             let sought = await controller.player.seek(to: CMTime(seconds: 6, preferredTimescale: 600))
             guard sought, controller.player.currentTime().seconds >= 5 else { fatalError("Seek failed: \(url)") }
             controller.close()

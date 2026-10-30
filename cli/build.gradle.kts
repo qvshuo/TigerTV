@@ -21,7 +21,7 @@ kotlin {
     sourceSets {
         commonMain { kotlin.srcDir(generateVersion.map { layout.buildDirectory.dir("generated/version").get() }) }
         commonMain.dependencies {
-            implementation(project(":core"))
+            implementation(project.dependencies.project(mapOf("path" to ":core")))
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
         }
     }

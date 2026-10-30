@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.4
 
 import PackageDescription
 
@@ -20,7 +20,6 @@ let package = Package(
                 "GlassSearchBar.swift",
                 "SearchHistoryView.swift",
                 "SearchResultCard.swift",
-                "EpisodePanel.swift",
                 "DesignSystem.swift",
                 "PlayerView.swift",
                 "TigerTVViewModel.swift",

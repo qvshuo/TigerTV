@@ -6,6 +6,7 @@ import io.ktor.http.Url
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.*
 import kotlinx.serialization.json.*
+import kotlinx.serialization.Serializable
 
 const val CONFIG_CDN_URL = "https://cdn.jsdelivr.net/gh/qvshuo/TigerTV@main/skills/references/LunaTV-config.json"
 const val CONFIG_RAW_URL = "https://raw.githubusercontent.com/qvshuo/TigerTV/refs/heads/main/skills/references/LunaTV-config.json"
@@ -26,11 +27,12 @@ class CoreService(
     private val stateMutex = Mutex()
     private val logMutex = Mutex()
     private val coverSemaphore = Semaphore(4)
-    private val searchCache = mutableMapOf<String, Pair<Long, SearchResponse>>()
+    private val searchCache = linkedMapOf<String, Pair<Long, SearchResponse>>()
     private val coverCache = mutableMapOf<String, Pair<Long, String>>()
     private val configPath = "$directory/tigertv-cli-config-cache.json"
     private val coverPath = "$directory/cover-fallback-cache.json"
     private val historyPath = "$historyDirectory/search-history.json"
+    private val playedSourcesPath = "$historyDirectory/last-played-sources.json"
 
     private suspend fun log(context: String, error: Exception) = logMutex.withLock {
         logger.log("WARN", context, error.message ?: error.toString())
@@ -69,27 +71,82 @@ class CoreService(
     private suspend fun list(site: SourceSite, parameters: Map<String, String>) =
         parseVodList(network.get(apiUrl(site.api, parameters)))
 
-    suspend fun search(keyword: String): SearchResponse {
-        stateMutex.withLock {
-            searchCache[keyword]?.takeIf { clock() - it.first in 0 until searchCacheTtlMillis }?.let { return it.second }
+    suspend fun search(keyword: String, onUpdate: (suspend (SearchResponse) -> Unit)? = null): SearchResponse {
+        val cached = stateMutex.withLock {
+            searchCache.entries.removeAll { clock() - it.value.first !in 0 until searchCacheTtlMillis }
+            searchCache[keyword]?.second
         }
+        if (cached != null) return withPlayedSources(cached).also { onUpdate?.invoke(it) }
         val sites = loadConfig().apiSite.values
-        val semaphore = Semaphore(20)
-        val results = coroutineScope {
+        val sourceOrder = sites.mapIndexed { index, site -> site.name to index }.toMap()
+        val results = mutableListOf<SearchResult>()
+        val updateMutex = Mutex()
+        fun snapshot() = SearchResponse(keyword, aggregateWorks(results).map { work ->
+            // Card positions follow arrival; resource and cover priority still follow configuration.
+            work.copy(sources = work.sources.sortedBy { sourceOrder.getValue(it.site) })
+        })
+        coroutineScope {
             sites.map { site -> async {
-                semaphore.withPermit {
-                    try {
-                        list(site, mapOf("ac" to "list", "wd" to keyword, "pagesize" to "100")).map {
-                            SearchResult(site.name, lenientInt(it["vod_id"]), it.text("vod_name"), it.text("vod_time"), it.text("vod_remarks"), it.text("vod_pic"))
-                        }
-                    } catch (e: CancellationException) { throw e }
-                    catch (e: Exception) { log(site.name, e); emptyList() }
+                val batch = try {
+                    searchSite(site, keyword)
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) { log(site.name, e); emptyList() }
+                updateMutex.withLock {
+                    if (batch.isNotEmpty()) {
+                        results += batch
+                        onUpdate?.invoke(withPlayedSources(snapshot()))
+                    }
                 }
-            } }.awaitAll().flatten()
+            } }.awaitAll()
         }
-        return SearchResponse(keyword, results).also { response ->
-            stateMutex.withLock { searchCache[keyword] = clock() to response }
+        val response = snapshot()
+        stateMutex.withLock {
+            if (searchCacheTtlMillis > 0 && results.size <= MAX_CACHED_RESULTS) {
+                searchCache.remove(keyword)
+                searchCache[keyword] = clock() to response
+                while (searchCache.size > MAX_CACHED_SEARCHES || searchCache.values.sumOf { entry ->
+                    entry.second.works.sumOf { it.sources.size }
+                } > MAX_CACHED_RESULTS) searchCache.remove(searchCache.keys.first())
+            }
         }
+        return withPlayedSources(response)
+    }
+
+    private fun playedSources(): PlayedSources = cacheRead {
+        wireJson.decodeFromString<PlayedSources>(storage.read(playedSourcesPath) ?: "{}")
+    } ?: PlayedSources()
+
+    private suspend fun withPlayedSources(response: SearchResponse): SearchResponse = stateMutex.withLock {
+        val saved = playedSources()
+        response.copy(works = response.works.map {
+            it.copy(lastPlayedSite = saved.byWork[it.id]?.site, recentPlayedSite = saved.recentSite, playback = saved.byWork[it.id])
+        })
+    }
+
+    suspend fun recordPlayback(workId: String, site: String, line: String, episode: String) = stateMutex.withLock {
+        require(workId.isNotBlank() && site.isNotBlank() && line.isNotBlank() && episode.isNotBlank())
+        val saved = playedSources()
+        val updated = saved.copy(recentSite = site,
+            byWork = saved.byWork + (workId to PlaybackBookmark(site, line, episode)))
+        cacheRead { storage.writeAtomic(playedSourcesPath, wireJson.encodeToString(updated)) }
+        Unit
+    }
+
+    private suspend fun searchSite(site: SourceSite, keyword: String): List<SearchResult> {
+        val items = mutableListOf<SearchResult>()
+        var page = 1
+        do {
+            // detail supports wd too and supplies year/type/poster needed for safe aggregation.
+            val raw = network.get(apiUrl(site.api, mapOf("ac" to "detail", "wd" to keyword, "pg" to page.toString(), "pagesize" to "100")))
+            val response = wireJson.decodeFromString<SearchPage>(raw)
+            val batch = response.results(site.name)
+            items += batch
+            val pageCount = response.pageCount()
+            if (batch.isEmpty() || page >= pageCount) break
+            page++
+            check(page <= 100) { "搜索分页超过 100 页" }
+        } while (true)
+        return items.distinctBy { it.vodId }
     }
 
     private suspend fun site(name: String): SourceSite {
@@ -99,8 +156,18 @@ class CoreService(
     }
 
     suspend fun fetch(siteName: String, vodId: Int): FetchResponse {
-        val item = list(site(siteName), mapOf("ac" to "detail", "ids" to vodId.toString())).firstOrNull() ?: error("未找到该视频")
-        return FetchResponse(vodId, siteName, parseEpisodeLinks(item.text("vod_play_url")), parseEpisodeLinks(item.text("vod_down_url")))
+        check(vodId > 0) { "vod_id 必须大于 0" }
+        val item = list(site(siteName), mapOf("ac" to "detail", "ids" to vodId.toString()))
+            .firstOrNull { it.vodId() == vodId } ?: error("未找到该视频: $vodId")
+        return FetchResponse(
+            vodId, siteName,
+            vodName = item.text("vod_name"), vodPic = item.text("vod_pic"), vodYear = item.text("vod_year"),
+            typeName = item.text("type_name"), vodRemarks = item.text("vod_remarks"),
+            vodContent = plainDescription(item.text("vod_content")), vodActor = item.text("vod_actor"),
+            vodDirector = item.text("vod_director"), vodArea = item.text("vod_area"), vodLang = item.text("vod_lang"),
+            playSources = parsePlaybackSources(item.text("vod_play_url"), item.text("vod_play_from")),
+            downloadSources = parsePlaybackSources(item.text("vod_down_url"), item.text("vod_down_from"))
+        )
     }
 
     suspend fun resolvePlaybackUrl(url: String): String {
@@ -110,7 +177,7 @@ class CoreService(
         if (text.trimStart().startsWith("#EXTM3U", ignoreCase = true)) return normalizeUrl(url)
         val absolute = Regex("https?://[^\\s\"'<>]+\\.m3u8(?:\\?[^\\s\"'<>]+)?", RegexOption.IGNORE_CASE)
             .find(text.replace("\\/", "/"))?.value
-        if (absolute != null) return normalizeUrl(percentDecode(absolute))
+        if (absolute != null) return normalizeUrl(absolute.replace("&amp;", "&"))
         return extractM3u8(url, text).firstOrNull() ?: error("无法解析播放地址")
     }
 
@@ -128,7 +195,7 @@ class CoreService(
             }
         }
         try {
-            val item = list(site(siteName), mapOf("ac" to "detail", "ids" to vodId.toString())).firstOrNull()
+            val item = list(site(siteName), mapOf("ac" to "detail", "ids" to vodId.toString())).firstOrNull { it.vodId() == vodId }
             val url = item?.text("vod_pic")?.trim()?.takeIf { it.isNotEmpty() } ?: return@withPermit null
             stateMutex.withLock {
                 coverCache[key] = clock() to url
@@ -164,11 +231,11 @@ class CoreService(
                     val playlists = mutableSetOf<String>()
                     try {
                         val first = list(site, mapOf("ac" to "list", "wd" to keyword, "pagesize" to "1")).firstOrNull()
-                        val id = first?.get("vod_id") as? JsonPrimitive
-                        if (id != null && id.contentOrNull != null && id.content != "0") {
-                            val details = list(site, mapOf("ac" to "detail", "ids" to id.content))
-                            for (item in details) for (field in listOf("vod_play_url", "vod_down_url")) {
-                                for (link in parseEpisodeLinks(item.text(field), firstOnly = true)) {
+                        val id = first?.vodId()
+                        if (id != null) {
+                            val details = list(site, mapOf("ac" to "detail", "ids" to id.toString()))
+                            for (item in details) for ((field, names) in listOf("vod_play_url" to "vod_play_from", "vod_down_url" to "vod_down_from")) {
+                                for (link in parsePlaybackSources(item.text(field), item.text(names)).map { it.episodes.first() }) {
                                     if (link.url.isEmpty()) continue
                                     links += domain(link.url)
                                     val urls = try { probeM3u8(link.url) } catch (e: CancellationException) { throw e }
@@ -220,7 +287,11 @@ class CoreService(
 
     fun close() = client.close()
 
-    companion object { const val DAY = 86_400_000L }
+    companion object {
+        const val DAY = 86_400_000L
+        private const val MAX_CACHED_SEARCHES = 5
+        private const val MAX_CACHED_RESULTS = 10_000
+    }
 }
 
 data class QuanxDomains(val api: Set<String>, val urls: Set<String>, val m3u8: Set<String>) {
@@ -228,3 +299,6 @@ data class QuanxDomains(val api: Set<String>, val urls: Set<String>, val m3u8: S
         (listOf("; $title") + domains.sorted().map { "host-suffix, $it, direct" }).joinToString("\n")
     }
 }
+
+@Serializable
+private data class PlayedSources(val recentSite: String? = null, val byWork: Map<String, PlaybackBookmark> = emptyMap())

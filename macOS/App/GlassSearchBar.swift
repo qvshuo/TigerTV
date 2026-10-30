@@ -4,6 +4,7 @@ struct GlassSearchBar: View {
     @Binding var keyword: String
     let onSearch: () -> Void
     let compact: Bool
+    var isSearching = false
     @FocusState private var isFocused: Bool
     @State private var isSearchHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -14,10 +15,10 @@ struct GlassSearchBar: View {
                 .foregroundStyle(.secondary)
                 .font(compact ? .body : .title3)
 
-            TextField("输入剧名、电影名...", text: $keyword)
+            TextField("输入剧名、电影名…", text: $keyword)
                 .textFieldStyle(.plain)
                 .font(compact ? .body : .title3)
-                .onSubmit(onSearch)
+                .onSubmit { if !isSearching { onSearch() } }
                 .focused($isFocused)
 
             Button(action: { keyword = "" }) {
@@ -32,19 +33,26 @@ struct GlassSearchBar: View {
             .animation(reduceMotion ? nil : AppMotion.hover, value: keyword.isEmpty)
 
             Button(action: onSearch) {
-                Image(systemName: "arrow.right")
-                    .font(.system(size: compact ? 12 : 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: compact ? 28 : 36, height: compact ? 28 : 36)
-                    .background(
-                        Circle()
-                            .fill(Color.accentColor.opacity(isSearchEnabled ? 1.0 : 0.4))
-                    )
+                ZStack {
+                    if isSearching {
+                        AppLoadingIndicator(compact: true, light: true)
+                    } else {
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: compact ? 12 : 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .frame(width: compact ? 28 : 36, height: compact ? 28 : 36)
+                .background(
+                    Circle()
+                        .fill(Color.accentColor.opacity(isSearchEnabled ? 1.0 : 0.4))
+                )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(isSearching ? "正在搜索…" : "搜索")
             .opacity(isSearchEnabled ? 1 : 0.6)
             .scaleEffect(reduceMotion ? 1.0 : (isSearchHovered ? 1.06 : 1.0))
-            .disabled(!isSearchEnabled)
+            .disabled(!isSearchEnabled || isSearching)
             .animation(reduceMotion ? nil : AppMotion.hover, value: isSearchHovered)
             .onHover { isSearchHovered = $0 }
         }

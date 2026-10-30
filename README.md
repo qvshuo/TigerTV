@@ -8,27 +8,24 @@
 
 ## 特性
 
-- **macOS 应用**：搜索多个资源站，选集播放，支持系统明暗模式
+- **macOS 应用**：逐源返回并聚合作品，详情切换资源、线路和剧集，支持系统明暗模式
 - **Android TV 应用**：为电视遥控器优化的搜索、选集与播放体验
 - **命令行工具**：搜索影视资源、获取播放和下载链接、生成 Quantumult X 直连规则、查看日志
 - **Agent Skill**：为 AI Agent 提供影视搜索、链接获取、直连规则生成和下载流程指引
 
-## 截图
+## 界面
+
+以“嫁金钗”为例，依次为首页、搜索结果、作品详情。图片使用 TinyPNG 压缩。
 
 ### macOS
 
+原生 SwiftUI 视图预览，使用真实接口数据；系统玻璃效果以实际窗口为准。
+
 <table>
   <tr>
-    <td width="50%"><img src="screenshots/macOS/1.png" width="100%" alt="macOS 应用截图 1"></td>
-    <td width="50%"><img src="screenshots/macOS/2.png" width="100%" alt="macOS 应用截图 2"></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="screenshots/macOS/3.png" width="100%" alt="macOS 应用截图 3"></td>
-    <td width="50%"><img src="screenshots/macOS/4.png" width="100%" alt="macOS 应用截图 4"></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="screenshots/macOS/5.png" width="100%" alt="macOS 应用截图 5"></td>
-    <td width="50%"></td>
+    <td width="33%"><img src="screenshots/macos-home.png" alt="macOS 首页：嫁金钗" width="100%"></td>
+    <td width="33%"><img src="screenshots/macos-results.png" alt="macOS 嫁金钗搜索结果" width="100%"></td>
+    <td width="33%"><img src="screenshots/macos-detail.png" alt="macOS 嫁金钗作品详情" width="100%"></td>
   </tr>
 </table>
 
@@ -36,16 +33,9 @@
 
 <table>
   <tr>
-    <td width="50%"><img src="screenshots/AndroidTV/1.png" width="100%" alt="Android TV 应用截图 1"></td>
-    <td width="50%"><img src="screenshots/AndroidTV/2.png" width="100%" alt="Android TV 应用截图 2"></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="screenshots/AndroidTV/3.png" width="100%" alt="Android TV 应用截图 3"></td>
-    <td width="50%"><img src="screenshots/AndroidTV/4.png" width="100%" alt="Android TV 应用截图 4"></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="screenshots/AndroidTV/5.png" width="100%" alt="Android TV 应用截图 5"></td>
-    <td width="50%"></td>
+    <td width="33%"><img src="screenshots/androidtv-home.png" alt="Android TV 首页：嫁金钗" width="100%"></td>
+    <td width="33%"><img src="screenshots/androidtv-results.png" alt="Android TV 嫁金钗搜索结果" width="100%"></td>
+    <td width="33%"><img src="screenshots/androidtv-detail.png" alt="Android TV 嫁金钗作品详情" width="100%"></td>
   </tr>
 </table>
 
@@ -94,28 +84,22 @@ source ~/.zshrc
 
 ```bash
 # 搜索剧集
-tigertv search 逐玉
+tigertv search --query 嫁金钗
 
 # 获取播放 / 下载链接：使用搜索结果中的完整站点名和视频 ID
-tigertv fetch --site "🎬站点完整名称" --vod_id 73480
+tigertv fetch --site "🎬站点完整名称" --video-id 73480
 
 # 生成 Quantumult X 直连规则
-tigertv quanx 逐玉
+tigertv quanx --query 嫁金钗
 
 # 查看日志
 tigertv logs
 ```
 
-也可以通过 `tigertv --source sources.json search 逐玉` 使用本地来源配置。[Agent Skill](skills/SKILL.md) 提供完整的 Agent 工作流；下载剧集另需 `yt-dlp` 和 `ffmpeg`。
+也可以通过 `tigertv --config sources.json search --query 嫁金钗` 使用本地来源配置。[Agent Skill](skills/SKILL.md) 提供完整的 Agent 工作流；下载剧集另需 `yt-dlp` 和 `ffmpeg`。
 
 ## 开发
 
-构建、测试和发布说明见 [跨平台开发文档](docs/cross-platform.md)，项目实现细节见 [AGENTS.md](AGENTS.md)。
+构建与发布见 [开发说明](docs/README.md)，数据与交互见 [契约](docs/contract.md)，实现约定见 [AGENTS.md](AGENTS.md)。
 
-## 致谢
-
-站点配置数据来源：[LunaTV-config](https://github.com/hafrey1/LunaTV-config)。
-
-## License
-
-[MIT](LICENSE)
+暂不支持 Windows。

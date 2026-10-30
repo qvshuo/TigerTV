@@ -1,11 +1,14 @@
 import SwiftUI
 
 struct SearchResultCard: View {
+    let work: VideoWork
     let result: SearchResult
     let isSelected: Bool
     let isLoading: Bool
-    var fallbackCoverURL: URL? = nil
-    var onLoadCoverFallback: () async -> Void = {}
+    let coverFallbacks: [String: URL]
+    let onLoadCoverFallback: (SearchResult) async -> Void
+    @State private var coverImage: NSImage?
+    @State private var loadedCoverURL: URL?
     let onTap: () -> Void
     @State private var isHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -20,7 +23,7 @@ struct SearchResultCard: View {
                 .lineLimit(1)
 
             HStack(spacing: AppSpacing.xs) {
-                Text(result.site)
+                Text("\(work.sources.count) 个资源")
                     .font(.caption)
                     .fontWeight(.medium)
                     .lineLimit(1)
@@ -43,8 +46,8 @@ struct SearchResultCard: View {
                 }
             }
 
-            if !result.vodTime.isEmpty {
-                Text(result.vodTime)
+            if !result.vodTime.isEmpty || !result.vodYear.isEmpty {
+                Text(result.vodTime.isEmpty ? result.vodYear : result.vodTime)
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
@@ -68,33 +71,42 @@ struct SearchResultCard: View {
         .animation(reduceMotion ? nil : AppMotion.select, value: isSelected)
         .overlay(alignment: .topTrailing) {
             if isLoading {
-                ProgressView()
-                    .controlSize(.small)
+                AppLoadingIndicator(compact: true)
                     .padding(AppSpacing.sm)
                     .glassBackground(radius: AppRadius.sm)
                     .padding(AppSpacing.sm)
             }
         }
-        .task(id: result.id) {
-            // 仅空封面卡片进入视口时触发 detail 兜底请求；有封面或已取到兜底则跳过。
-            guard result.vodPic.isEmpty, fallbackCoverURL == nil else { return }
-            await onLoadCoverFallback()
+        .task(id: work.sources) {
+            for source in work.sources where source.vodPic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                guard !Task.isCancelled else { return }
+                await onLoadCoverFallback(source)
+            }
+        }
+        .task(id: candidateURLs) {
+            // New fallback URLs must not replace an already successful cover.
+            if let loadedCoverURL, candidateURLs.first == loadedCoverURL, coverImage != nil { return }
+            if let loaded = await loadFirstCover(candidates: candidateURLs, load: { url in
+                await CoverImageCache.shared.image(for: url)
+            }) {
+                coverImage = loaded.value
+                loadedCoverURL = loaded.url
+            }
         }
     }
 
-    /// 封面图：优先 list 自带 vod_pic，为空时用 ViewModel 兜底缓存的 detail 封面；
-    /// 加载中显示占位背景，失败或无 URL 回落到标题首字占位。
-    /// 字节层走 CoverImageCache（NSCache + 磁盘 7 天 TTL），返回结果页不再重新下载。
-    ///
-    /// ⚠️ 布局必须以 `Color.clear.aspectRatio(.fit)` 为锚：直接对 scaledToFill 的图片
-    /// 再叠一层 aspectRatio(.fill)，大分辨率图会让外层采纳子视图理想尺寸导致溢出容器。
+    private var candidateURLs: [URL] {
+        var seen = Set<URL>()
+        return work.orderedSources.compactMap { source in
+            HTTPClient.percentEncodedURL(from: source.vodPic) ?? coverFallbacks[source.id]
+        }.filter { seen.insert($0).inserted }
+    }
+
     private var cover: some View {
         Color.clear
             .overlay {
-                if let url = coverURL {
-                    CachedRemoteImage(url: url) {
-                        coverPlaceholder
-                    }
+                if let image = coverImage ?? candidateURLs.lazy.compactMap({ CoverImageCache.shared.cachedImage(for: $0) }).first {
+                    Image(nsImage: image).resizable().scaledToFill()
                 } else {
                     coverPlaceholder
                 }
@@ -102,39 +114,6 @@ struct SearchResultCard: View {
             .aspectRatio(2.0 / 3.0, contentMode: .fit)
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
-    }
-
-    /// 基于两级缓存的远程封面：内存命中即时显示，未命中异步加载期间显示占位图。
-    private struct CachedRemoteImage<Placeholder: View>: View {
-        let url: URL
-        @ViewBuilder let placeholder: () -> Placeholder
-
-        @State private var image: NSImage?
-        @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-        var body: some View {
-            Group {
-                if let image {
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    placeholder()
-                }
-            }
-            .task(id: url) {
-                if let loaded = await CoverImageCache.shared.image(for: url) {
-                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
-                        image = loaded
-                    }
-                }
-            }
-        }
-    }
-
-    private var coverURL: URL? {
-        if !result.vodPic.isEmpty { return HTTPClient.percentEncodedURL(from: result.vodPic) }
-        return fallbackCoverURL
     }
 
     private var coverPlaceholder: some View {
