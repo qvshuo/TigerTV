@@ -2,6 +2,7 @@ package art.anjing.tigertv.ui.episodes
 
 import androidx.activity.compose.BackHandler
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -29,8 +30,11 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
@@ -215,12 +219,25 @@ private fun DetailOverview(result: SearchResult, detail: FetchResponse?, fallbac
             }
             episodes.getOrNull(resumeIndex)?.let { episode ->
                 GlassButton(onClick = { onPlay(resumeIndex) },
-                    radius = 32.dp, height = 64.dp,
-                    modifier = Modifier.focusRequester(playFocus).onDpad(Key.DirectionDown, onPlayDown)
+                    radius = 28.dp, height = UiMetrics.controlHeight,
+                    contentPadding = PaddingValues(horizontal = UiSpacing.lg, vertical = 0.dp),
+                    modifier = Modifier.padding(vertical = UiSpacing.sm).focusRequester(playFocus).onDpad(Key.DirectionDown, onPlayDown)
                         .onFocusChanged { if (it.isFocused) onPlayFocus() }) {
-                    Box(Modifier.padding(horizontal = UiSpacing.lg, vertical = UiSpacing.sm), contentAlignment = Alignment.Center) {
-                        Text("▶ 播放 · ${episode.name}", style = MaterialTheme.typography.titleLarge)
+                    val iconColor = LocalContentColor.current
+                    Canvas(Modifier.size(16.dp)) {
+                        drawPath(Path().apply {
+                            moveTo(size.width * 0.2f, 0f)
+                            lineTo(size.width, size.height * 0.5f)
+                            lineTo(size.width * 0.2f, size.height)
+                            close()
+                        }, iconColor)
                     }
+                    Spacer(Modifier.width(UiSpacing.sm))
+                    Text("播放 · ${episode.name}", maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            platformStyle = PlatformTextStyle(includeFontPadding = false),
+                            lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both)
+                        ))
                 }
             }
             if (!detail?.vodDirector.isNullOrBlank()) Credit("导演", detail.vodDirector)

@@ -60,6 +60,6 @@ GUI 使用 `shared-v1`；历史放 macOS Application Support／Android filesDir�
 
 切换资源或线路取消待处理播放、清空选集状态，不自动播放；重试和下一集限于当前线路。播放按钮恢复所选资源中上次播放的线路与集名，无匹配用当前线路第一集。返回按播放器 → 详情 → 结果 → 首页逐级进行。
 
-搜索按钮尺寸固定，搜索时箭头换转圈并禁用操作；macOS 使用白灰系统动效。TV 首次进入详情聚焦播放按钮，下移优先最近播放的资源、线路、集；先滚动创建屏外控件，聚焦播放时回到顶部。TV 控件保持 56dp、播放按钮 64dp，按钮状态不改变形状，卡片焦点放大 1.04；保留原生平台材质与输入方式。
+搜索按钮尺寸固定，搜索时箭头换转圈并禁用操作；macOS 使用白灰系统动效。TV 首次进入详情聚焦播放按钮，下移优先最近播放的资源、线路、集；先滚动创建屏外控件，聚焦播放时回到顶部。TV 控件与播放按钮保持 56dp，按钮状态不改变形状，结果每行五张，卡片焦点放大 1.04；保留原生平台材质与输入方式。
 
 Swift 经版本 1 JSON 请求调用 NativeFacade：`config`、`search(query)`、`fetch(site,video_id)`、`resolve(url)`、`cover(site,video_id)`、`history`、`saveHistory(items)`、`recordPlayback(work_id,site,line,episode)`。响应为 `{version:1,data:…}` 或 `{version:1,error:…}`；Swift 轮询最新增量快照，最终结果消费或取消时释放任务。Android 直接调用同一 CoreService。双端必须丢弃已取消或被替代操作的迟到结果。

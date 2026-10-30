@@ -198,12 +198,16 @@ struct ResultsLayout: View {
                 if let episode = resumeEpisode ?? episodes.first {
                     Button { onSelectEpisode(episode) } label: {
                         Label("播放 · \(episode.name)", systemImage: "play.fill")
-                            .font(.title3.weight(.semibold)).padding(.horizontal, AppSpacing.md).padding(.vertical, AppSpacing.sm + AppSpacing.xs)
+                            .font(.headline.weight(.semibold))
+                            .frame(height: AppMetrics.controlHeight - AppSpacing.sm, alignment: .center)
+                            .padding(.horizontal, AppSpacing.sm)
                     }
                     .buttonStyle(.glassProminent)
+                    .controlSize(.regular)
                     .buttonBorderShape(.capsule)
                     .tint(Color.accentColor)
                     .foregroundStyle(.white)
+                    .padding(.vertical, AppSpacing.xs)
                 }
                 if let director = detail?.vodDirector, !director.isEmpty {
                     detailCredit("导演", value: director)

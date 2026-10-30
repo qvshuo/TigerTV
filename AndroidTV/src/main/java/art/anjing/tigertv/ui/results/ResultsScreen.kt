@@ -7,8 +7,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.draw.clip
 import androidx.tv.material3.Border
 import art.anjing.tigertv.ui.components.tvGlass
@@ -16,7 +14,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,8 +21,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -46,9 +41,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlin.math.floor
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -78,7 +71,7 @@ fun ResultsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(32.dp)
+                .padding(horizontal = 24.dp, vertical = 32.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -151,27 +144,21 @@ private fun ResultsGrid(
         }
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val columns = derivedColumnCount(maxWidth, maxHeight)
-        val cellWidth = (maxWidth - GridContentPadding * 2 - ColumnSpacing * (columns - 1)) / columns
-        val cardWidth = minOf(cellWidth, ((maxHeight - GridVerticalPadding * 2 - CardCaptionHeight) * CoverAspectRatio).coerceIn(140.dp, 220.dp))
-        val gridWidth = cardWidth * columns + ColumnSpacing * (columns - 1) + GridContentPadding * 2
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(columns),
-            modifier = Modifier.width(gridWidth).fillMaxHeight().align(Alignment.TopCenter),
-            contentPadding = PaddingValues(horizontal = GridContentPadding, vertical = GridVerticalPadding),
-            horizontalArrangement = Arrangement.spacedBy(ColumnSpacing),
-            verticalArrangement = Arrangement.spacedBy(RowSpacing)
-        ) {
-            itemsIndexed(works, key = { _, work -> work.id }) { _, work ->
-                WorkCard(
-                    work = work,
-                    coverFallbacks = coverFallbacks,
-                    onLoadCoverFallback = onLoadCoverFallback,
-                    onSelectResult = onSelectResult,
-                    modifier = if (work.id == focusWorkId) Modifier.focusRequester(cardFocusRequester) else Modifier
-                )
-            }
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(5),
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = GridContentPadding, vertical = GridVerticalPadding),
+        horizontalArrangement = Arrangement.spacedBy(ColumnSpacing),
+        verticalArrangement = Arrangement.spacedBy(RowSpacing)
+    ) {
+        itemsIndexed(works, key = { _, work -> work.id }) { _, work ->
+            WorkCard(
+                work = work,
+                coverFallbacks = coverFallbacks,
+                onLoadCoverFallback = onLoadCoverFallback,
+                onSelectResult = onSelectResult,
+                modifier = if (work.id == focusWorkId) Modifier.focusRequester(cardFocusRequester) else Modifier
+            )
         }
     }
 }
@@ -234,15 +221,9 @@ private fun WorkCard(
 
 private val GridContentPadding = 8.dp
 private val GridVerticalPadding = 16.dp
-private val CardCaptionHeight = 122.dp
 private val ColumnSpacing = 16.dp
 private val RowSpacing = 16.dp
 private const val CoverAspectRatio = 2f / 3f
-
-private fun derivedColumnCount(availableWidth: Dp, availableHeight: Dp): Int {
-    val minWidth = if (availableHeight < 360.dp) 180.dp else 200.dp
-    return floor((availableWidth + ColumnSpacing) / (minWidth + ColumnSpacing)).toInt().coerceIn(2, 4)
-}
 
 /**
  * 封面图：加载中显示占位背景，失败或无 URL 时回落到标题首字占位图。
