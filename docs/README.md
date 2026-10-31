@@ -45,7 +45,7 @@ swiftc -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -fr
 
 当前版本 4.0.0，Android versionCode 13，macOS build 10。手动发布的 versionCode 必须大于仓库当前值，默认 14。
 
-PR/main 执行检查；仅手动 `workflow_dispatch` 发布。Actions 选择 Xcode 27.2 正式版，若 runner 尚无该版本则明确失败，不退回 RC。产物为未签名 macOS ZIP、Android universal APK、macOS CLI tar.gz 及 SHA-256。
+PR/main 执行检查；仅手动 `workflow_dispatch` 发布。Actions 使用 Xcode 27.2 版本别名，校验 Xcode 与 macOS SDK 27.2，不锁定构建号；托管镜像更新前允许使用该别名指向的 RC。产物为未签名 macOS ZIP、Android universal APK、macOS CLI tar.gz 及 SHA-256。
 
 Android 固定复用 Interlude 的既有 debug keystore，CI 从现有四项签名 secrets 恢复；不得临时生成密钥。每次发布增加 versionCode。发布前在实际设备验证遥控器、返回、HLS/MP4、重试、全屏、中文输入与关闭释放；自动测试不能代替设备验收。
 

@@ -39,12 +39,11 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7.0.1
-      - name: Verify stable Apple toolchain (2026-10-30)
+      - name: Verify Apple toolchain
         run: |
           test -d "$DEVELOPER_DIR"
           xcodebuild -version
           xcodebuild -version | grep -Fx 'Xcode 27.2'
-          xcodebuild -version | grep -Fx 'Build version 27B52'
           test "$(xcrun --sdk macosx --show-sdk-version)" = 27.2
           xcrun swift --version
       - uses: actions/setup-java@v6.1.0
