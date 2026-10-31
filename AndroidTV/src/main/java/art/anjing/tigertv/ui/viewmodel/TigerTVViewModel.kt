@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import art.anjing.tigertv.data.Result
 import art.anjing.tigertv.data.TigerTVRepository
+import art.anjing.tigertv.domain.HotSearchCategory
 import art.anjing.tigertv.domain.PlaybackBookmark
 import art.anjing.tigertv.domain.FetchResponse
 import art.anjing.tigertv.domain.VideoWork
@@ -101,6 +102,16 @@ class TigerTVViewModel(
         private set
 
     val searchHistory = mutableStateListOf<String>()
+    var hotSearches by mutableStateOf<List<String>>(emptyList())
+        private set
+    var hotSearchCategories by mutableStateOf<List<HotSearchCategory>>(emptyList())
+        private set
+    var selectedHotCategory by mutableStateOf("")
+        private set
+    var isLoadingHotSearches by mutableStateOf(false)
+        private set
+    var hotSearchRevision by mutableIntStateOf(0)
+        private set
 
     /** Source-specific fallback URLs; failures are not cached. */
     var coverFallbacks by mutableStateOf<Map<String, String>>(emptyMap())
@@ -112,10 +123,14 @@ class TigerTVViewModel(
         val work = selectedWork ?: return
         val episode = episodes.getOrNull(selectedEpisodeIndex) ?: return
         val line = fetchResponse?.playSources?.getOrNull(selectedPlaybackSourceIndex) ?: return
-        val bookmark = PlaybackBookmark(source.site, line.id, episode.name)
-        if (work.playback == bookmark && work.recentPlayedSite == source.site) return
+        val bookmark = PlaybackBookmark(line.id, episode.name)
+        if (work.playback[source.site] == bookmark && work.lastPlayedSite == source.site && work.recentPlayedSite == source.site) return
         works = works.map {
-            it.copy(lastPlayedSite = if (it.id == work.id) source.site else it.lastPlayedSite, recentPlayedSite = source.site, playback = if (it.id == work.id) bookmark else it.playback)
+            it.copy(
+                lastPlayedSite = if (it.id == work.id) source.site else it.lastPlayedSite,
+                recentPlayedSite = source.site,
+                playback = if (it.id == work.id) it.playback + (source.site to bookmark) else it.playback
+            )
         }
         val previous = sourceSaveJob
         sourceSaveJob = viewModelScope.launch {
@@ -134,17 +149,59 @@ class TigerTVViewModel(
     private var searchJob: Job? = null
     private var fetchJob: Job? = null
     private var playbackJob: Job? = null
+    private var hotSearchGeneration = 0
+    private var hotWarmJob: Job? = null
 
     init {
         loadConfig()
         loadSearchHistory()
     }
 
+    fun loadHotSearchCategories() {
+        hotSearchCategories = repository.hotSearchCategories()
+        if (selectedHotCategory.isEmpty()) selectedHotCategory = hotSearchCategories.firstOrNull()?.id.orEmpty()
+    }
+
+    fun cancelHotSearchWarmup() {
+        hotWarmJob?.cancel()
+        hotWarmJob = null
+    }
+
+    fun selectHotSearchCategory(category: String) {
+        if (category == selectedHotCategory || hotSearchCategories.none { it.id == category }) return
+        hotSearchGeneration++
+        isLoadingHotSearches = true
+        selectedHotCategory = category
+        hotSearches = emptyList()
+    }
+
+    fun retryHotSearches() { hotSearchRevision++ }
+
+    suspend fun loadHotSearches() {
+        val category = selectedHotCategory
+        if (category.isEmpty()) return
+        val generation = ++hotSearchGeneration
+        isLoadingHotSearches = true
+        hotSearches = emptyList()
+        try {
+            val titles = repository.hotSearches(category)
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            if (generation == hotSearchGeneration && selectedHotCategory == category) {
+                hotSearches = titles
+                if (titles.isNotEmpty() && hotWarmJob == null) {
+                    hotWarmJob = viewModelScope.launch { repository.warmHotSearches(category) }
+                }
+            }
+        } finally {
+            if (generation == hotSearchGeneration) isLoadingHotSearches = false
+        }
+    }
+
     private fun loadConfig() {
         viewModelScope.launch {
             configErrorMessage = when (val result = repository.loadConfig()) {
                 is Result.Success -> null
-                is Result.Error -> result.exception.message ?: "加载配置失败"
+                is Result.Error -> "资源列表加载失败，请重试"
             }
         }
     }
@@ -266,7 +323,7 @@ class TigerTVViewModel(
                 }
                 is Result.Error -> {
                     isSearching = false
-                    searchErrorMessage = result.exception.message ?: "搜索失败"
+                    searchErrorMessage = "搜索失败，请重试"
                 }
             }
         }
@@ -301,12 +358,10 @@ class TigerTVViewModel(
         fetchErrorMessage = null
     }
 
-    val playbackBookmark get() = selectedWork?.playback
+    val playbackBookmark get() = selectedWork?.playback?.get(selectedResult?.site)
 
-    val resumeEpisodeIndex: Int get() {
-        val bookmark = selectedWork?.playback
-        return episodes.indexOfFirst { it.name == bookmark?.episode }.coerceAtLeast(0)
-    }
+    val resumeEpisodeIndex: Int get() = fetchResponse?.playSources
+        ?.getOrNull(selectedPlaybackSourceIndex)?.resumeEpisodeIndex(playbackBookmark) ?: 0
 
     fun selectResult(result: SearchResult, forceRefresh: Boolean = false) {
         if (!forceRefresh && fetchResponse != null && selectedResult?.let { it.site == result.site && it.vodId == result.vodId } == true) return
@@ -328,15 +383,15 @@ class TigerTVViewModel(
                 is Result.Success -> {
                     ensureActive()
                     fetchResponse = fetched.data
-                    val bookmark = works.firstOrNull { it.sources.any { source -> source.coverKey == result.coverKey } }?.playback
-                    if (bookmark?.site == result.site) {
+                    val bookmark = playbackBookmark
+                    if (bookmark != null) {
                         selectedPlaybackSourceIndex = fetched.data.playSources.indexOfFirst { it.id == bookmark.line }.coerceAtLeast(0)
                     }
                     isFetching = false
                 }
                 is Result.Error -> {
                     isFetching = false
-                    fetchErrorMessage = fetched.exception.message ?: "加载详情失败"
+                    fetchErrorMessage = "详情加载失败，请重试"
                 }
             }
         }
@@ -372,7 +427,7 @@ class TigerTVViewModel(
                     isResolvingPlayback = false
                 }
                 is Result.Error -> {
-                    playbackErrorMessage = result.exception.message ?: "解析播放地址失败"
+                    playbackErrorMessage = "播放地址解析失败，请重试"
                     isResolvingPlayback = false
                 }
             }
@@ -402,7 +457,8 @@ class TigerTVViewModel(
     }
 
     fun setPlaybackError(message: String) {
-        playbackErrorMessage = message
+        playbackErrorMessage = "播放失败，请重试"
+        java.util.logging.Logger.getLogger("TigerTV").warning(message)
     }
 
     private fun addHistory(item: String) {

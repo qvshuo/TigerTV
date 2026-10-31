@@ -254,6 +254,28 @@ class CoreServiceTest {
         } finally { core.close() }
     }
 
+    @Test fun quanxRevisitsSharedMasterWithMoreRemainingDepth() = runTest {
+        val store = MemoryStorage().apply { files["source"] = config }
+        val requested = mutableListOf<String>()
+        val core = CoreService("cache", "source", store, configureClient(HttpClient(MockEngine { request ->
+            requested += request.url.encodedPath
+            respond(when {
+                request.url.parameters["ac"] == "list" -> """{"code":1,"list":[{"vod_id":1}]}"""
+                request.url.parameters["ac"] == "detail" -> """{"code":1,"list":[{"vod_play_url":"一${'$'}https://media.test/root.m3u8"}]}"""
+                request.url.encodedPath == "/root.m3u8" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nbranch.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=2\nshared.m3u8"
+                request.url.encodedPath == "/branch.m3u8" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nshared.m3u8"
+                request.url.encodedPath == "/shared.m3u8" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nleaf.m3u8"
+                else -> "#EXTM3U\nhttps://segments.test/1.ts"
+            })
+        })))
+        try {
+            val result = core.collectQuanxDomains("test")
+            assertTrue("segments.test" in result.m3u8)
+            assertEquals(2, requested.count { it == "/shared.m3u8" })
+            assertEquals(1, requested.count { it == "/leaf.m3u8" })
+        } finally { core.close() }
+    }
+
     @Test fun responseLimitAndCancellation() = runTest {
         val exact = configureClient(HttpClient(MockEngine { respond("x".repeat(MAX_RESPONSE_SIZE)) }))
         try { assertEquals(MAX_RESPONSE_SIZE, Network(exact).get("https://a.test").length) }

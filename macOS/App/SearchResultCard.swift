@@ -10,70 +10,56 @@ struct SearchResultCard: View {
     @State private var coverImage: NSImage?
     @State private var loadedCoverURL: URL?
     let onTap: () -> Void
-    @State private var isHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            cover
+        Button(action: onTap) {
+            GroupBox {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    cover
 
-            Text(result.displayTitle)
-                .font(.headline)
-                .fontWeight(.semibold)
-                .lineLimit(1)
-
-            HStack(spacing: AppSpacing.xs) {
-                Text("\(work.sources.count) 个资源")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color.accentColor.opacity(0.15))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
-                    )
-
-                if !result.vodRemarks.isEmpty {
-                    Text(result.vodRemarks)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(result.displayTitle)
+                        .font(.headline)
+                        .fontWeight(.semibold)
                         .lineLimit(1)
-                }
-            }
 
-            if !result.vodTime.isEmpty || !result.vodYear.isEmpty {
-                Text(result.vodTime.isEmpty ? result.vodYear : result.vodTime)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
+                    HStack(spacing: AppSpacing.xs) {
+                        Text("\(work.sources.count) 个资源")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .contentTransition(.numericText())
+                            .animation(reduceMotion ? nil : AppMotion.control, value: work.sources.count)
+                            .lineLimit(1)
+                            .padding(.horizontal, AppSpacing.sm)
+                            .padding(.vertical, 3)
+                            .foregroundStyle(Color.accentColor)
+                            .background(Color.accentColor.opacity(0.12), in: .rect(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.accentColor.opacity(0.25)))
+
+                        if !result.vodRemarks.isEmpty {
+                            Text(result.vodRemarks)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    if !result.vodTime.isEmpty || !result.vodYear.isEmpty {
+                        Text(result.vodTime.isEmpty ? result.vodYear : result.vodTime)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(AppSpacing.sm)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(AppSpacing.md)
-        .glassBackground(
-            radius: AppRadius.md,
-            strokeOpacity: 0.22,
-            shadowRadius: isHovered ? 10 : 6,
-            isActive: isSelected,
-            activeStrokeOpacity: 0.65
-        )
-        .scaleEffect(reduceMotion ? 1.0 : (isHovered && !isSelected ? 1.012 : 1.0))
-        .offset(y: reduceMotion ? 0 : (isHovered && !isSelected ? -1.5 : 0))
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
-        .onHover { isHovered = $0 }
-        .animation(reduceMotion ? nil : AppMotion.hover, value: isHovered)
-        .animation(reduceMotion ? nil : AppMotion.select, value: isSelected)
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .overlay(alignment: .topTrailing) {
             if isLoading {
                 AppLoadingIndicator(compact: true)
-                    .padding(AppSpacing.sm)
-                    .glassBackground(radius: AppRadius.sm)
                     .padding(AppSpacing.sm)
             }
         }
@@ -86,9 +72,12 @@ struct SearchResultCard: View {
         .task(id: candidateURLs) {
             // New fallback URLs must not replace an already successful cover.
             if let loadedCoverURL, candidateURLs.first == loadedCoverURL, coverImage != nil { return }
-            if let loaded = await loadFirstCover(candidates: candidateURLs, load: { url in
-                await CoverImageCache.shared.image(for: url)
-            }) {
+            if let loaded = await loadFirstCover(
+                candidates: candidateURLs,
+                load: { url in
+                    await CoverImageCache.shared.image(for: url)
+                })
+            {
                 coverImage = loaded.value
                 loadedCoverURL = loaded.url
             }
@@ -105,7 +94,9 @@ struct SearchResultCard: View {
     private var cover: some View {
         Color.clear
             .overlay {
-                if let image = coverImage ?? candidateURLs.lazy.compactMap({ CoverImageCache.shared.cachedImage(for: $0) }).first {
+                if let image = coverImage
+                    ?? candidateURLs.lazy.compactMap({ CoverImageCache.shared.cachedImage(for: $0) }).first
+                {
                     Image(nsImage: image).resizable().scaledToFill()
                 } else {
                     coverPlaceholder

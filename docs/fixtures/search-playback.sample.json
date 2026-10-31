@@ -27,9 +27,14 @@
         }
       ],
       "playback": {
-        "site": "🎬二",
-        "line": "0",
-        "episode": "第02集"
+        "🎬一": {
+          "line": "2",
+          "episode": "正片"
+        },
+        "🎬二": {
+          "line": "0",
+          "episode": "第02集"
+        }
       },
       "last_played_site": "🎬二",
       "recent_played_site": "🎬二"

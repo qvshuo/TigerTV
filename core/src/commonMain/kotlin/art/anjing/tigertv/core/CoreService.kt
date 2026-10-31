@@ -7,6 +7,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.*
 import kotlinx.serialization.json.*
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 
 const val CONFIG_CDN_URL = "https://cdn.jsdelivr.net/gh/qvshuo/TigerTV@main/skills/references/LunaTV-config.json"
 const val CONFIG_RAW_URL = "https://raw.githubusercontent.com/qvshuo/TigerTV/refs/heads/main/skills/references/LunaTV-config.json"
@@ -24,6 +25,7 @@ class CoreService(
 ) {
     private val network = Network(client)
     private val configMutex = Mutex()
+    private val hotSearchLocks = HOT_SEARCH_COLLECTIONS.associate { it.id to Mutex() }
     private val stateMutex = Mutex()
     private val logMutex = Mutex()
     private val coverSemaphore = Semaphore(4)
@@ -68,6 +70,42 @@ class CoreService(
         error("加载配置失败: ${errors.joinToString("; ")}")
     }
 
+    fun hotSearchCategories(): List<HotSearchCategory> = HOT_SEARCH_COLLECTIONS.map { HotSearchCategory(it.id, it.name) }
+
+    suspend fun warmHotSearches(category: String) {
+        if (hotSearches(category).isEmpty()) return
+        coroutineScope {
+            HOT_SEARCH_COLLECTIONS.filter { it.id != category }.map { collection ->
+                async { hotSearches(collection.id) }
+            }.awaitAll()
+        }
+    }
+
+    suspend fun hotSearches(category: String): List<String> {
+        val collection = HOT_SEARCH_COLLECTIONS.firstOrNull { it.id == category } ?: error("未知热门分类")
+        return hotSearchLocks.getValue(category).withLock {
+            val path = "$directory/hot-searches-${collection.id}.json"
+            val cached = cacheRead { wireJson.decodeFromString<HotSearchCache>(storage.read(path) ?: "") }
+            val age = cached?.let { clock() - it.fetchedAtMillis }
+            if (cached != null && age != null && age in 0 until 6 * 60 * 60 * 1000L) return@withLock cached.titles
+            try {
+                val raw = network.get(
+                    "https://m.douban.com/rexxar/api/v2/subject_collection/${collection.collection}/items?start=0&count=12",
+                    8_000, mapOf("Referer" to "https://m.douban.com/tv/${collection.id}")
+                )
+                val titles = wireJson.decodeFromString<HotSearchPage>(raw).items
+                    .map { it.title.trim() }.filter { it.isNotEmpty() }.distinct().take(12)
+                check(titles.isNotEmpty()) { "热门剧集为空" }
+                cacheRead { storage.writeAtomic(path, wireJson.encodeToString(HotSearchCache(clock(), titles))) }
+                titles
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                log("hotSearches:$category", e)
+                if (cached != null && age != null && age in 0 until DAY) cached.titles else emptyList()
+            }
+        }
+    }
+
     private suspend fun list(site: SourceSite, parameters: Map<String, String>) =
         parseVodList(network.get(apiUrl(site.api, parameters)))
 
@@ -81,6 +119,7 @@ class CoreService(
         val sourceOrder = sites.mapIndexed { index, site -> site.name to index }.toMap()
         val results = mutableListOf<SearchResult>()
         val updateMutex = Mutex()
+        var successfulSites = 0
         fun snapshot() = SearchResponse(keyword, aggregateWorks(results).map { work ->
             // Card positions follow arrival; resource and cover priority still follow configuration.
             work.copy(sources = work.sources.sortedBy { sourceOrder.getValue(it.site) })
@@ -90,8 +129,9 @@ class CoreService(
                 val batch = try {
                     searchSite(site, keyword)
                 } catch (e: CancellationException) { throw e }
-                catch (e: Exception) { log(site.name, e); emptyList() }
+                catch (e: Exception) { log(site.name, e); return@async }
                 updateMutex.withLock {
+                    successfulSites++
                     if (batch.isNotEmpty()) {
                         results += batch
                         onUpdate?.invoke(withPlayedSources(snapshot()))
@@ -99,6 +139,7 @@ class CoreService(
                 }
             } }.awaitAll()
         }
+        check(successfulSites > 0) { "所有资源搜索失败" }
         val response = snapshot()
         stateMutex.withLock {
             if (searchCacheTtlMillis > 0 && results.size <= MAX_CACHED_RESULTS) {
@@ -119,15 +160,17 @@ class CoreService(
     private suspend fun withPlayedSources(response: SearchResponse): SearchResponse = stateMutex.withLock {
         val saved = playedSources()
         response.copy(works = response.works.map {
-            it.copy(lastPlayedSite = saved.byWork[it.id]?.site, recentPlayedSite = saved.recentSite, playback = saved.byWork[it.id])
+            it.copy(lastPlayedSite = saved.byWork[it.id]?.site, recentPlayedSite = saved.recentSite,
+                playback = saved.byWork[it.id]?.resources.orEmpty())
         })
     }
 
     suspend fun recordPlayback(workId: String, site: String, line: String, episode: String) = stateMutex.withLock {
         require(workId.isNotBlank() && site.isNotBlank() && line.isNotBlank() && episode.isNotBlank())
         val saved = playedSources()
+        val resources = saved.byWork[workId]?.resources.orEmpty() + (site to PlaybackBookmark(line, episode))
         val updated = saved.copy(recentSite = site,
-            byWork = saved.byWork + (workId to PlaybackBookmark(site, line, episode)))
+            byWork = saved.byWork + (workId to WorkPlayback(site, resources)))
         cacheRead { storage.writeAtomic(playedSourcesPath, wireJson.encodeToString(updated)) }
         Unit
     }
@@ -221,7 +264,7 @@ class CoreService(
 
     suspend fun collectQuanxDomains(keyword: String): QuanxDomains {
         val sites = loadConfig().apiSite.values
-        val cache = mutableMapOf<String, Set<String>>()
+        val cache = mutableMapOf<Pair<String, Int>, Set<String>>()
         val cacheMutex = Mutex()
         val semaphore = Semaphore(20)
         val parts = coroutineScope {
@@ -240,7 +283,7 @@ class CoreService(
                                     links += domain(link.url)
                                     val urls = try { probeM3u8(link.url) } catch (e: CancellationException) { throw e }
                                         catch (e: Exception) { log(site.name, e); emptyList() }
-                                    for (url in urls) playlists += playlistDomains(url, 0, cache, cacheMutex)
+                                    for (url in urls) playlists += playlistDomains(url, 0, cache, cacheMutex).first
                                 }
                             }
                         }
@@ -260,9 +303,11 @@ class CoreService(
         return if (text.trimStart().startsWith("#EXTM3U")) listOf(url) else extractM3u8(url, text)
     }
 
-    private suspend fun playlistDomains(url: String, depth: Int, cache: MutableMap<String, Set<String>>, mutex: Mutex): Set<String> {
-        mutex.withLock { cache[url]?.let { return it } }
-        if (depth > 2) return emptySet() // Never cache a depth-truncated result.
+    private suspend fun playlistDomains(url: String, depth: Int, cache: MutableMap<Pair<String, Int>, Set<String>>, mutex: Mutex): Pair<Set<String>, Boolean> {
+        if (depth > 2) return emptySet<String>() to false
+        val key = url to depth
+        mutex.withLock { cache[key]?.let { return it to true } }
+        var complete = true
         val domains = mutableSetOf(domain(url))
         try {
             val lines = network.get(url, 10_000).lines().map { it.trim() }
@@ -277,12 +322,17 @@ class CoreService(
                 for (child in children) {
                     val resolved = resolveUrl(url, child)
                     domains += domain(resolved)
-                    domains += playlistDomains(resolved, depth + 1, cache, mutex)
+                    val childResult = playlistDomains(resolved, depth + 1, cache, mutex)
+                    domains += childResult.first
+                    complete = complete && childResult.second
                 }
             } else for (line in lines.filter { it.isNotEmpty() && !it.startsWith('#') }) domains += domain(resolveUrl(url, line))
         } catch (e: CancellationException) { throw e }
-        catch (e: Exception) { log("m3u8", e) }
-        return domains.toSet().also { mutex.withLock { cache[url] = it } }
+        catch (e: Exception) { complete = false; log("m3u8", e) }
+        // Ancestors of truncated or failed requests are incomplete too.
+        val result = domains.toSet()
+        if (complete) mutex.withLock { cache[key] = result }
+        return result to complete
     }
 
     fun close() = client.close()
@@ -301,4 +351,27 @@ data class QuanxDomains(val api: Set<String>, val urls: Set<String>, val m3u8: S
 }
 
 @Serializable
-private data class PlayedSources(val recentSite: String? = null, val byWork: Map<String, PlaybackBookmark> = emptyMap())
+private data class PlayedSources(val recentSite: String? = null, val byWork: Map<String, WorkPlayback> = emptyMap())
+
+@Serializable
+private data class WorkPlayback(val site: String, val resources: Map<String, PlaybackBookmark>)
+
+@Serializable
+private data class HotSearchCache(val fetchedAtMillis: Long, val titles: List<String>)
+
+@Serializable
+private data class HotSearchPage(@SerialName("subject_collection_items") val items: List<HotSearchItem>)
+
+@Serializable
+private data class HotSearchItem(val title: String)
+
+private data class HotSearchCollection(val id: String, val name: String, val collection: String)
+
+private val HOT_SEARCH_COLLECTIONS = listOf(
+    HotSearchCollection("chinese", "国产剧", "tv_domestic"),
+    HotSearchCollection("tvshow", "综艺", "tv_variety_show"),
+    HotSearchCollection("american", "英美剧", "tv_american"),
+    HotSearchCollection("korean", "韩剧", "tv_korean"),
+    HotSearchCollection("japanese", "日剧", "tv_japanese"),
+    HotSearchCollection("animation", "动漫", "tv_animation")
+)

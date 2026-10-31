@@ -21,14 +21,17 @@ final class AVPlayerController: ObservableObject {
             .sink { [weak self, weak item] status in
                 MainActor.assumeIsolated {
                     guard status == .failed, let item, self?.player.currentItem === item else { return }
-                    self?.errorMessage = item.error?.localizedDescription ?? "播放失败"
+                    NSLog("Playback failed: %@", item.error?.localizedDescription ?? "Unknown error")
+                    self?.errorMessage = "播放失败，请重试"
                 }
             }.store(in: &observers)
         NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime, object: item)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] notification in
+            .sink { [weak self, weak item] notification in
                 MainActor.assumeIsolated {
-                    self?.errorMessage = (notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?.localizedDescription ?? "播放中断"
+                    guard let item, self?.player.currentItem === item else { return }
+                    NSLog("Playback interrupted: %@", String(describing: notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey]))
+                    self?.errorMessage = "播放失败，请重试"
                 }
             }.store(in: &observers)
         hasItem = true

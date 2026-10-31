@@ -10,7 +10,20 @@ final class WorkDetailContractTests: XCTestCase {
 
     func testPlaybackBookmarkContract() throws {
         let response = try JSONDecoder().decode(SearchResponse.self, from: fixture("search-playback.sample.json"))
-        XCTAssertEqual(response.works.first?.playback, PlaybackBookmark(site: "🎬二", line: "0", episode: "第02集"))
+        XCTAssertEqual(response.works.first?.playback["🎬二"], PlaybackBookmark(line: "0", episode: "第02集"))
+    }
+
+    func testResourceBookmarksAndLineFallbackStayIndependent() throws {
+        let work = try XCTUnwrap(JSONDecoder().decode(SearchResponse.self, from: fixture("search-playback.sample.json")).works.first)
+        XCTAssertEqual(work.playback.count, 2)
+        let first = EpisodeLink(name: "第01集", url: "first")
+        let second = EpisodeLink(name: "第02集", url: "second")
+        let line = PlaybackSource(id: "0", name: "主线", episodes: [first, second])
+        XCTAssertEqual(line.resumeEpisode(work.playback["🎬二"]), second)
+        XCTAssertEqual(line.resumeEpisode(work.playback["🎬一"]), first)
+        XCTAssertEqual(line.resumeEpisode(work.playback["无记录"]), first)
+        XCTAssertEqual(line.resumeEpisode(PlaybackBookmark(line: "0", episode: "02")), first)
+        XCTAssertEqual(line.resumeEpisode(PlaybackBookmark(line: "removed", episode: second.name)), first)
     }
 
     func testGroupedSearchRetainsIndependentSourceIds() throws {

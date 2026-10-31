@@ -6,98 +6,90 @@ struct SearchHistoryView: View {
     let onDelete: (String) -> Void
     let onClear: () -> Void
     @State private var hoveredItem: String?
+    @State private var clearHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        if !history.isEmpty {
-            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+        GroupBox {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
                 HStack {
-                    Text("搜索历史")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("搜索历史").font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button("清空历史", action: onClear)
-                        .buttonStyle(.plain)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .hoverLift()
+                        .buttonStyle(.plain).font(.caption)
+                        .foregroundStyle(Color.secondary.opacity(clearHovered ? 1 : 0.7))
+                        .onHover { clearHovered = $0 }
+                        .animation(reduceMotion ? nil : AppMotion.control, value: clearHovered)
                 }
-
-                FlowLayout(spacing: AppSpacing.xs, lineSpacing: AppSpacing.sm) {
+                FlowLayout(spacing: AppSpacing.sm, lineSpacing: AppSpacing.sm) {
                     ForEach(history, id: \.self) { item in
                         HistoryChip(
-                            text: item,
-                            isHovered: hoveredItem == item,
-                            onSelect: { onSelect(item) },
-                            onDelete: { onDelete(item) }
+                            text: item, isHovered: hoveredItem == item,
+                            onSelect: { onSelect(item) }, onDelete: { onDelete(item) }
                         )
-                        .onHover { hovering in
-                            hoveredItem = hovering ? item : nil
+                        .onHover { hoveredItem = $0 ? item : nil }
+                        .contextMenu {
+                            Button("移除记录", role: .destructive) { onDelete(item) }
                         }
+                        .accessibilityAction(named: "移除记录") { onDelete(item) }
                     }
                 }
             }
-            .padding(AppSpacing.md)
-            .glassBackground(radius: AppRadius.md)
-            .animation(reduceMotion ? nil : AppMotion.hover, value: hoveredItem)
+            .padding(AppSpacing.sm)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .animation(reduceMotion ? nil : AppMotion.control, value: hoveredItem)
+        .animation(reduceMotion ? nil : AppMotion.control, value: history)
     }
 }
 
-private struct HistoryChip: View {
+struct HistoryChip: View {
     let text: String
     let isHovered: Bool
     let onSelect: () -> Void
     let onDelete: () -> Void
+    @State private var deleteHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var displayText: String {
-        if text.count > 12 {
-            return String(text.prefix(12)) + "…"
-        }
-        return text
-    }
-
     var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: AppSpacing.xs) {
-                Text(displayText)
-                    .font(.callout)
-                    .lineLimit(1)
-
-                if isHovered {
-                    Button(action: onDelete) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 13))
-                            .symbolRenderingMode(.hierarchical)
-                    }
-                    .buttonStyle(.plain)
-                    .help("删除")
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(isHovered ? Color.secondary.opacity(0.14) : Color.secondary.opacity(0.06))
-            )
-            .contentShape(Capsule(style: .continuous))
+        Button {
+            onSelect()
+        } label: {
+            Text(text).font(.callout).lineLimit(1).padding(.horizontal, AppSpacing.xs)
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .scaleEffect(reduceMotion ? 1.0 : (isHovered ? 1.04 : 1.0))
-        .animation(reduceMotion ? nil : AppMotion.hover, value: isHovered)
+        .controlSize(.large)
+        .buttonStyle(.glass)
+        .buttonBorderShape(.capsule)
+        .overlay(alignment: .topTrailing) {
+            if isHovered {
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "xmark.circle.fill")
+                        .resizable()
+                        .frame(width: 12, height: 12)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("移除记录")
+                .foregroundStyle(Color.secondary.opacity(deleteHovered ? 1 : 0.7))
+                .background(.background, in: .circle)
+                .onHover { deleteHovered = $0 }
+                .animation(reduceMotion ? nil : AppMotion.control, value: deleteHovered)
+                .help("移除记录")
+                .transition(.opacity)
+            }
+        }
+        .onChange(of: isHovered) { _, hovered in
+            if !hovered { deleteHovered = false }
+        }
     }
 }
 
-private struct FlowLayout: Layout {
+struct FlowLayout: Layout {
     var spacing: CGFloat = AppSpacing.xs
     var lineSpacing: CGFloat = AppSpacing.sm
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = FlowResult(in: proposal.width ?? .infinity, subviews: subviews, spacing: spacing, lineSpacing: lineSpacing)
+        let result = FlowResult(
+            in: proposal.width ?? .infinity, subviews: subviews, spacing: spacing, lineSpacing: lineSpacing)
         return result.size
     }
 
@@ -109,7 +101,7 @@ private struct FlowLayout: Layout {
                     x: bounds.minX + result.frames[index].minX,
                     y: bounds.minY + result.frames[index].minY
                 ),
-                proposal: .unspecified
+                proposal: ProposedViewSize(result.frames[index].size)
             )
         }
     }
@@ -124,7 +116,8 @@ private struct FlowLayout: Layout {
             var rowHeight: CGFloat = 0
             var maxX: CGFloat = 0
             for subview in subviews {
-                let size = subview.sizeThatFits(.unspecified)
+                let size = subview.sizeThatFits(
+                    ProposedViewSize(width: maxWidth.isFinite ? maxWidth : nil, height: nil))
                 if x + size.width > maxWidth && x > 0 {
                     x = 0
                     y += rowHeight + lineSpacing

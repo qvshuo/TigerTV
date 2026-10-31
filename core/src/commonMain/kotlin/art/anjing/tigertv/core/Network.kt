@@ -17,9 +17,10 @@ const val USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWeb
 fun configureClient(client: HttpClient) = client.config { install(HttpTimeout) }
 
 class Network(private val client: HttpClient) {
-    suspend fun get(url: String, timeoutMillis: Long = 20_000): String {
+    suspend fun get(url: String, timeoutMillis: Long = 20_000, extraHeaders: Map<String, String> = emptyMap()): String {
         return client.prepareGet(normalizeUrl(url)) {
             header(HttpHeaders.UserAgent, USER_AGENT)
+            extraHeaders.forEach { (name, value) -> header(name, value) }
             timeout { requestTimeoutMillis = timeoutMillis; connectTimeoutMillis = timeoutMillis; socketTimeoutMillis = timeoutMillis }
         }.execute { response ->
             check(response.status.isSuccess()) { "HTTP ${response.status.value}" }

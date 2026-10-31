@@ -9,73 +9,131 @@ struct HomeScreen: View {
     let onDeleteHistory: (String) -> Void
     let onClearHistory: () -> Void
     let onRetryConfig: () -> Void
+    var hotSearches: [String] = []
+    var hotCategories: [HotSearchCategory] = []
+    var selectedHotCategory = ""
+    var isLoadingHotSearches = false
+    var onSelectHotCategory: (String) -> Void = { _ in }
+    var onRetryHotSearches: () -> Void = {}
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ZStack {
-            Color(NSColor.windowBackgroundColor)
-                .ignoresSafeArea()
-
-            GeometryReader { geo in
-                Circle()
-                    .fill(Color.accentColor.opacity(0.05))
-                    .frame(width: geo.size.width * 0.65, height: geo.size.width * 0.65)
-                    .blur(radius: 100)
-                    .offset(x: geo.size.width * 0.1, y: -geo.size.height * 0.2)
-            }
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
-
+        ScrollView {
             VStack(spacing: AppSpacing.xl) {
-                Spacer()
-
                 VStack(spacing: AppSpacing.sm) {
-                    Text("小老虎爱看剧")
-                        .font(.system(size: 46, weight: .bold, design: .rounded))
-                        .contentTransition(.opacity)
-
-                    Text("全网好剧，一搜即达")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
+                    Text("小老虎爱看剧").font(.system(size: 46, weight: .bold, design: .rounded))
+                    Text("全网好剧，一搜即达").font(.title2).foregroundStyle(.secondary)
                 }
-
                 VStack(spacing: AppSpacing.md) {
-                    GlassSearchBar(keyword: $keyword, onSearch: onSearch, compact: false)
-                        .frame(maxWidth: 560)
-
+                    SearchBar(keyword: $keyword, onSearch: onSearch, compact: false)
                     if let configErrorMessage {
-                        VStack(spacing: AppSpacing.sm) {
-                            Text(configErrorMessage)
-                                .font(.callout)
-                                .foregroundStyle(.red)
-                                .multilineTextAlignment(.center)
-                            Button("重试") {
-                                onRetryConfig()
-                            }
-                            .buttonStyle(.borderedProminent)
+                        GroupBox {
+                            AppFailureState(message: configErrorMessage, onRetry: onRetryConfig, compact: true)
+                                .padding(AppSpacing.sm)
                         }
-                        .padding(AppSpacing.md)
-                        .glassBackground(radius: AppRadius.md)
-                        .frame(maxWidth: 560)
-                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
-
                     if !history.isEmpty {
                         SearchHistoryView(
-                            history: history,
-                            onSelect: onSelectHistory,
-                            onDelete: onDeleteHistory,
-                            onClear: onClearHistory
-                        )
-                        .frame(maxWidth: 560)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                            history: history, onSelect: onSelectHistory,
+                            onDelete: onDeleteHistory, onClear: onClearHistory)
+                    }
+                    if !hotCategories.isEmpty {
+                        HotSearchSection(
+                            titles: hotSearches, categories: hotCategories,
+                            selectedCategory: selectedHotCategory, isLoading: isLoadingHotSearches,
+                            onSelectCategory: onSelectHotCategory, onSearch: onSelectHistory,
+                            onRetry: onRetryHotSearches)
                     }
                 }
-
-                Spacer()
+                .animation(reduceMotion ? nil : AppMotion.control, value: history.isEmpty)
+                .animation(reduceMotion ? nil : AppMotion.control, value: configErrorMessage)
             }
-            .padding()
+            .frame(maxWidth: 560)
+            .padding(AppSpacing.lg)
+            .padding(.top, AppSpacing.xl + AppSpacing.lg * 3)
+            .frame(maxWidth: .infinity)
         }
-        .animation(reduceMotion ? nil : AppMotion.page, value: history.isEmpty)
     }
+}
+
+struct HotSearchSection: View {
+    let titles: [String]
+    let categories: [HotSearchCategory]
+    let selectedCategory: String
+    let isLoading: Bool
+    let onSelectCategory: (String) -> Void
+    let onSearch: (String) -> Void
+    let onRetry: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                Text("豆瓣热门").font(.caption).foregroundStyle(.secondary)
+                ViewThatFits(in: .horizontal) {
+                    categoryButtons
+                    ScrollView(.horizontal) { categoryButtons }.scrollIndicators(.hidden)
+                }
+                .frame(height: AppMetrics.compactSearchHeight)
+                Divider().opacity(0.5)
+                Group {
+                    if isLoading {
+                        AppLoadingState(message: "正在加载热门内容…", compact: true)
+                            .frame(height: AppMetrics.hotSearchHeight)
+                    } else if titles.isEmpty {
+                        AppFailureState(message: "热门内容暂不可用，请重试", onRetry: onRetry, compact: true)
+                    } else {
+                        ScrollView {
+                            FlowLayout(spacing: AppSpacing.sm, lineSpacing: AppSpacing.sm) {
+                                ForEach(titles, id: \.self) { title in
+                                    Button {
+                                        onSearch(title)
+                                    } label: {
+                                        Text(title).font(.callout).lineLimit(1)
+                                            .padding(.horizontal, AppSpacing.xs)
+                                    }
+                                    .controlSize(.large)
+                                    .buttonStyle(.glass)
+                                    .buttonBorderShape(.capsule)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        }
+                    }
+                }
+                .frame(height: AppMetrics.hotSearchHeight, alignment: .top)
+                .animation(reduceMotion ? nil : AppMotion.control, value: isLoading)
+
+            }
+            .padding(AppSpacing.sm)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var categoryButtons: some View {
+        GlassEffectContainer(spacing: 0) {
+            HStack(spacing: AppSpacing.sm) {
+                ForEach(categories) { category in
+                    Button {
+                        onSelectCategory(category.id)
+                    } label: {
+                        Text(category.name)
+                            .font(.callout.weight(category.id == selectedCategory ? .semibold : .regular))
+                            .frame(width: 42)
+                    }
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
+                    .tint(category.id == selectedCategory ? Color.accentColor : nil)
+                    .accessibilityAddTraits(category.id == selectedCategory ? .isSelected : [])
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        .frame(maxWidth: .infinity)
+        .animation(reduceMotion ? nil : AppMotion.control, value: selectedCategory)
+    }
+
 }

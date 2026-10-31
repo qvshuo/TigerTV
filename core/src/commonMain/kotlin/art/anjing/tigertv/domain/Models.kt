@@ -69,7 +69,7 @@ data class VideoWork(
     val id: String, val title: String, val sources: List<SearchResult>,
     @SerialName("last_played_site") val lastPlayedSite: String? = null,
     @SerialName("recent_played_site") val recentPlayedSite: String? = null,
-    val playback: PlaybackBookmark? = null
+    val playback: Map<String, PlaybackBookmark> = emptyMap()
 ) {
     val orderedSources: List<SearchResult> get() = sources.sortedBy {
         when (it.site) { lastPlayedSite -> 0; recentPlayedSite -> 1; else -> 2 }
@@ -80,7 +80,10 @@ data class VideoWork(
 }
 
 @Serializable
-data class PlaybackSource(val id: String, val name: String, val episodes: List<EpisodeLink>)
+data class PlaybackSource(val id: String, val name: String, val episodes: List<EpisodeLink>) {
+    fun resumeEpisodeIndex(bookmark: PlaybackBookmark?): Int =
+        if (bookmark?.line == id) episodes.indexOfFirst { it.name == bookmark.episode }.coerceAtLeast(0) else 0
+}
 
 fun aggregateWorks(results: List<SearchResult>): List<VideoWork> = results.distinctBy { it.coverKey }.groupBy { result ->
     val title = result.vodName.filterNot { it.isWhitespace() }.lowercase()
@@ -92,4 +95,7 @@ fun aggregateWorks(results: List<SearchResult>): List<VideoWork> = results.disti
 }.map { (id, sources) -> VideoWork(id, sources.first().vodName, sources) }
 
 @Serializable
-data class PlaybackBookmark(val site: String, val line: String, val episode: String)
+data class PlaybackBookmark(val line: String, val episode: String)
+
+@Serializable
+data class HotSearchCategory(val id: String, val name: String)

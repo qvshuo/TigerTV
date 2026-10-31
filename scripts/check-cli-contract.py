@@ -100,6 +100,11 @@ def main():
             for domain in ("127.0.0.1", "keys.example", "segments.example"):
                 assert "host-suffix, " + domain + ", direct" in quanx.stdout, quanx.stdout
             for arguments, code in [
+                (["logs", "--full", "--full"], 2),
+                (["logs", "--clear", "--clear"], 2),
+                (["logs"], 2),  # --config is rejected for log-only commands.
+                (["nonsense", "--help"], 2),
+                (["search", "--help", "extra"], 2),
                 (["fetch", "--site", "a", "--site", "b", "--video-id", "1"], 2),
                 (["fetch", "--site", "a", "--video-id", "1", "--video-id", "2"], 2),
                 (["fetch", "--site", "", "--video-id", "1"], 2),
@@ -122,6 +127,12 @@ def main():
                 actual = run(native, arguments)
                 assert actual.returncode == code and not actual.stdout and actual.stderr, (arguments, actual)
                 assert "Traceback" not in actual.stderr
+            literal_help = run(native, ["search", "--query", "--help"])
+            assert literal_help.returncode == 0, literal_help
+            assert json.loads(literal_help.stdout)["query"] == "--help"
+            for command in ("search", "fetch", "quanx", "logs"):
+                help_result = run(native, [command, "--help"], False)
+                assert help_result.returncode == 0 and help_result.stdout and not help_result.stderr
             assert run(native, ["--version"], False).returncode == 0
             assert run(native, ["--help"], False).returncode == 0
             assert run(native, ["logs"], False).returncode == 0

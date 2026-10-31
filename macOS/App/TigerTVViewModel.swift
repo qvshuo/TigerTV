@@ -44,6 +44,11 @@ final class TigerTVViewModel: ObservableObject {
     @Published private(set) var playbackErrorMessage: String?
 
     @Published private(set) var searchHistory: [String] = []
+    @Published private(set) var hotSearches: [String] = []
+    @Published private(set) var hotSearchCategories: [HotSearchCategory] = []
+    @Published private(set) var selectedHotCategory = ""
+    @Published private(set) var isLoadingHotSearches = false
+    @Published private(set) var hotSearchRevision = 0
 
     /// Source-specific fallback URLs; failures are not cached.
     @Published private(set) var coverFallbacks: [String: URL] = [:]
@@ -55,12 +60,15 @@ final class TigerTVViewModel: ObservableObject {
               let lines = fetchResponse?.playSources, lines.indices.contains(selectedPlaybackSourceIndex), let source = selectedResult,
               let work = selectedWork else { return }
         let line = lines[selectedPlaybackSourceIndex]
-        let bookmark = PlaybackBookmark(site: source.site, line: line.id, episode: episode.name)
-        guard work.playback != bookmark || work.recentPlayedSite != source.site else { return }
+        let bookmark = PlaybackBookmark(line: line.id, episode: episode.name)
+        guard work.playback[source.site] != bookmark || work.lastPlayedSite != source.site || work.recentPlayedSite != source.site else { return }
         works = works.map {
             var updated = $0
             updated.recentPlayedSite = source.site
-            if updated.id == work.id { updated.lastPlayedSite = source.site; updated.playback = bookmark }
+            if updated.id == work.id {
+                updated.lastPlayedSite = source.site
+                updated.playback[source.site] = bookmark
+            }
             return updated
         }
         let previous = sourceSaveTask
@@ -74,6 +82,8 @@ final class TigerTVViewModel: ObservableObject {
     private var searchTask: Task<Void, Never>?
     private var fetchTask: Task<Void, Never>?
     private var playbackTask: Task<Void, Never>?
+    private var hotSearchGeneration = 0
+    private var hotWarmTask: Task<Void, Never>?
 
     // Discard results from cancelled or superseded operations.
     private var searchGeneration = 0
@@ -102,11 +112,51 @@ final class TigerTVViewModel: ObservableObject {
         }
     }
 
+    func loadHotSearchCategories() async {
+        let categories = await repository.loadHotSearchCategories()
+        guard !Task.isCancelled else { return }
+        hotSearchCategories = categories
+        if selectedHotCategory.isEmpty { selectedHotCategory = categories.first?.id ?? "" }
+    }
+
+    func cancelHotSearchWarmup() {
+        hotWarmTask?.cancel()
+        hotWarmTask = nil
+    }
+
+    func selectHotSearchCategory(_ category: String) {
+        guard category != selectedHotCategory, hotSearchCategories.contains(where: { $0.id == category }) else { return }
+        hotSearchGeneration += 1
+        isLoadingHotSearches = true
+        selectedHotCategory = category
+        hotSearches = []
+    }
+
+    func retryHotSearches() { hotSearchRevision += 1 }
+
+    func loadHotSearches() async {
+        let category = selectedHotCategory
+        guard !category.isEmpty else { return }
+        hotSearchGeneration += 1
+        let generation = hotSearchGeneration
+        isLoadingHotSearches = true
+        hotSearches = []
+        defer { if generation == hotSearchGeneration { isLoadingHotSearches = false } }
+        let titles = await repository.loadHotSearches(category: category)
+        if !Task.isCancelled && generation == hotSearchGeneration && selectedHotCategory == category {
+            hotSearches = titles
+            if !titles.isEmpty && hotWarmTask == nil {
+                let repository = self.repository
+                hotWarmTask = Task { await repository.warmHotSearches(category: category) }
+            }
+        }
+    }
+
     func loadConfig() async {
         configErrorMessage = nil
         let result = await repository.loadConfig()
-        if case .failure(let error) = result {
-            configErrorMessage = error.localizedDescription
+        if case .failure = result {
+            configErrorMessage = "资源列表加载失败，请重试"
         }
     }
 
@@ -165,9 +215,9 @@ final class TigerTVViewModel: ObservableObject {
             case .success(let response):
                 isSearching = false
                 works = response.works
-            case .failure(let error):
+            case .failure:
                 isSearching = false
-                searchErrorMessage = error.localizedDescription
+                searchErrorMessage = "搜索失败，请重试"
             }
         }
     }
@@ -178,8 +228,9 @@ final class TigerTVViewModel: ObservableObject {
     }
 
     var resumeEpisode: EpisodeLink? {
-        let bookmark = selectedWork?.playback
-        return episodes.first { $0.name == bookmark?.episode } ?? episodes.first
+        guard let lines = fetchResponse?.playSources, lines.indices.contains(selectedPlaybackSourceIndex) else { return nil }
+        let bookmark = selectedResult.flatMap { selectedWork?.playback[$0.site] }
+        return lines[selectedPlaybackSourceIndex].resumeEpisode(bookmark)
     }
 
     func selectResult(_ result: SearchResult, forceRefresh: Bool = false) {
@@ -206,14 +257,13 @@ final class TigerTVViewModel: ObservableObject {
             case .success(let response):
                 isFetching = false
                 fetchResponse = response
-                if let bookmark = selectedWork?.playback,
-                   bookmark.site == selectedResult?.site,
+                if let source = selectedResult, let bookmark = selectedWork?.playback[source.site],
                    let index = response.playSources.firstIndex(where: { $0.id == bookmark.line }) {
                     selectedPlaybackSourceIndex = index
                 }
-            case .failure(let error):
+            case .failure:
                 isFetching = false
-                fetchErrorMessage = error.localizedDescription
+                fetchErrorMessage = "详情加载失败，请重试"
             }
         }
     }
@@ -235,17 +285,11 @@ final class TigerTVViewModel: ObservableObject {
                 isResolvingPlayback = false
                 resolvedPlaybackUrl = url
                 playbackRevision += 1
-            case .failure(let error):
+            case .failure:
                 isResolvingPlayback = false
-                playbackErrorMessage = error.localizedDescription
+                playbackErrorMessage = "播放地址解析失败，请重试"
             }
         }
-    }
-
-    var nextEpisode: EpisodeLink? {
-        guard let selectedEpisode, let index = episodes.firstIndex(of: selectedEpisode),
-              episodes.indices.contains(index + 1) else { return nil }
-        return episodes[index + 1]
     }
 
     func retryPlayback() {

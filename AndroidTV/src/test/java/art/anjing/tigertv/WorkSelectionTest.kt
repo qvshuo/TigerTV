@@ -35,6 +35,7 @@ class WorkSelectionTest {
         repository = mockk(relaxed = true)
         coEvery { repository.loadConfig() } returns Result.Success(SourceConfig())
         coEvery { repository.loadHistory() } returns emptyList()
+        coEvery { repository.hotSearches(any()) } returns emptyList()
         coEvery { repository.search(any(), any()) } returns Result.Success(SearchResponse("逐玉", aggregateWorks(listOf(a, b))))
         coEvery { repository.fetch("A", 1) } returns Result.Success(detail(a))
         coEvery { repository.fetch("B", 99) } returns Result.Success(detail(b))
@@ -46,7 +47,61 @@ class WorkSelectionTest {
 
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    @Test fun onlyActualPlaybackRemembersOneSourceAndOverwritesPreviousChoice() = runTest(dispatcher) {
+    @Test fun warmupStartsAfterVisibleTitlesAndSurvivesCategorySwitchUntilHomeCloses() = runTest(dispatcher) {
+        every { repository.hotSearchCategories() } returns listOf(
+            HotSearchCategory("chinese", "国产剧"), HotSearchCategory("korean", "韩剧")
+        )
+        var cancelled = false
+        coEvery { repository.warmHotSearches(any()) } coAnswers {
+            try { awaitCancellation() } finally { cancelled = true }
+        }
+        viewModel.loadHotSearchCategories()
+        viewModel.loadHotSearches()
+        runCurrent()
+        coVerify(exactly = 0) { repository.warmHotSearches(any()) }
+        coEvery { repository.hotSearches("chinese") } returns listOf("国产甲")
+        viewModel.loadHotSearches()
+        runCurrent()
+        assertEquals(listOf("国产甲"), viewModel.hotSearches)
+        assertFalse(viewModel.isLoadingHotSearches)
+        coVerify(exactly = 1) { repository.warmHotSearches("chinese") }
+        coEvery { repository.hotSearches("korean") } returns listOf("韩剧甲")
+        viewModel.selectHotSearchCategory("korean")
+        viewModel.loadHotSearches()
+        runCurrent()
+        coVerify(exactly = 1) { repository.warmHotSearches(any()) }
+        viewModel.cancelHotSearchWarmup()
+        runCurrent()
+        assertTrue(cancelled)
+        viewModel.loadHotSearches()
+        runCurrent()
+        coVerify(exactly = 1) { repository.warmHotSearches("korean") }
+        viewModel.cancelHotSearchWarmup()
+        runCurrent()
+    }
+
+    @Test fun changingHotCategoryCancelsOldResultsWithoutWritingHistory() = runTest(dispatcher) {
+        every { repository.hotSearchCategories() } returns listOf(
+            HotSearchCategory("chinese", "国产剧"), HotSearchCategory("korean", "韩剧")
+        )
+        coEvery { repository.hotSearches("chinese") } coAnswers { awaitCancellation() }
+        coEvery { repository.hotSearches("korean") } returns listOf("韩剧甲")
+        viewModel.loadHotSearchCategories()
+        assertEquals("chinese", viewModel.selectedHotCategory)
+        val old = launch { viewModel.loadHotSearches() }
+        runCurrent()
+        assertTrue(viewModel.isLoadingHotSearches)
+        viewModel.selectHotSearchCategory("korean")
+        old.cancelAndJoin()
+        viewModel.loadHotSearches()
+        assertEquals(listOf("韩剧甲"), viewModel.hotSearches)
+        assertFalse(viewModel.isLoadingHotSearches)
+        viewModel.selectHotSearchCategory("unknown")
+        assertEquals("korean", viewModel.selectedHotCategory)
+        coVerify(exactly = 0) { repository.saveHistory(any()) }
+    }
+
+    @Test fun onlyActualPlaybackUpdatesTheSelectedResourcesBookmark() = runTest(dispatcher) {
         viewModel.onKeywordChange("逐玉")
         viewModel.search()
         advanceUntilIdle()
@@ -168,6 +223,76 @@ class WorkSelectionTest {
         assertEquals(1, viewModel.selectedPlaybackSourceIndex)
         assertEquals(0, viewModel.resumeEpisodeIndex)
         assertEquals(backup, viewModel.episodes[viewModel.resumeEpisodeIndex])
+    }
+
+    @Test fun resourcesRestoreTheirOwnEpisodeNamesAndLines() = runTest(dispatcher) {
+        val bFirst = EpisodeLink("01", "https://b.test/1.m3u8")
+        val bSecond = EpisodeLink("02", "https://b.test/2.m3u8")
+        coEvery { repository.fetch("B", 99) } returns Result.Success(detail(b).copy(
+            playSources = listOf(PlaybackSource("7", "B线路", listOf(bFirst, bSecond)))))
+        viewModel.onKeywordChange("逐玉")
+        viewModel.search()
+        advanceUntilIdle()
+        viewModel.selectResult(a)
+        advanceUntilIdle()
+        viewModel.selectEpisode(1)
+        advanceUntilIdle()
+        viewModel.playbackDidStart(second.url)
+        advanceUntilIdle()
+        viewModel.selectResult(b)
+        advanceUntilIdle()
+        assertEquals(0, viewModel.resumeEpisodeIndex)
+        viewModel.selectEpisode(1)
+        advanceUntilIdle()
+        viewModel.playbackDidStart(bSecond.url)
+        advanceUntilIdle()
+        viewModel.selectResult(a)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.resumeEpisodeIndex)
+        assertEquals(second.name, viewModel.episodes[viewModel.resumeEpisodeIndex].name)
+        viewModel.selectPlaybackSource(1)
+        assertEquals(0, viewModel.resumeEpisodeIndex)
+        viewModel.selectResult(b)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.resumeEpisodeIndex)
+        assertEquals(bSecond.name, viewModel.episodes[viewModel.resumeEpisodeIndex].name)
+        assertEquals(mapOf("A" to PlaybackBookmark("0", second.name), "B" to PlaybackBookmark("7", bSecond.name)), viewModel.works.single().playback)
+        coVerify(exactly = 2) { repository.recordPlayback(any(), any(), any(), any()) }
+    }
+
+    @Test fun unavailableBookmarksFallBackWithoutBorrowingAnotherLinesEpisode() = runTest(dispatcher) {
+        val work = aggregateWorks(listOf(a, b)).single().copy(
+            lastPlayedSite = "A", playback = mapOf("A" to PlaybackBookmark("removed", second.name)))
+        coEvery { repository.search(any(), any()) } returns Result.Success(SearchResponse("逐玉", listOf(work)))
+        viewModel.onKeywordChange("逐玉")
+        viewModel.search()
+        advanceUntilIdle()
+        viewModel.selectResult(a)
+        advanceUntilIdle()
+        assertEquals(0, viewModel.selectedPlaybackSourceIndex)
+        assertEquals(0, viewModel.resumeEpisodeIndex)
+        viewModel.selectResult(b)
+        advanceUntilIdle()
+        assertNull(viewModel.playbackBookmark)
+        assertEquals(0, viewModel.resumeEpisodeIndex)
+    }
+
+    @Test fun replayingAnOlderResourceUpdatesTheWorksLastSite() = runTest(dispatcher) {
+        val work = aggregateWorks(listOf(a, b)).single().copy(lastPlayedSite = "B", recentPlayedSite = "A",
+            playback = mapOf("A" to PlaybackBookmark("0", first.name), "B" to PlaybackBookmark("0", second.name)))
+        coEvery { repository.search(any(), any()) } returns Result.Success(SearchResponse("逐玉", listOf(work)))
+        viewModel.onKeywordChange("逐玉")
+        viewModel.search()
+        advanceUntilIdle()
+        viewModel.selectResult(a)
+        advanceUntilIdle()
+        viewModel.selectEpisode(0)
+        advanceUntilIdle()
+        viewModel.playbackDidStart(first.url)
+        advanceUntilIdle()
+        assertEquals("A", viewModel.works.single().lastPlayedSite)
+        assertEquals(PlaybackBookmark("0", second.name), viewModel.works.single().playback["B"])
+        coVerify(exactly = 1) { repository.recordPlayback(work.id, "A", "0", first.name) }
     }
 
     @Test fun aNewWorkInheritsTheRecentSiteWithoutSavingItsOwnHistory() = runTest(dispatcher) {
