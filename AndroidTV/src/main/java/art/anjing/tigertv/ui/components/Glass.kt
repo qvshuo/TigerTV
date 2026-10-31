@@ -14,8 +14,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/** Interlude-style cached sheen and rim; focus updates only redraw the surface. */
-fun Modifier.tvGlass(focus: State<Float>? = null, radius: Dp = 24.dp): Modifier = graphicsLayer {
+/** Cached decoration for standard Compose controls; focus only redraws the surface. */
+fun Modifier.tvGlass(focus: State<Float>? = null, radius: Dp = 24.dp, focusOnly: Boolean = false): Modifier = graphicsLayer {
     shape = RoundedCornerShape(radius)
     clip = true
 }.drawWithCache {
@@ -35,11 +35,12 @@ fun Modifier.tvGlass(focus: State<Float>? = null, radius: Dp = 24.dp): Modifier 
     val rimSize = Size((size.width - inset * 2).coerceAtLeast(0f), (size.height - inset * 2).coerceAtLeast(0f))
     onDrawWithContent {
         val strength = focus?.value ?: 0f
-        drawRoundRect(Color(0xFF151A23).copy(alpha = 0.72f + strength * 0.1f), cornerRadius = corner)
+        val surfaceOpacity = if (focusOnly) strength else 1f
+        drawRoundRect(Color(0xFF151A23).copy(alpha = (0.72f + strength * 0.1f) * surfaceOpacity), cornerRadius = corner)
+        drawRoundRect(sheen, cornerRadius = corner, alpha = (0.6f + strength * 0.4f) * surfaceOpacity)
         drawContent()
-        drawRoundRect(sheen, cornerRadius = corner, alpha = 0.6f + strength * 0.4f)
         drawRoundRect(rim, topLeft = Offset(inset, inset), size = rimSize, cornerRadius = corner,
-            style = Stroke(1.dp.toPx()), alpha = 1f - strength)
+            style = Stroke(1.dp.toPx()), alpha = (1f - strength) * surfaceOpacity)
         if (strength > 0f) {
             drawRoundRect(Color.White, topLeft = Offset(inset, inset), size = rimSize,
                 cornerRadius = corner, style = Stroke(2.dp.toPx()), alpha = strength * 0.85f)

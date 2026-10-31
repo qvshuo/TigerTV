@@ -15,6 +15,11 @@ object UiMetrics {
     val loadingIndicator = 32.dp
     val loadingRegion = 160.dp
     val controlHeight = 56.dp
+    val chipHeight = 44.dp
     val posterWidth = 128.dp
     val posterHeight = 192.dp
+}
+
+object UiMotion {
+    const val durationMillis = 180
 }

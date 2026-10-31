@@ -23,7 +23,7 @@ class ContractFixtureTest {
     fun `grouped search and detail share the native core contract`() {
         val json = Json { ignoreUnknownKeys = true }
         val saved = json.decodeFromString<SearchResponse>(findRepoFixture("docs/fixtures/search-playback.sample.json").readText())
-        assertEquals(art.anjing.tigertv.domain.PlaybackBookmark("🎬二", "0", "第02集"), saved.works.single().playback)
+        assertEquals(art.anjing.tigertv.domain.PlaybackBookmark("0", "第02集"), saved.works.single().playback["🎬二"])
         val search = json.decodeFromString<SearchResponse>(findRepoFixture("docs/fixtures/search.sample.json").readText())
         assertEquals(listOf(1, 99), search.works.single().sources.map { it.vodId })
         assertEquals("🎬二", search.works.single().defaultSource.site)

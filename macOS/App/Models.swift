@@ -68,7 +68,7 @@ struct VideoWork: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let title: String
     let sources: [SearchResult]
-    var playback: PlaybackBookmark? = nil
+    var playback: [String: PlaybackBookmark] = [:]
     var lastPlayedSite: String?
     var recentPlayedSite: String?
     enum CodingKeys: String, CodingKey {
@@ -91,6 +91,11 @@ struct PlaybackSource: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let episodes: [EpisodeLink]
+
+    func resumeEpisode(_ bookmark: PlaybackBookmark?) -> EpisodeLink? {
+        guard bookmark?.line == id else { return episodes.first }
+        return episodes.first { $0.name == bookmark?.episode } ?? episodes.first
+    }
 }
 
 struct EpisodeLink: Codable, Identifiable, Hashable, Sendable {
@@ -116,7 +121,11 @@ func loadFirstCover<Value>(
 }
 
 struct PlaybackBookmark: Codable, Hashable, Sendable {
-    let site: String
     let line: String
     let episode: String
+}
+
+struct HotSearchCategory: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let name: String
 }

@@ -17,7 +17,7 @@ let package = Package(
                 "ContentView.swift",
                 "HomeScreen.swift",
                 "ResultsLayout.swift",
-                "GlassSearchBar.swift",
+                "SearchBar.swift",
                 "SearchHistoryView.swift",
                 "SearchResultCard.swift",
                 "DesignSystem.swift",

@@ -14,8 +14,8 @@ android {
         applicationId = "art.anjing.tigertv"
         minSdk = 34
         targetSdk = 37
-        versionCode = providers.gradleProperty("androidVersionCode").orElse("12").get().toInt()
-        versionName = providers.gradleProperty("releaseVersion").orElse("3.3.0").get()
+        versionCode = providers.gradleProperty("androidVersionCode").orElse("13").get().toInt()
+        versionName = providers.gradleProperty("releaseVersion").orElse("4.0.0").get()
 
         // Include both 32-bit (TV) and 64-bit (modern devices/emulators) ABIs.
         ndk {
@@ -84,6 +84,7 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.12.1")
     implementation("androidx.compose.material3:material3:1.4.0")
     implementation("androidx.tv:tv-material:1.1.0")
+    implementation("androidx.compose.material:material-icons-core:1.7.8")
 
     // Media3 ExoPlayer
     implementation("androidx.media3:media3-exoplayer:1.11.1")

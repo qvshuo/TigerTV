@@ -9,11 +9,11 @@ on:
       version:
         description: 'Release version (MAJOR.MINOR.PATCH)'
         required: true
-        default: '3.3.0'
+        default: '4.0.0'
       android_version_code:
         description: 'Increasing Android versionCode'
         required: true
-        default: '13'
+        default: '14'
 
 permissions:
   contents: read
@@ -27,8 +27,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 env:
-  RELEASE_VERSION: ${{ inputs.version || '3.3.0' }}
-  ANDROID_VERSION_CODE: ${{ inputs.android_version_code || '12' }}
+  RELEASE_VERSION: ${{ inputs.version || '4.0.0' }}
+  ANDROID_VERSION_CODE: ${{ inputs.android_version_code || '13' }}
   ANDROID_SIGNING_CERT_SHA256: 0d81ab7cb1a16d58d91a953fe62049eb77fc840cc544a297ae1854f54bc73b96
 
 jobs:

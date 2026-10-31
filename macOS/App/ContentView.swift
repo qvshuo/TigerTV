@@ -1,5 +1,5 @@
-import SwiftUI
 import AVKit
+import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = TigerTVViewModel()
@@ -12,7 +12,7 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var activeErrorMessage: String? {
-        viewModel.searchErrorMessage ?? viewModel.playbackErrorMessage ?? controller.errorMessage
+        viewModel.playbackErrorMessage ?? controller.errorMessage
     }
 
     var body: some View {
@@ -26,12 +26,24 @@ struct ContentView: View {
                     onSelectHistory: selectHistory,
                     onDeleteHistory: viewModel.removeHistory,
                     onClearHistory: viewModel.clearHistory,
-                    onRetryConfig: viewModel.retryLoadConfig
+                    onRetryConfig: viewModel.retryLoadConfig,
+                    hotSearches: viewModel.hotSearches,
+                    hotCategories: viewModel.hotSearchCategories,
+                    selectedHotCategory: viewModel.selectedHotCategory,
+                    isLoadingHotSearches: viewModel.isLoadingHotSearches,
+                    onSelectHotCategory: viewModel.selectHotSearchCategory,
+                    onRetryHotSearches: viewModel.retryHotSearches
                 )
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .scale(scale: 0.98)),
-                    removal: .opacity.combined(with: .move(edge: .leading))
-                ))
+                .task { await viewModel.loadHotSearchCategories() }
+                .onDisappear(perform: viewModel.cancelHotSearchWarmup)
+                .task(id: "\(viewModel.selectedHotCategory):\(viewModel.hotSearchRevision)") {
+                    await viewModel.loadHotSearches()
+                }
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.98)),
+                        removal: .opacity.combined(with: .move(edge: .leading))
+                    ))
             } else {
                 ResultsLayout(
                     keyword: $viewModel.keyword,
@@ -59,41 +71,46 @@ struct ContentView: View {
                     onSearch: startSearch,
                     onSelectResult: selectResult,
                     onSelectEpisode: selectEpisode,
-                    resumeEpisode: viewModel.resumeEpisode
+                    resumeEpisode: viewModel.resumeEpisode,
+                    searchErrorMessage: viewModel.searchErrorMessage
                 )
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .move(edge: .trailing)),
-                    removal: .opacity.combined(with: .scale(scale: 0.98))
-                ))
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .trailing)),
+                        removal: .opacity.combined(with: .scale(scale: 0.98))
+                    ))
             }
         }
+        .background(.background)
         .animation(reduceMotion ? nil : AppMotion.page, value: hasSearched)
-        .alert("错误", isPresented: $showError, actions: {
-            if viewModel.selectedEpisode != nil {
-                Button("重试") {
-                    controller.close()
-                    viewModel.retryPlayback()
+        .alert(
+            "提示", isPresented: $showError,
+            actions: {
+                if viewModel.selectedEpisode != nil {
+                    Button("重试") {
+                        controller.close()
+                        viewModel.retryPlayback()
+                    }
+                    Button("返回", role: .cancel) {
+                        viewModel.clearPlayback()
+                        controller.close()
+                    }
+                } else {
+                    Button("确定") { viewModel.clearActiveError() }
                 }
-                if let next = viewModel.nextEpisode {
-                    Button("下一集") { selectEpisode(next) }
-                }
-                Button("返回", role: .cancel) {
-                    viewModel.clearPlayback()
-                    controller.close()
-                }
-            } else {
-                Button("确定") { viewModel.clearActiveError() }
+            },
+            message: {
+                Text(activeErrorMessage ?? "播放失败，请重试")
             }
-        }, message: {
-            Text(activeErrorMessage ?? "未知错误")
-        })
+        )
         .onDisappear { controller.close() }
         .onChange(of: activeErrorMessage) { _, newValue in
             showError = newValue != nil
         }
         .onReceive(controller.player.publisher(for: \.timeControlStatus)) { status in
             guard status == .playing,
-                  let asset = controller.player.currentItem?.asset as? AVURLAsset else { return }
+                let asset = controller.player.currentItem?.asset as? AVURLAsset
+            else { return }
             viewModel.playbackDidStart(url: asset.url.absoluteString)
         }
         .onChange(of: viewModel.playbackRevision) { _, _ in

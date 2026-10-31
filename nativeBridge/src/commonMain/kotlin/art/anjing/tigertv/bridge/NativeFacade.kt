@@ -39,6 +39,9 @@ class NativeFacade internal constructor(private val service: CoreService) {
                             service.recordPlayback(payload.text("work_id"), payload.text("site"), payload.text("line"), payload.text("episode"))
                             JsonPrimitive(true)
                         }
+                        "warmHotSearches" -> { service.warmHotSearches(payload.text("category")); JsonPrimitive(true) }
+                        "hotSearchCategories" -> wireJson.encodeToJsonElement(service.hotSearchCategories())
+                        "hotSearches" -> wireJson.encodeToJsonElement(service.hotSearches(payload.text("category")))
                         "history" -> wireJson.encodeToJsonElement(service.history())
                         "saveHistory" -> { service.saveHistory(wireJson.decodeFromJsonElement(payload["items"]!!)); JsonPrimitive(true) }
                         else -> error("Unknown operation")

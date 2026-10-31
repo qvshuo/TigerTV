@@ -15,7 +15,7 @@
 		000000000000000000000109 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000209 /* PlayerView.swift */; };
 		000000000000000000000110 /* HomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000210 /* HomeScreen.swift */; };
 		000000000000000000000111 /* SearchHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000211 /* SearchHistoryView.swift */; };
-		000000000000000000000112 /* GlassSearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000212 /* GlassSearchBar.swift */; };
+		000000000000000000000112 /* SearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000212 /* SearchBar.swift */; };
 		000000000000000000000113 /* ResultsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000213 /* ResultsLayout.swift */; };
 		000000000000000000000114 /* SearchResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000214 /* SearchResultCard.swift */; };
 		000000000000000000000116 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000216 /* DesignSystem.swift */; };
@@ -36,7 +36,7 @@
 		000000000000000000000209 /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
 		000000000000000000000210 /* HomeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreen.swift; sourceTree = "<group>"; };
 		000000000000000000000211 /* SearchHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchHistoryView.swift; sourceTree = "<group>"; };
-		000000000000000000000212 /* GlassSearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSearchBar.swift; sourceTree = "<group>"; };
+		000000000000000000000212 /* SearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchBar.swift; sourceTree = "<group>"; };
 		000000000000000000000213 /* ResultsLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsLayout.swift; sourceTree = "<group>"; };
 		000000000000000000000214 /* SearchResultCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultCard.swift; sourceTree = "<group>"; };
 		000000000000000000000216 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
@@ -71,7 +71,7 @@
 				000000000000000000000201 /* ContentView.swift */,
 				000000000000000000000210 /* HomeScreen.swift */,
 				000000000000000000000213 /* ResultsLayout.swift */,
-				000000000000000000000212 /* GlassSearchBar.swift */,
+				000000000000000000000212 /* SearchBar.swift */,
 				000000000000000000000211 /* SearchHistoryView.swift */,
 				000000000000000000000214 /* SearchResultCard.swift */,
 				000000000000000000000216 /* DesignSystem.swift */,
@@ -113,7 +113,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 000000000000000000000900 /* Build configuration list for PBXNativeTarget "TigerTV" */;
 			buildPhases = (
-				B00000000000000000000200 /* ShellScript */,
+				B00000000000000000000200 /* Build Kotlin core */,
 				000000000000000000000500 /* Sources */,
 				000000000000000000000501 /* Frameworks */,
 				000000000000000000000502 /* Resources */,
@@ -135,7 +135,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2640;
-				LastUpgradeCheck = 2710;
+				LastUpgradeCheck = 2720;
 				TargetAttributes = {
 					000000000000000000000600 = {
 						CreatedOnToolsVersion = 26.4;
@@ -172,7 +172,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		B00000000000000000000200 /* ShellScript */ = {
+		B00000000000000000000200 /* Build Kotlin core */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -209,7 +209,7 @@
 				000000000000000000000101 /* ContentView.swift in Sources */,
 				000000000000000000000110 /* HomeScreen.swift in Sources */,
 				000000000000000000000113 /* ResultsLayout.swift in Sources */,
-				000000000000000000000112 /* GlassSearchBar.swift in Sources */,
+				000000000000000000000112 /* SearchBar.swift in Sources */,
 				000000000000000000000111 /* SearchHistoryView.swift in Sources */,
 				000000000000000000000114 /* SearchResultCard.swift in Sources */,
 				000000000000000000000116 /* DesignSystem.swift in Sources */,
@@ -229,13 +229,12 @@
 		000000000000000000000800 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = App/TigerTV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -252,7 +251,7 @@
 				);
 				LM_SKIP_METADATA_EXTRACTION = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 3.3.0;
+				MARKETING_VERSION = 4.0.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-framework",
@@ -263,21 +262,20 @@
 				PRODUCT_NAME = "小老虎爱看剧";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
-				USE_RECURSIVE_SCRIPT_INPUTS_IN_SCRIPT_PHASES = YES;
 				TIGERTV_NATIVE_VARIANT = debug;
+				USE_RECURSIVE_SCRIPT_INPUTS_IN_SCRIPT_PHASES = YES;
 			};
 			name = Debug;
 		};
 		000000000000000000000801 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = App/TigerTV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -294,7 +292,7 @@
 				);
 				LM_SKIP_METADATA_EXTRACTION = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 3.3.0;
+				MARKETING_VERSION = 4.0.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-framework",
@@ -305,8 +303,8 @@
 				PRODUCT_NAME = "小老虎爱看剧";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
-				USE_RECURSIVE_SCRIPT_INPUTS_IN_SCRIPT_PHASES = YES;
 				TIGERTV_NATIVE_VARIANT = release;
+				USE_RECURSIVE_SCRIPT_INPUTS_IN_SCRIPT_PHASES = YES;
 			};
 			name = Release;
 		};

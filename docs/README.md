@@ -1,6 +1,6 @@
 # 开发与发布
 
-TigerTV 的业务实现集中在 Kotlin Multiplatform `core`。Android 直接调用，macOS 经 `nativeBridge` 的静态 framework 调用；CLI 使用 Kotlin/Native。macOS 和 CLI 运行时不需要 Java、Python。暂不支持 Windows。
+TigerTV 的业务实现集中在 Kotlin Multiplatform `core`。Android 直接调用，macOS 经 `nativeBridge` 的静态 framework 调用；CLI 使用 Kotlin/Native。三端共用搜索、聚合、播放解析、缓存和历史逻辑。
 
 | 目录 | 职责 |
 |---|---|
@@ -13,13 +13,13 @@ TigerTV 的业务实现集中在 Kotlin Multiplatform `core`。Android 直接调
 | `scripts/` | 契约、桥接、播放器和发布校验 |
 | `skills/` | Agent Skill、CLI 安装器及源配置 |
 
-接口和交互见[契约](contract.md)，实现限制见 [AGENTS.md](../AGENTS.md)。生产源配置仍位于 `skills/references/LunaTV-config.json`，由定时工作流同步上游。
+接口和交互见[契约](contract.md)，实现限制见 [AGENTS.md](../AGENTS.md)。生产源配置位于 `skills/references/LunaTV-config.json`，由定时工作流同步上游。
 
 ## 构建与检查
 
 工具链：Kotlin 2.4.21、Gradle 9.8.2、AGP 9.5.0、JDK 21、Android SDK 37；Xcode 27.2（27B52）、Swift 6.4.2、macOS SDK 27.2。应用最低 macOS 26／Android 14；macOS 仅 arm64，Android APK 同时包含 v7a 和 arm64。
 
-Android Studio 打开 `AndroidTV/`，Xcode 打开 `macOS/TigerTV.xcodeproj`。Android SDK 配在 `AndroidTV/local.properties` 或 `ANDROID_HOME`。根 Gradle 只构建核心、桥接和 CLI，无需 Android SDK；Android 工程直接引用同一份核心源码，产物隔离到 `AndroidTV/build/core`。两个入口通过 `AndroidTV/gradle` 符号链接共用 Wrapper、Java 21 规则和插件版本，无 Windows 入口。
+Android Studio 打开 `AndroidTV/`，Xcode 打开 `macOS/TigerTV.xcodeproj`。Android SDK 配在 `AndroidTV/local.properties` 或 `ANDROID_HOME`。根 Gradle 只构建核心、桥接和 CLI，无需 Android SDK；Android 工程直接引用同一份核心源码，产物隔离到 `AndroidTV/build/core`。两个入口通过 `AndroidTV/gradle` 符号链接共用 Wrapper、Java 21 规则和插件版本。
 
 ```bash
 ./gradlew :core:jvmTest :core:macosArm64Test :nativeBridge:macosArm64Test :cli:linkReleaseExecutableMacosArm64
@@ -39,9 +39,11 @@ swiftc -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -fr
 /tmp/check-native-bridge
 ```
 
-`scripts/serve-playback-fixtures.py DIR` 仅暴露指定测试目录中的媒体与测试 API；`scripts/check-macos-playback.swift` 验证实际 AVPlayer 播放、暂停、跳转与释放。Python 仅用于开发夹具，不实现业务核心。
+`scripts/serve-playback-fixtures.py DIR` 仅暴露指定测试目录中的媒体与测试 API；`scripts/check-macos-playback.swift` 验证实际 AVPlayer 播放、暂停、跳转与释放。
 
 ## 发布
+
+当前版本 4.0.0，Android versionCode 13，macOS build 10。手动发布的 versionCode 必须大于仓库当前值，默认 14。
 
 PR/main 执行检查；仅手动 `workflow_dispatch` 发布。Actions 选择 Xcode 27.2 正式版，若 runner 尚无该版本则明确失败，不退回 RC。产物为未签名 macOS ZIP、Android universal APK、macOS CLI tar.gz 及 SHA-256。
 

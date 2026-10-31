@@ -5,8 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import art.anjing.tigertv.ui.components.GlassButton
+import art.anjing.tigertv.ui.components.UiMetrics
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import art.anjing.tigertv.R
@@ -37,9 +38,8 @@ fun SearchHistoryRow(
                 text = stringResource(R.string.history_title),
                 style = MaterialTheme.typography.headlineLarge
             )
-            GlassButton(
-                onClick = onClear,
-            ) {
+            GlassButton(onClick = onClear, height = UiMetrics.chipHeight, focusOnly = true,
+                contentPadding = PaddingValues(horizontal = 16.dp)) {
                 Text(stringResource(R.string.clear_history))
             }
         }
@@ -52,6 +52,8 @@ fun SearchHistoryRow(
                 GlassButton(
                     onClick = { onSelect(item) },
                     onLongClick = { onRemove(item) },
+                    height = UiMetrics.chipHeight,
+                    contentPadding = PaddingValues(horizontal = 16.dp),
                 ) {
                     Text(item)
                 }

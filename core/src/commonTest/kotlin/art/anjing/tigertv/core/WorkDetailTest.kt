@@ -22,7 +22,7 @@ class WorkDetailTest {
             assertEquals(listOf("🎬慢", "🎬快"), result.works.single().sources.map { it.site })
             core.recordPlayback(result.works.single().id, "🎬快", "0", "第二集")
             val cached = core.search("逐玉").works.single()
-            assertEquals(PlaybackBookmark("🎬快", "0", "第二集"), cached.playback)
+            assertEquals(PlaybackBookmark("0", "第二集"), cached.playback["🎬快"])
             assertEquals("🎬快", cached.defaultSource.site)
         } finally { core.close() }
     }
@@ -49,7 +49,7 @@ class WorkDetailTest {
 
     @Test fun groupedContractFixtures() {
         val saved = wireJson.decodeFromString<SearchResponse>(contractFixtures.getValue("search-playback.sample.json"))
-        assertEquals(PlaybackBookmark("🎬二", "0", "第02集"), saved.works.single().playback)
+        assertEquals(PlaybackBookmark("0", "第02集"), saved.works.single().playback["🎬二"])
         val search = wireJson.decodeFromString<SearchResponse>(contractFixtures.getValue("search.sample.json"))
         assertEquals(listOf(1, 99), search.works.single().sources.map { it.vodId })
         val detail = wireJson.decodeFromString<FetchResponse>(contractFixtures.getValue("fetch.sample.json"))
@@ -105,7 +105,7 @@ class WorkDetailTest {
         assertEquals(first, work.copy(sources = listOf(first, second.copy(vodPic = " "))).defaultSource)
     }
 
-    @Test fun lastPlayedSitePersistsOneValueAndRefreshesCachedSearch() = runTest {
+    @Test fun bookmarksPersistPerResourceAndRefreshCachedSearch() = runTest {
         val store = MemoryStorage().apply {
             files["source"] = """{"api_site":{"a":{"name":"🎬A","api":"https://a.test"},"b":{"name":"🎬B","api":"https://b.test"}}}"""
         }
@@ -125,16 +125,33 @@ class WorkDetailTest {
             val unwatched = core.search("其他关键词").works.single()
             assertNull(unwatched.lastPlayedSite)
             assertEquals("🎬B", unwatched.defaultSource.site)
-            core.recordPlayback(work.id, "🎬A", "0", "第二集")
+            core.recordPlayback(work.id, "🎬A", "2", "02")
+            core.recordPlayback(work.id, "🎬A", "2", "03")
+            val cached = core.search("同作").works.single()
+            assertEquals(mapOf("🎬A" to PlaybackBookmark("2", "03"), "🎬B" to PlaybackBookmark("0", "第一集")), cached.playback)
             val saved = wireJson.parseToJsonElement(store.files.getValue("persistent/last-played-sources.json")).jsonObject
             assertEquals("🎬A", saved.text("recentSite"))
             assertEquals(1, saved["byWork"]!!.jsonObject.size)
-            assertEquals("🎬A", saved["byWork"]!!.jsonObject[work.id]!!.jsonObject.text("site"))
+            val persisted = saved["byWork"]!!.jsonObject.getValue(work.id).jsonObject
+            assertEquals("🎬A", persisted.text("site"))
+            assertEquals(setOf("🎬A", "🎬B"), persisted.getValue("resources").jsonObject.keys)
         } finally { core.close() }
         store.files.keys.filter { it.startsWith("cache/") }.forEach { store.files.remove(it) }
         val restarted = CoreService("cache", "source", store, client(), historyDirectory = "persistent")
-        try { assertEquals("🎬A", restarted.search("同作").works.single().lastPlayedSite) }
+        try {
+            val restored = restarted.search("同作").works.single()
+            assertEquals("🎬A", restored.lastPlayedSite)
+            assertEquals(mapOf("🎬A" to PlaybackBookmark("2", "03"), "🎬B" to PlaybackBookmark("0", "第一集")), restored.playback)
+        }
         finally { restarted.close() }
+    }
+
+    @Test fun resumeRequiresTheRecordedLineAndExactEpisodeName() {
+        val line = PlaybackSource("0", "主线", listOf(EpisodeLink("第一集", "one"), EpisodeLink("第二集", "two")))
+        assertEquals(1, line.resumeEpisodeIndex(PlaybackBookmark("0", "第二集")))
+        assertEquals(0, line.resumeEpisodeIndex(PlaybackBookmark("2", "第二集")))
+        assertEquals(0, line.resumeEpisodeIndex(PlaybackBookmark("0", "02")))
+        assertEquals(0, line.resumeEpisodeIndex(null))
     }
 
     @Test fun lineNamesStayAlignedAcrossEmptyAndMalformedGroups() {

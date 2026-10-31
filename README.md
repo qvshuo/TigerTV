@@ -8,24 +8,22 @@
 
 ## 特性
 
-- **macOS 应用**：逐源返回并聚合作品，详情切换资源、线路和剧集，支持系统明暗模式
-- **Android TV 应用**：为电视遥控器优化的搜索、选集与播放体验
+- **macOS 应用**：多源并发搜索，结果返回即展示并聚合，支持液态玻璃与系统明暗模式
+- **Android TV 应用**：与 macOS 一致的搜索与播放流程，针对遥控器优化焦点与导航
+- **作品详情**：切换资源、线路与选集，按资源记住上次播放的一集
+- **豆瓣热门**：国产剧、综艺、英美剧、韩剧、日剧与动漫，点击剧名即可搜索
 - **命令行工具**：搜索影视资源、获取播放和下载链接、生成 Quantumult X 直连规则、查看日志
 - **Agent Skill**：为 AI Agent 提供影视搜索、链接获取、直连规则生成和下载流程指引
 
-## 界面
-
-以“嫁金钗”为例，依次为首页、搜索结果、作品详情。图片使用 TinyPNG 压缩。
+## 截图
 
 ### macOS
 
-原生 SwiftUI 视图预览，使用真实接口数据；系统玻璃效果以实际窗口为准。
-
 <table>
   <tr>
-    <td width="33%"><img src="screenshots/macos-home.png" alt="macOS 首页：嫁金钗" width="100%"></td>
-    <td width="33%"><img src="screenshots/macos-results.png" alt="macOS 嫁金钗搜索结果" width="100%"></td>
-    <td width="33%"><img src="screenshots/macos-detail.png" alt="macOS 嫁金钗作品详情" width="100%"></td>
+    <td width="33%"><img src="screenshots/macos-1.png" alt="macOS 首页" width="100%"></td>
+    <td width="33%"><img src="screenshots/macos-2.png" alt="macOS 小城良方搜索结果" width="100%"></td>
+    <td width="33%"><img src="screenshots/macos-3.png" alt="macOS 嫁金钗作品详情" width="100%"></td>
   </tr>
 </table>
 
@@ -33,9 +31,9 @@
 
 <table>
   <tr>
-    <td width="33%"><img src="screenshots/androidtv-home.png" alt="Android TV 首页：嫁金钗" width="100%"></td>
-    <td width="33%"><img src="screenshots/androidtv-results.png" alt="Android TV 嫁金钗搜索结果" width="100%"></td>
-    <td width="33%"><img src="screenshots/androidtv-detail.png" alt="Android TV 嫁金钗作品详情" width="100%"></td>
+    <td width="33%"><img src="screenshots/androidtv-1.png" alt="Android TV 首页" width="100%"></td>
+    <td width="33%"><img src="screenshots/androidtv-2.png" alt="Android TV 小城良方搜索结果" width="100%"></td>
+    <td width="33%"><img src="screenshots/androidtv-3.png" alt="Android TV 嫁金钗作品详情" width="100%"></td>
   </tr>
 </table>
 
@@ -65,7 +63,7 @@ xattr -dr com.apple.quarantine "/Applications/小老虎爱看剧.app"
 
 ### 命令行工具
 
-目前支持 macOS（Apple Silicon），无需安装 Java 或 Python。
+适用于 macOS（Apple Silicon），使用共享 Kotlin 核心编译为原生可执行文件。
 
 一键安装：
 
@@ -101,5 +99,3 @@ tigertv logs
 ## 开发
 
 构建与发布见 [开发说明](docs/README.md)，数据与交互见 [契约](docs/contract.md)，实现约定见 [AGENTS.md](AGENTS.md)。
-
-暂不支持 Windows。

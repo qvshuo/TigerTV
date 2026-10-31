@@ -8,6 +8,9 @@ protocol VideoRepository: Sendable {
     func resolvePlaybackUrl(url: String) async -> LoadResult<String>
     func coverFallbackURL(siteName: String, vodId: Int) async -> URL?
     func recordPlayback(workId: String, site: String, line: String, episode: String) async
+    func loadHotSearchCategories() async -> [HotSearchCategory]
+    func warmHotSearches(category: String) async
+    func loadHotSearches(category: String) async -> [String]
     func loadHistory() async -> [String]
     func saveHistory(_ items: [String]) async
 }
@@ -39,19 +42,34 @@ actor SharedCoreRepository: VideoRepository {
                 }
                 if let response = facade.takeResult(id: id) {
                     let result = try JSONDecoder().decode(Envelope<T>.self, from: Data(response.utf8))
-                    if let error = result.error { return .failure(.network(error)) }
+                    if let error = result.error {
+                        NSLog("Core %@ failed: %@", operation, error)
+                        return .failure(.request(error))
+                    }
                     guard let value = result.data else { return .failure(.invalidResponse) }
                     return .success(value)
                 }
                 try await Task.sleep(for: .milliseconds(20))
             }
         } catch {
-            return .failure(.network(error.localizedDescription))
+            if !(error is CancellationError) { NSLog("Core %@ failed: %@", operation, error.localizedDescription) }
+            return .failure(.request(error.localizedDescription))
         }
     }
 
     func recordPlayback(workId: String, site: String, line: String, episode: String) async {
         _ = await request("recordPlayback", ["work_id": workId, "site": site, "line": line, "episode": episode], as: Bool.self)
+    }
+    func warmHotSearches(category: String) async {
+        _ = await request("warmHotSearches", ["category": category], as: Bool.self)
+    }
+    func loadHotSearchCategories() async -> [HotSearchCategory] {
+        if case .success(let categories) = await request("hotSearchCategories", as: [HotSearchCategory].self) { return categories }
+        return []
+    }
+    func loadHotSearches(category: String) async -> [String] {
+        if case .success(let titles) = await request("hotSearches", ["category": category], as: [String].self) { return titles }
+        return []
     }
     func loadHistory() async -> [String] {
         if case .success(let history) = await request("history", as: [String].self) { return history }

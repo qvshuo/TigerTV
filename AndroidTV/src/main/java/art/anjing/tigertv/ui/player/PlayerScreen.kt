@@ -84,7 +84,7 @@ fun PlayerScreen(
                 if (isPlaying) exoPlayer.currentMediaItem?.localConfiguration?.uri?.toString()?.let(viewModel::playbackDidStart)
             }
             override fun onPlayerError(error: PlaybackException) {
-                viewModel.setPlaybackError(error.message ?: "Playback error")
+                viewModel.setPlaybackError(error.message ?: "播放失败")
             }
         }
         exoPlayer.addListener(listener)
@@ -144,7 +144,7 @@ fun PlayerScreen(
         )
 
         if (viewModel.isResolvingPlayback) {
-            LoadingOverlay("正在解析播放地址…", Modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)))
+            LoadingOverlay("正在准备播放…", Modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)))
         }
 
         viewModel.playbackErrorMessage?.let { error ->
@@ -173,18 +173,6 @@ fun PlayerScreen(
                             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                         ) {
                             Text(stringResource(R.string.retry))
-                        }
-                        val episodes = viewModel.episodes
-                        val hasNext = viewModel.selectedEpisodeIndex + 1 < episodes.size
-                        if (hasNext) {
-                            GlassButton(
-                                onClick = {
-                                    viewModel.selectEpisode(viewModel.selectedEpisodeIndex + 1)
-                                },
-                                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-                            ) {
-                                Text(stringResource(R.string.next_episode))
-                            }
                         }
                         BackButton(onClick = {
                             viewModel.clearPlayback()

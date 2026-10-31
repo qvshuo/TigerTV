@@ -55,6 +55,8 @@ import art.anjing.tigertv.ui.components.BackButton
 import art.anjing.tigertv.ui.components.ErrorMessage
 import art.anjing.tigertv.ui.components.SearchButton
 import art.anjing.tigertv.ui.components.TvCardShape
+import art.anjing.tigertv.ui.components.UiMotion
+import art.anjing.tigertv.ui.components.UiSpacing
 import art.anjing.tigertv.ui.requestFocusSafely
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
 import art.anjing.tigertv.util.normalizeCoverUrl
@@ -71,7 +73,7 @@ fun ResultsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 32.dp)
+                .padding(horizontal = UiSpacing.lg, vertical = UiSpacing.xl)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -175,7 +177,7 @@ private fun WorkCard(
     val result = work.defaultSource
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
-    val focus = animateFloatAsState(if (focused) 1f else 0f, tween(160), label = "card glass focus")
+    val focus = animateFloatAsState(if (focused) 1f else 0f, tween(UiMotion.durationMillis), label = "card glass focus")
     LaunchedEffect(work.sources) { work.sources.forEach(onLoadCoverFallback) }
     Card(
         onClick = { onSelectResult(result) },
