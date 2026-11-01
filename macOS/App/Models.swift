@@ -129,3 +129,13 @@ struct HotSearchCategory: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
 }
+
+struct HotSearchItem: Codable, Identifiable, Sendable {
+    let id: String
+    let title: String
+    let year: String
+    let poster: String
+    let rating: Double?
+    let ratingCount: Int
+    let status: String
+}

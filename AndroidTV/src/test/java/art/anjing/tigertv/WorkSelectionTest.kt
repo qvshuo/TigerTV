@@ -47,6 +47,8 @@ class WorkSelectionTest {
 
     @After fun tearDown() { Dispatchers.resetMain() }
 
+    private fun hotItem(title: String) = art.anjing.tigertv.domain.HotSearchItem(title, title, "2026", "", null, 0, "")
+
     @Test fun warmupStartsAfterVisibleTitlesAndSurvivesCategorySwitchUntilHomeCloses() = runTest(dispatcher) {
         every { repository.hotSearchCategories() } returns listOf(
             HotSearchCategory("chinese", "国产剧"), HotSearchCategory("korean", "韩剧")
@@ -59,13 +61,13 @@ class WorkSelectionTest {
         viewModel.loadHotSearches()
         runCurrent()
         coVerify(exactly = 0) { repository.warmHotSearches(any()) }
-        coEvery { repository.hotSearches("chinese") } returns listOf("国产甲")
+        coEvery { repository.hotSearches("chinese") } returns listOf(hotItem("国产甲"))
         viewModel.loadHotSearches()
         runCurrent()
-        assertEquals(listOf("国产甲"), viewModel.hotSearches)
+        assertEquals(listOf("国产甲"), viewModel.hotSearches.map { it.title })
         assertFalse(viewModel.isLoadingHotSearches)
         coVerify(exactly = 1) { repository.warmHotSearches("chinese") }
-        coEvery { repository.hotSearches("korean") } returns listOf("韩剧甲")
+        coEvery { repository.hotSearches("korean") } returns listOf(hotItem("韩剧甲"))
         viewModel.selectHotSearchCategory("korean")
         viewModel.loadHotSearches()
         runCurrent()
@@ -85,7 +87,7 @@ class WorkSelectionTest {
             HotSearchCategory("chinese", "国产剧"), HotSearchCategory("korean", "韩剧")
         )
         coEvery { repository.hotSearches("chinese") } coAnswers { awaitCancellation() }
-        coEvery { repository.hotSearches("korean") } returns listOf("韩剧甲")
+        coEvery { repository.hotSearches("korean") } returns listOf(hotItem("韩剧甲"))
         viewModel.loadHotSearchCategories()
         assertEquals("chinese", viewModel.selectedHotCategory)
         val old = launch { viewModel.loadHotSearches() }
@@ -94,7 +96,7 @@ class WorkSelectionTest {
         viewModel.selectHotSearchCategory("korean")
         old.cancelAndJoin()
         viewModel.loadHotSearches()
-        assertEquals(listOf("韩剧甲"), viewModel.hotSearches)
+        assertEquals(listOf("韩剧甲"), viewModel.hotSearches.map { it.title })
         assertFalse(viewModel.isLoadingHotSearches)
         viewModel.selectHotSearchCategory("unknown")
         assertEquals("korean", viewModel.selectedHotCategory)

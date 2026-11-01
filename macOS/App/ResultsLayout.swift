@@ -276,7 +276,7 @@ struct ResultsLayout: View {
                 .font(.title3)
         } else {
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: AppSpacing.md)], spacing: AppSpacing.md)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: AppSpacing.md, alignment: .top)], spacing: AppSpacing.md)
                 {
                     ForEach(works) { work in
                         if let result = work.defaultSource {

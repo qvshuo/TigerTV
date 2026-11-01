@@ -49,13 +49,14 @@ struct HistoryChip: View {
     let onSelect: () -> Void
     let onDelete: () -> Void
     @State private var deleteHovered = false
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button {
             onSelect()
         } label: {
-            Text(text).font(.callout).lineLimit(1).padding(.horizontal, AppSpacing.xs)
+            Text(text).font(.caption).lineLimit(1).padding(.horizontal, AppSpacing.xs)
         }
         .controlSize(.large)
         .buttonStyle(.glass)
@@ -69,11 +70,14 @@ struct HistoryChip: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("移除记录")
-                .foregroundStyle(Color.secondary.opacity(deleteHovered ? 1 : 0.7))
+                .foregroundStyle(colorScheme == .dark
+                    ? Color.primary.opacity(deleteHovered ? 1 : 0.85)
+                    : Color.secondary.opacity(deleteHovered ? 1 : 0.7))
                 .background(.background, in: .circle)
                 .onHover { deleteHovered = $0 }
                 .animation(reduceMotion ? nil : AppMotion.control, value: deleteHovered)
                 .help("移除记录")
+                .offset(x: 2, y: -2)
                 .transition(.opacity)
             }
         }

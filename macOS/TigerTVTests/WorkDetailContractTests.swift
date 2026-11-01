@@ -8,6 +8,15 @@ final class WorkDetailContractTests: XCTestCase {
         return try Data(contentsOf: root.appendingPathComponent("docs/fixtures/" + name))
     }
 
+    func testHotSearchCardsDecodeSharedFixture() throws {
+        let cards = try JSONDecoder().decode([HotSearchItem].self, from: fixture("hot-search.sample.json"))
+        XCTAssertEqual(cards.count, 2)
+        XCTAssertNil(cards[0].rating)
+        XCTAssertEqual(cards[1].rating, 7.0)
+        XCTAssertEqual(cards[1].year, "2026")
+        XCTAssertFalse(cards[0].poster.isEmpty)
+    }
+
     func testPlaybackBookmarkContract() throws {
         let response = try JSONDecoder().decode(SearchResponse.self, from: fixture("search-playback.sample.json"))
         XCTAssertEqual(response.works.first?.playback["🎬二"], PlaybackBookmark(line: "0", episode: "第02集"))

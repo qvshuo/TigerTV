@@ -40,7 +40,7 @@ fun SearchHistoryRow(
             )
             GlassButton(onClick = onClear, height = UiMetrics.chipHeight, focusOnly = true,
                 contentPadding = PaddingValues(horizontal = 16.dp)) {
-                Text(stringResource(R.string.clear_history))
+                Text(stringResource(R.string.clear_history), style = MaterialTheme.typography.bodyMedium)
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
@@ -55,7 +55,7 @@ fun SearchHistoryRow(
                     height = UiMetrics.chipHeight,
                     contentPadding = PaddingValues(horizontal = 16.dp),
                 ) {
-                    Text(item)
+                    Text(item, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }

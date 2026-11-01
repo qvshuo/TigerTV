@@ -10,7 +10,7 @@ protocol VideoRepository: Sendable {
     func recordPlayback(workId: String, site: String, line: String, episode: String) async
     func loadHotSearchCategories() async -> [HotSearchCategory]
     func warmHotSearches(category: String) async
-    func loadHotSearches(category: String) async -> [String]
+    func loadHotSearches(category: String) async -> [HotSearchItem]
     func loadHistory() async -> [String]
     func saveHistory(_ items: [String]) async
 }
@@ -67,8 +67,8 @@ actor SharedCoreRepository: VideoRepository {
         if case .success(let categories) = await request("hotSearchCategories", as: [HotSearchCategory].self) { return categories }
         return []
     }
-    func loadHotSearches(category: String) async -> [String] {
-        if case .success(let titles) = await request("hotSearches", ["category": category], as: [String].self) { return titles }
+    func loadHotSearches(category: String) async -> [HotSearchItem] {
+        if case .success(let titles) = await request("hotSearches", ["category": category], as: [HotSearchItem].self) { return titles }
         return []
     }
     func loadHistory() async -> [String] {

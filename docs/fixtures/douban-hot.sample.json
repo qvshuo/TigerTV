@@ -1,0 +1,36 @@
+{
+  "subject_collection_items": [
+    {
+      "id": "36675942",
+      "title": "小城良方",
+      "year": "2026",
+      "pic": {
+        "large": "https://img2.doubanio.com/view/photo/m_ratio_poster/public/p2936709341.jpg",
+        "normal": "https://img2.doubanio.com/view/photo/s_ratio_poster/public/p2936709341.jpg"
+      },
+      "rating": {
+        "count": 0,
+        "max": 10,
+        "star_count": 0,
+        "value": 0
+      },
+      "episodes_info": "更新至24集"
+    },
+    {
+      "id": "37191789",
+      "title": "嫁金钗",
+      "year": "2026",
+      "pic": {
+        "large": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936594583.jpg",
+        "normal": "https://img3.doubanio.com/view/photo/s_ratio_poster/public/p2936594583.jpg"
+      },
+      "rating": {
+        "count": 71940,
+        "max": 10,
+        "star_count": 3.5,
+        "value": 7.0
+      },
+      "episodes_info": "更新至24集"
+    }
+  ]
+}

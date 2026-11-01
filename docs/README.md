@@ -43,10 +43,12 @@ swiftc -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -fr
 
 ## 发布
 
-当前版本 4.0.0，Android versionCode 13，macOS build 10。手动发布的 versionCode 必须大于仓库当前值，默认 14。
+当前版本 4.1.0，Android versionCode 15，macOS build 11。手动发布的 versionCode 必须大于仓库当前值，默认 16。
 
 PR/main 执行检查；仅手动 `workflow_dispatch` 发布。Actions 使用 Xcode 27.2 版本别名，校验 Xcode 与 macOS SDK 27.2，不锁定构建号；托管镜像更新前允许使用该别名指向的 RC。产物为未签名 macOS ZIP、Android universal APK、macOS CLI tar.gz 及 SHA-256。
 
 Android 固定复用 Interlude 的既有 debug keystore，CI 从现有四项签名 secrets 恢复；不得临时生成密钥。每次发布增加 versionCode。发布前在实际设备验证遥控器、返回、HLS/MP4、重试、全屏、中文输入与关闭释放；自动测试不能代替设备验收。
 
 保持依赖更新检查开启，不为消除提示而屏蔽诊断。Kotlin 2.4.21 在 Gradle 9.8.2 下存在上游 Native 属性弃用及部分调试符号诊断；未采用 Beta 或隐藏这些诊断。
+
+首页热门卡片与搜索结果卡片共用平台原生组件上的样式封装：macOS 使用 SwiftUI Button、GroupBox 与 Layout；Android TV 使用 TV Material Card/Button、Foundation BasicTextField 与布局。热门接口与缓存属于 core，样例见 `fixtures/douban-hot.sample.json`（上游）与 `fixtures/hot-search.sample.json`（共享输出）。豆瓣图片带 Referer，并逐行并发加载；具体字号、间距与平台交互以 `contract.md` 为准。

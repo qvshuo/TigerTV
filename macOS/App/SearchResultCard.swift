@@ -15,47 +15,18 @@ struct SearchResultCard: View {
     var body: some View {
         Button(action: onTap) {
             GroupBox {
-                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                MediaCardContent(title: result.vodYear.isEmpty ? result.vodName : "\(result.vodName) (\(result.vodYear))", footer: result.vodTime) {
                     cover
-
-                    Text(result.displayTitle)
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
-
+                } information: {
                     HStack(spacing: AppSpacing.xs) {
-                        Text("\(work.sources.count) 个资源")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .contentTransition(.numericText())
-                            .animation(reduceMotion ? nil : AppMotion.control, value: work.sources.count)
-                            .lineLimit(1)
-                            .padding(.horizontal, AppSpacing.sm)
-                            .padding(.vertical, 3)
-                            .foregroundStyle(Color.accentColor)
-                            .background(Color.accentColor.opacity(0.12), in: .rect(cornerRadius: 6))
-                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.accentColor.opacity(0.25)))
-
-                        if !result.vodRemarks.isEmpty {
-                            Text(result.vodRemarks)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-
-                    if !result.vodTime.isEmpty || !result.vodYear.isEmpty {
-                        Text(result.vodTime.isEmpty ? result.vodYear : result.vodTime)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
+                        Text("\(work.sources.count) 个资源").foregroundStyle(Color.accentColor)
+                        Text(result.vodRemarks).foregroundStyle(.secondary)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(AppSpacing.sm)
             }
         }
         .buttonStyle(.plain)
+        .modifier(MediaCardHover())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .overlay(alignment: .topTrailing) {
             if isLoading {

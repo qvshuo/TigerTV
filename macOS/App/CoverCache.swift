@@ -39,12 +39,20 @@ final class CoverImageCache: @unchecked Sendable {
             return cached
         }
         let file = diskFile(for: url)
-        if let fresh = ioQueue.sync(execute: { freshDiskImage(at: file) }) {
+        let diskImage = await withCheckedContinuation { continuation in
+            ioQueue.async { continuation.resume(returning: self.freshDiskImage(at: file)) }
+        }
+        guard !Task.isCancelled else { return nil }
+        if let fresh = diskImage {
             memory.setObject(fresh, forKey: url as NSURL, cost: imageCost(fresh))
             return fresh
         }
 
-        guard let (data, response) = try? await session.data(from: url, delegate: nil),
+        var request = URLRequest(url: url)
+        if let host = url.host, host == "doubanio.com" || host.hasSuffix(".doubanio.com") {
+            request.setValue("https://m.douban.com/", forHTTPHeaderField: "Referer")
+        }
+        guard let (data, response) = try? await session.data(for: request),
               let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode),
               data.count <= Self.maxResponseSize,

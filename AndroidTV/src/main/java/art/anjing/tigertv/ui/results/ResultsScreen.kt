@@ -1,15 +1,10 @@
 package art.anjing.tigertv.ui.results
 
+import art.anjing.tigertv.ui.components.MediaCard
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
-import androidx.tv.material3.Border
-import art.anjing.tigertv.ui.components.tvGlass
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,11 +20,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,8 +37,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Card
-import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -54,8 +47,6 @@ import art.anjing.tigertv.domain.SearchResult
 import art.anjing.tigertv.ui.components.BackButton
 import art.anjing.tigertv.ui.components.ErrorMessage
 import art.anjing.tigertv.ui.components.SearchButton
-import art.anjing.tigertv.ui.components.TvCardShape
-import art.anjing.tigertv.ui.components.UiMotion
 import art.anjing.tigertv.ui.components.UiSpacing
 import art.anjing.tigertv.ui.requestFocusSafely
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
@@ -175,24 +166,8 @@ private fun WorkCard(
     modifier: Modifier = Modifier
 ) {
     val result = work.defaultSource
-    val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
-    val focus = animateFloatAsState(if (focused) 1f else 0f, tween(UiMotion.durationMillis), label = "card glass focus")
     LaunchedEffect(work.sources) { work.sources.forEach(onLoadCoverFallback) }
-    Card(
-        onClick = { onSelectResult(result) },
-        modifier = modifier.fillMaxWidth(),
-        interactionSource = interactions,
-        shape = CardDefaults.shape(TvCardShape),
-        scale = CardDefaults.scale(focusedScale = 1.04f),
-        border = CardDefaults.border(border = Border.None, focusedBorder = Border.None),
-        colors = CardDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onSurface, focusedContentColor = MaterialTheme.colorScheme.onSurface)
-    ) {
-        Column(
-            modifier = Modifier.tvGlass(focus, 18.dp).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+    MediaCard(onClick = { onSelectResult(result) }, modifier = modifier) {
             CoverImage(
                 workId = work.id,
                 urls = work.orderedSources.mapNotNull { source ->
@@ -201,25 +176,26 @@ private fun WorkCard(
                 title = result.vodName,
                 modifier = Modifier.fillMaxWidth().aspectRatio(CoverAspectRatio).clip(RoundedCornerShape(10.dp))
             )
-            Text(result.vodName, style = MaterialTheme.typography.titleMedium, minLines = 2, maxLines = 2,
-                modifier = Modifier.height(56.dp), overflow = TextOverflow.Ellipsis)
-            Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("${work.sources.size} 个资源", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary, maxLines = 1,
-                    modifier = Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
-                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 6.dp, vertical = 3.dp))
-                Text(result.vodRemarks, style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2,
-                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            art.anjing.tigertv.ui.components.MediaCardDetails(
+                title = if (result.vodYear.isBlank()) result.vodName else "${result.vodName} (${result.vodYear})",
+                footer = result.vodTime
+            ) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("${work.sources.size} 个资源", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary, maxLines = 1,
+                        modifier = Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp))
+                    Text(result.vodRemarks, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                }
             }
-            Text(result.vodTime.ifBlank { result.vodYear }, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f), maxLines = 1,
-                modifier = Modifier.height(18.dp), overflow = TextOverflow.Ellipsis)
-        }
+
     }
 }
+
 
 private val GridContentPadding = 8.dp
 private val GridVerticalPadding = 16.dp
