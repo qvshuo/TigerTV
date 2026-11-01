@@ -81,10 +81,10 @@ class CoreService(
         }
     }
 
-    suspend fun hotSearches(category: String): List<String> {
+    suspend fun hotSearches(category: String): List<HotSearchItem> {
         val collection = HOT_SEARCH_COLLECTIONS.firstOrNull { it.id == category } ?: error("未知热门分类")
         return hotSearchLocks.getValue(category).withLock {
-            val path = "$directory/hot-searches-${collection.id}.json"
+            val path = "$directory/hot-cards-${collection.id}.json"
             val cached = cacheRead { wireJson.decodeFromString<HotSearchCache>(storage.read(path) ?: "") }
             val age = cached?.let { clock() - it.fetchedAtMillis }
             if (cached != null && age != null && age in 0 until 6 * 60 * 60 * 1000L) return@withLock cached.titles
@@ -94,7 +94,10 @@ class CoreService(
                     8_000, mapOf("Referer" to "https://m.douban.com/tv/${collection.id}")
                 )
                 val titles = wireJson.decodeFromString<HotSearchPage>(raw).items
-                    .map { it.title.trim() }.filter { it.isNotEmpty() }.distinct().take(12)
+                    .filter { it.id.isNotBlank() && it.title.isNotBlank() }.distinctBy { it.id }.take(12).map {
+                        HotSearchItem(it.id, it.title.trim(), it.year.trim(), it.pic?.large.orEmpty().trim(),
+                            it.rating?.value?.takeIf { score -> score > 0 && score <= 10 }, (it.rating?.count ?: 0).coerceAtLeast(0), it.status)
+                    }
                 check(titles.isNotEmpty()) { "热门剧集为空" }
                 cacheRead { storage.writeAtomic(path, wireJson.encodeToString(HotSearchCache(clock(), titles))) }
                 titles
@@ -357,13 +360,20 @@ private data class PlayedSources(val recentSite: String? = null, val byWork: Map
 private data class WorkPlayback(val site: String, val resources: Map<String, PlaybackBookmark>)
 
 @Serializable
-private data class HotSearchCache(val fetchedAtMillis: Long, val titles: List<String>)
+private data class HotSearchCache(val fetchedAtMillis: Long, val titles: List<HotSearchItem>)
 
 @Serializable
-private data class HotSearchPage(@SerialName("subject_collection_items") val items: List<HotSearchItem>)
+private data class HotSearchPage(@SerialName("subject_collection_items") val items: List<DoubanItem>)
 
 @Serializable
-private data class HotSearchItem(val title: String)
+private data class DoubanItem(
+    val id: String, val title: String, val year: String = "", val pic: DoubanPicture? = null,
+    val rating: DoubanRating? = null, @SerialName("episodes_info") val status: String = ""
+)
+@Serializable
+private data class DoubanPicture(val large: String = "")
+@Serializable
+private data class DoubanRating(val value: Double = 0.0, val count: Int = 0)
 
 private data class HotSearchCollection(val id: String, val name: String, val collection: String)
 

@@ -102,7 +102,7 @@ class TigerTVViewModel(
         private set
 
     val searchHistory = mutableStateListOf<String>()
-    var hotSearches by mutableStateOf<List<String>>(emptyList())
+    var hotSearches by mutableStateOf<List<art.anjing.tigertv.domain.HotSearchItem>>(emptyList())
         private set
     var hotSearchCategories by mutableStateOf<List<HotSearchCategory>>(emptyList())
         private set

@@ -11,7 +11,7 @@
 - **macOS 应用**：多源并发搜索，结果返回即展示并聚合，支持液态玻璃与系统明暗模式
 - **Android TV 应用**：与 macOS 一致的搜索与播放流程，针对遥控器优化焦点与导航
 - **作品详情**：切换资源、线路与选集，按资源记住上次播放的一集
-- **豆瓣热门**：国产剧、综艺、英美剧、韩剧、日剧与动漫，点击剧名即可搜索
+- **豆瓣热门**：国产剧、综艺、英美剧、韩剧、日剧与动漫，以海报卡片展示年份、评分与更新状态，点击即可搜索
 - **命令行工具**：搜索影视资源、获取播放和下载链接、生成 Quantumult X 直连规则、查看日志
 - **Agent Skill**：为 AI Agent 提供影视搜索、链接获取、直连规则生成和下载流程指引
 
@@ -22,7 +22,7 @@
 <table>
   <tr>
     <td width="33%"><img src="screenshots/macos-1.png" alt="macOS 首页" width="100%"></td>
-    <td width="33%"><img src="screenshots/macos-2.png" alt="macOS 小城良方搜索结果" width="100%"></td>
+    <td width="33%"><img src="screenshots/macos-2.png" alt="macOS 小城搜索结果" width="100%"></td>
     <td width="33%"><img src="screenshots/macos-3.png" alt="macOS 嫁金钗作品详情" width="100%"></td>
   </tr>
 </table>
@@ -32,7 +32,7 @@
 <table>
   <tr>
     <td width="33%"><img src="screenshots/androidtv-1.png" alt="Android TV 首页" width="100%"></td>
-    <td width="33%"><img src="screenshots/androidtv-2.png" alt="Android TV 小城良方搜索结果" width="100%"></td>
+    <td width="33%"><img src="screenshots/androidtv-2.png" alt="Android TV 小城搜索结果" width="100%"></td>
     <td width="33%"><img src="screenshots/androidtv-3.png" alt="Android TV 嫁金钗作品详情" width="100%"></td>
   </tr>
 </table>

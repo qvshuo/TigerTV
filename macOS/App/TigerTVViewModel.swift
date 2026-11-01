@@ -44,7 +44,7 @@ final class TigerTVViewModel: ObservableObject {
     @Published private(set) var playbackErrorMessage: String?
 
     @Published private(set) var searchHistory: [String] = []
-    @Published private(set) var hotSearches: [String] = []
+    @Published private(set) var hotSearches: [HotSearchItem] = []
     @Published private(set) var hotSearchCategories: [HotSearchCategory] = []
     @Published private(set) var selectedHotCategory = ""
     @Published private(set) var isLoadingHotSearches = false

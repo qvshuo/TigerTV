@@ -14,8 +14,8 @@ android {
         applicationId = "art.anjing.tigertv"
         minSdk = 34
         targetSdk = 37
-        versionCode = providers.gradleProperty("androidVersionCode").orElse("13").get().toInt()
-        versionName = providers.gradleProperty("releaseVersion").orElse("4.0.0").get()
+        versionCode = providers.gradleProperty("androidVersionCode").orElse("15").get().toInt()
+        versionName = providers.gradleProperty("releaseVersion").orElse("4.1.0").get()
 
         // Include both 32-bit (TV) and 64-bit (modern devices/emulators) ABIs.
         ndk {

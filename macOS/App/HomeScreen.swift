@@ -9,7 +9,7 @@ struct HomeScreen: View {
     let onDeleteHistory: (String) -> Void
     let onClearHistory: () -> Void
     let onRetryConfig: () -> Void
-    var hotSearches: [String] = []
+    var hotSearches: [HotSearchItem] = []
     var hotCategories: [HotSearchCategory] = []
     var selectedHotCategory = ""
     var isLoadingHotSearches = false
@@ -19,45 +19,41 @@ struct HomeScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: AppSpacing.xl) {
-                VStack(spacing: AppSpacing.sm) {
-                    Text("小老虎爱看剧").font(.system(size: 46, weight: .bold, design: .rounded))
-                    Text("全网好剧，一搜即达").font(.title2).foregroundStyle(.secondary)
-                }
-                VStack(spacing: AppSpacing.md) {
-                    SearchBar(keyword: $keyword, onSearch: onSearch, compact: false)
-                    if let configErrorMessage {
-                        GroupBox {
-                            AppFailureState(message: configErrorMessage, onRetry: onRetryConfig, compact: true)
-                                .padding(AppSpacing.sm)
-                        }
-                    }
-                    if !history.isEmpty {
-                        SearchHistoryView(
-                            history: history, onSelect: onSelectHistory,
-                            onDelete: onDeleteHistory, onClear: onClearHistory)
-                    }
-                    if !hotCategories.isEmpty {
-                        HotSearchSection(
-                            titles: hotSearches, categories: hotCategories,
-                            selectedCategory: selectedHotCategory, isLoading: isLoadingHotSearches,
-                            onSelectCategory: onSelectHotCategory, onSearch: onSelectHistory,
-                            onRetry: onRetryHotSearches)
+            VStack(spacing: AppSpacing.md) {
+                SearchBar(keyword: $keyword, onSearch: onSearch, compact: false)
+                if let configErrorMessage {
+                    GroupBox {
+                        AppFailureState(
+                            message: configErrorMessage, onRetry: onRetryConfig, compact: true
+                        )
+                        .padding(AppSpacing.sm)
                     }
                 }
-                .animation(reduceMotion ? nil : AppMotion.control, value: history.isEmpty)
-                .animation(reduceMotion ? nil : AppMotion.control, value: configErrorMessage)
+                if !history.isEmpty {
+                    SearchHistoryView(
+                        history: history, onSelect: onSelectHistory,
+                        onDelete: onDeleteHistory, onClear: onClearHistory)
+                }
+                if !hotCategories.isEmpty {
+                    HotSearchSection(
+                        titles: hotSearches, categories: hotCategories,
+                        selectedCategory: selectedHotCategory, isLoading: isLoadingHotSearches,
+                        onSelectCategory: onSelectHotCategory, onSearch: onSelectHistory,
+                        onRetry: onRetryHotSearches)
+                }
             }
-            .frame(maxWidth: 560)
+            .animation(reduceMotion ? nil : AppMotion.control, value: history.isEmpty)
+            .animation(reduceMotion ? nil : AppMotion.control, value: configErrorMessage)
+            .frame(maxWidth: AppMetrics.contentWidth)
             .padding(AppSpacing.lg)
-            .padding(.top, AppSpacing.xl + AppSpacing.lg * 3)
+            .padding(.top, AppSpacing.md)
             .frame(maxWidth: .infinity)
         }
     }
 }
 
 struct HotSearchSection: View {
-    let titles: [String]
+    let titles: [HotSearchItem]
     let categories: [HotSearchCategory]
     let selectedCategory: String
     let isLoading: Bool
@@ -67,49 +63,110 @@ struct HotSearchSection: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    @State private var images: [String: NSImage] = [:]
+    @State private var columns = 5
+
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                Text("豆瓣热门").font(.caption).foregroundStyle(.secondary)
-                ViewThatFits(in: .horizontal) {
-                    categoryButtons
-                    ScrollView(.horizontal) { categoryButtons }.scrollIndicators(.hidden)
-                }
-                .frame(height: AppMetrics.compactSearchHeight)
-                Divider().opacity(0.5)
-                Group {
-                    if isLoading {
-                        AppLoadingState(message: "正在加载热门内容…", compact: true)
-                            .frame(height: AppMetrics.hotSearchHeight)
-                    } else if titles.isEmpty {
-                        AppFailureState(message: "热门内容暂不可用，请重试", onRetry: onRetry, compact: true)
-                    } else {
-                        ScrollView {
-                            FlowLayout(spacing: AppSpacing.sm, lineSpacing: AppSpacing.sm) {
-                                ForEach(titles, id: \.self) { title in
-                                    Button {
-                                        onSearch(title)
-                                    } label: {
-                                        Text(title).font(.callout).lineLimit(1)
-                                            .padding(.horizontal, AppSpacing.xs)
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            Text("豆瓣热门").font(.caption).foregroundStyle(.secondary)
+            ViewThatFits(in: .horizontal) {
+                categoryButtons
+                ScrollView(.horizontal) { categoryButtons }.scrollIndicators(.hidden)
+            }
+            .frame(minHeight: AppMetrics.controlHeight)
+            Group {
+                if isLoading {
+                    AppLoadingState(message: "正在加载热门内容…", compact: true)
+                        .frame(height: AppMetrics.hotSearchHeight)
+                } else if titles.isEmpty {
+                    AppFailureState(message: "热门内容暂不可用，请重试", onRetry: onRetry, compact: true)
+                } else {
+                    LazyVGrid(
+                        columns: [
+                            GridItem(
+                                .adaptive(minimum: 200), spacing: AppSpacing.md, alignment: .top)
+                        ],
+                        spacing: AppSpacing.md
+                    ) {
+                        ForEach(titles) { item in
+                            Button {
+                                onSearch(item.title)
+                            } label: {
+                                GroupBox {
+                                    MediaCardContent(
+                                        title: item.year.isEmpty
+                                            ? item.title : "\(item.title) (\(item.year))",
+                                        footer: item.status
+                                    ) {
+                                        Color.secondary.opacity(0.1).overlay {
+                                            if let image = images[item.id] {
+                                                Image(nsImage: image).resizable().scaledToFill()
+                                            } else {
+                                                Text(String(item.title.prefix(1))).font(.largeTitle)
+                                                    .foregroundStyle(
+                                                        .secondary)
+                                            }
+                                        }
+                                        .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                                        .clipped().clipShape(
+                                            RoundedRectangle(cornerRadius: AppRadius.sm))
+                                    } information: {
+                                        Text(
+                                            item.rating.map {
+                                                "豆瓣 " + String(format: "%.1f", $0)
+                                                    + " · \(item.ratingCount)人"
+                                            } ?? "暂无评分"
+                                        )
+                                        .foregroundStyle(.secondary)
                                     }
-                                    .controlSize(.large)
-                                    .buttonStyle(.glass)
-                                    .buttonBorderShape(.capsule)
+                                }
+                            }.buttonStyle(.plain).modifier(MediaCardHover())
+                        }
+                    }
+                    .onGeometryChange(for: Int.self) {
+                        max(1, Int(($0.size.width + 16) / 216))
+                    } action: {
+                        columns = $0
+                    }
+                    .task(
+                        id:
+                            "\(selectedCategory):\(columns):\(titles.map(\.id).joined(separator: ","))"
+                    ) {
+                        let batchSize = columns
+                        let items = titles
+                        images = [:]
+                        for start in stride(from: 0, to: items.count, by: batchSize) {
+                            guard !Task.isCancelled else { return }
+                            let row = Array(items[start..<min(start + batchSize, items.count)])
+                            await withTaskGroup(of: (String, NSImage?).self) { group in
+                                for item in row {
+                                    group.addTask {
+                                        guard
+                                            let url = HTTPClient.percentEncodedURL(
+                                                from: item.poster)
+                                        else {
+                                            return (item.id, nil)
+                                        }
+                                        return (
+                                            item.id, await CoverImageCache.shared.image(for: url)
+                                        )
+                                    }
+                                }
+                                for await (id, image) in group {
+                                    guard !Task.isCancelled else { continue }
+                                    images[id] = image
                                 }
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
                         }
                     }
                 }
-                .frame(height: AppMetrics.hotSearchHeight, alignment: .top)
-                .animation(reduceMotion ? nil : AppMotion.control, value: isLoading)
-
             }
-            .padding(AppSpacing.sm)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: AppMetrics.hotSearchHeight, alignment: .top)
+            .animation(reduceMotion ? nil : AppMotion.control, value: isLoading)
+
         }
+        .padding(AppSpacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var categoryButtons: some View {
@@ -120,7 +177,10 @@ struct HotSearchSection: View {
                         onSelectCategory(category.id)
                     } label: {
                         Text(category.name)
-                            .font(.callout.weight(category.id == selectedCategory ? .semibold : .regular))
+                            .font(
+                                .callout.weight(
+                                    category.id == selectedCategory ? .semibold : .regular)
+                            )
                             .frame(width: 42)
                     }
                     .buttonStyle(.glass)

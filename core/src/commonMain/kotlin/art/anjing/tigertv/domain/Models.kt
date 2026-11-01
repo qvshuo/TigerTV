@@ -99,3 +99,10 @@ data class PlaybackBookmark(val line: String, val episode: String)
 
 @Serializable
 data class HotSearchCategory(val id: String, val name: String)
+
+@Serializable
+data class HotSearchItem(
+    val id: String, val title: String, val year: String,
+    val poster: String, val rating: Double?, val ratingCount: Int,
+    val status: String
+)
