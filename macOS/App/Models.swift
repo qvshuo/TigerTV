@@ -69,9 +69,11 @@ struct VideoWork: Codable, Identifiable, Hashable, Sendable {
     let title: String
     let sources: [SearchResult]
     var playback: [String: PlaybackBookmark] = [:]
+    var playbackPositions: [String: [String: [String: Int64]]] = [:]
     var lastPlayedSite: String?
     var recentPlayedSite: String?
     enum CodingKeys: String, CodingKey {
+        case playbackPositions = "playback_positions"
         case id, title, sources, playback, lastPlayedSite = "last_played_site", recentPlayedSite = "recent_played_site"
     }
     var defaultSource: SearchResult? {
@@ -138,4 +140,14 @@ struct HotSearchItem: Codable, Identifiable, Sendable {
     let rating: Double?
     let ratingCount: Int
     let status: String
+}
+
+/// Immutable identity retained by a player until its final position has been saved.
+struct PlaybackSession: Sendable {
+    let workId: String
+    let site: String
+    let line: String
+    let episode: String
+    let positionMillis: Int64
+    let revision: Int
 }

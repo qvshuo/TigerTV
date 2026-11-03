@@ -103,6 +103,75 @@ class WorkSelectionTest {
         coVerify(exactly = 0) { repository.saveHistory(any()) }
     }
 
+    @Test fun disposingViewModelWaitsForPendingProgressBeforeClosingCore() = runTest(dispatcher) {
+        viewModel.onKeywordChange("逐玉")
+        viewModel.search()
+        advanceUntilIdle()
+        viewModel.selectResult(a)
+        advanceUntilIdle()
+        viewModel.selectEpisode(0)
+        advanceUntilIdle()
+        val session = requireNotNull(viewModel.playbackSession)
+        viewModel.playbackDidStart(session)
+        advanceUntilIdle()
+        val events = mutableListOf<String>()
+        coEvery { repository.recordPlaybackPosition(any(), any(), any(), any(), any()) } coAnswers {
+            delay(100)
+            events += "saved"
+        }
+        every { repository.close() } answers { events += "closed" }
+        viewModel.savePlaybackPosition(session, 123_000)
+        runCurrent()
+        val store = androidx.lifecycle.ViewModelStore()
+        store.put("player", viewModel)
+        store.clear()
+        runCurrent()
+        assertTrue(events.isEmpty())
+        advanceUntilIdle()
+        assertEquals(listOf("saved", "closed"), events)
+    }
+
+    @Test fun progressKeepsItsOriginalIdentityAcrossNavigationAndRetry() = runTest(dispatcher) {
+        viewModel.onKeywordChange("逐玉")
+        viewModel.search()
+        advanceUntilIdle()
+        viewModel.selectResult(a)
+        advanceUntilIdle()
+        viewModel.selectEpisode(1)
+        advanceUntilIdle()
+        val original = requireNotNull(viewModel.playbackSession)
+        viewModel.playbackDidStart(original)
+        viewModel.savePlaybackPosition(original, 754_000)
+        viewModel.retryPlayback()
+        advanceUntilIdle()
+        assertEquals(754_000L, viewModel.playbackSession?.positionMillis)
+        viewModel.selectResult(b)
+        advanceUntilIdle()
+        viewModel.selectEpisode(1)
+        advanceUntilIdle()
+        assertEquals(0L, viewModel.playbackSession?.positionMillis)
+        // The old player flushes after selection has already changed.
+        viewModel.savePlaybackPosition(original, 755_000)
+        viewModel.playbackDidStart(original) // A stale start cannot change the current bookmark.
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.recordPlayback(any(), "A", "0", second.name) }
+        coVerify(exactly = 1) { repository.recordPlaybackPosition(original.workId, "A", "0", second.name, 755_000) }
+        assertNull(viewModel.works.single().playbackPositions["B"])
+        viewModel.selectResult(a)
+        advanceUntilIdle()
+        viewModel.selectEpisode(0)
+        advanceUntilIdle()
+        assertEquals(0L, viewModel.playbackSession?.positionMillis)
+        viewModel.selectEpisode(1)
+        advanceUntilIdle()
+        assertEquals(755_000L, viewModel.playbackSession?.positionMillis)
+        viewModel.savePlaybackPosition(requireNotNull(viewModel.playbackSession), 0)
+        viewModel.clearPlayback()
+        viewModel.selectEpisode(1)
+        advanceUntilIdle()
+        assertEquals(0L, viewModel.playbackSession?.positionMillis)
+    }
+
     @Test fun onlyActualPlaybackUpdatesTheSelectedResourcesBookmark() = runTest(dispatcher) {
         viewModel.onKeywordChange("逐玉")
         viewModel.search()
@@ -111,25 +180,55 @@ class WorkSelectionTest {
         viewModel.selectResult(b)
         advanceUntilIdle()
         coVerify(exactly = 0) { repository.recordPlayback(any(), any(), any(), any()) }
-        viewModel.playbackDidStart("stale-url")
+        viewModel.playbackDidStart(TigerTVViewModel.PlaybackSession(work.id, "B", "0", first.name, 0, -1))
         viewModel.selectEpisode(0)
         advanceUntilIdle()
         coVerify(exactly = 0) { repository.recordPlayback(any(), any(), any(), any()) }
-        viewModel.playbackDidStart(first.url)
+        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         assertEquals(b, viewModel.works.single().defaultSource)
         coVerify(exactly = 1) { repository.recordPlayback(work.id, "B", "0", first.name) }
-        viewModel.playbackDidStart(first.url) // Resume must not append duplicate history.
+        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession)) // Resume must not append duplicate history.
         advanceUntilIdle()
         coVerify(exactly = 1) { repository.recordPlayback(work.id, "B", "0", first.name) }
         viewModel.selectResult(a)
         advanceUntilIdle()
         viewModel.selectEpisode(0)
         advanceUntilIdle()
-        viewModel.playbackDidStart(first.url)
+        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         assertEquals(a.site, viewModel.works.single().lastPlayedSite)
         coVerify(exactly = 1) { repository.recordPlayback(work.id, "A", "0", first.name) }
+    }
+
+    @Test fun lateSearchSnapshotsKeepLocalProgressAndStillMergeNewResources() = runTest(dispatcher) {
+        val finish = CompletableDeferred<Unit>()
+        val initial = aggregateWorks(listOf(a)).single()
+        val expanded = aggregateWorks(listOf(a, b)).single()
+        coEvery { repository.search(any(), any()) } coAnswers {
+            val update = secondArg<suspend (SearchResponse) -> Unit>()
+            update(SearchResponse("逐玉", listOf(initial)))
+            finish.await()
+            update(SearchResponse("逐玉", listOf(expanded)))
+            Result.Success(SearchResponse("逐玉", listOf(expanded)))
+        }
+        viewModel.onKeywordChange("逐玉")
+        viewModel.search()
+        runCurrent()
+        viewModel.selectResult(a)
+        runCurrent()
+        viewModel.selectEpisode(1)
+        runCurrent()
+        val session = requireNotNull(viewModel.playbackSession)
+        viewModel.playbackDidStart(session)
+        viewModel.savePlaybackPosition(session, 123_000)
+        finish.complete(Unit)
+        advanceUntilIdle()
+        val work = viewModel.works.single()
+        assertEquals(listOf(a, b), work.sources)
+        assertEquals("A", work.lastPlayedSite)
+        assertEquals(PlaybackBookmark("0", second.name), work.playback["A"])
+        assertEquals(123_000L, work.playbackPositions["A"]?.get("0")?.get(second.name))
     }
 
     @Test fun partialSearchIsVisibleWhileOtherSitesAreStillLoading() = runTest(dispatcher) {
@@ -206,7 +305,7 @@ class WorkSelectionTest {
         advanceUntilIdle()
         viewModel.selectEpisode(1)
         advanceUntilIdle()
-        viewModel.playbackDidStart(second.url)
+        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         viewModel.selectResult(a)
         advanceUntilIdle()
@@ -216,7 +315,7 @@ class WorkSelectionTest {
         viewModel.selectPlaybackSource(1)
         viewModel.selectEpisode(0)
         advanceUntilIdle()
-        viewModel.playbackDidStart(backup.url)
+        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         viewModel.selectResult(a)
         advanceUntilIdle()
@@ -239,14 +338,14 @@ class WorkSelectionTest {
         advanceUntilIdle()
         viewModel.selectEpisode(1)
         advanceUntilIdle()
-        viewModel.playbackDidStart(second.url)
+        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         viewModel.selectResult(b)
         advanceUntilIdle()
         assertEquals(0, viewModel.resumeEpisodeIndex)
         viewModel.selectEpisode(1)
         advanceUntilIdle()
-        viewModel.playbackDidStart(bSecond.url)
+        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         viewModel.selectResult(a)
         advanceUntilIdle()
@@ -290,7 +389,7 @@ class WorkSelectionTest {
         advanceUntilIdle()
         viewModel.selectEpisode(0)
         advanceUntilIdle()
-        viewModel.playbackDidStart(first.url)
+        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         assertEquals("A", viewModel.works.single().lastPlayedSite)
         assertEquals(PlaybackBookmark("0", second.name), viewModel.works.single().playback["B"])
@@ -308,7 +407,7 @@ class WorkSelectionTest {
         advanceUntilIdle()
         viewModel.selectEpisode(0)
         advanceUntilIdle()
-        viewModel.playbackDidStart(first.url)
+        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         val unwatched = viewModel.works.first { it.title == "另一部剧" }
         assertNull(unwatched.lastPlayedSite)

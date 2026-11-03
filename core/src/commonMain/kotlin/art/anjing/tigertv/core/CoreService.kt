@@ -40,7 +40,9 @@ class CoreService(
         logger.log("WARN", context, error.message ?: error.toString())
     }
 
-    private inline fun <T> cacheRead(block: () -> T): T? = try { block() } catch (_: Exception) { null }
+    private inline fun <T> cacheRead(block: () -> T): T? = try { block() }
+    catch (e: CancellationException) { throw e }
+    catch (_: Exception) { null }
 
     suspend fun loadConfig(): SourceConfig = configMutex.withLock {
         if (source != null) return@withLock parseConfig(storage.read(source) ?: error("读取 source 失败: $source"))
@@ -164,7 +166,8 @@ class CoreService(
         val saved = playedSources()
         response.copy(works = response.works.map {
             it.copy(lastPlayedSite = saved.byWork[it.id]?.site, recentPlayedSite = saved.recentSite,
-                playback = saved.byWork[it.id]?.resources.orEmpty())
+                playback = saved.byWork[it.id]?.resources.orEmpty(),
+                playbackPositions = saved.byWork[it.id]?.positions.orEmpty())
         })
     }
 
@@ -173,9 +176,28 @@ class CoreService(
         val saved = playedSources()
         val resources = saved.byWork[workId]?.resources.orEmpty() + (site to PlaybackBookmark(line, episode))
         val updated = saved.copy(recentSite = site,
-            byWork = saved.byWork + (workId to WorkPlayback(site, resources)))
-        cacheRead { storage.writeAtomic(playedSourcesPath, wireJson.encodeToString(updated)) }
+            byWork = saved.byWork + (workId to WorkPlayback(site, resources, saved.byWork[workId]?.positions.orEmpty())))
+        if (updated != saved) savePlayedSources(updated)
         Unit
+    }
+
+    suspend fun recordPlaybackPosition(workId: String, site: String, line: String, episode: String, positionMillis: Long) = stateMutex.withLock {
+        require(workId.isNotBlank() && site.isNotBlank() && line.isNotBlank() && episode.isNotBlank() && positionMillis >= 0)
+        val saved = playedSources()
+        val work = saved.byWork[workId] ?: return@withLock
+        val sitePositions = work.positions[site].orEmpty()
+        if (sitePositions[line]?.get(episode) == positionMillis) return@withLock
+        val episodes = sitePositions[line].orEmpty() + (episode to positionMillis)
+        val positions = work.positions + (site to (sitePositions + (line to episodes)))
+        val updated = saved.copy(byWork = saved.byWork + (workId to work.copy(positions = positions)))
+        savePlayedSources(updated)
+        Unit
+    }
+
+    private suspend fun savePlayedSources(saved: PlayedSources) {
+        try { storage.writeAtomic(playedSourcesPath, wireJson.encodeToString(saved)) }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { log("保存播放记录", e) }
     }
 
     private suspend fun searchSite(site: SourceSite, keyword: String): List<SearchResult> {
@@ -357,7 +379,8 @@ data class QuanxDomains(val api: Set<String>, val urls: Set<String>, val m3u8: S
 private data class PlayedSources(val recentSite: String? = null, val byWork: Map<String, WorkPlayback> = emptyMap())
 
 @Serializable
-private data class WorkPlayback(val site: String, val resources: Map<String, PlaybackBookmark>)
+private data class WorkPlayback(val site: String, val resources: Map<String, PlaybackBookmark>,
+    val positions: Map<String, Map<String, Map<String, Long>>> = emptyMap())
 
 @Serializable
 private data class HotSearchCache(val fetchedAtMillis: Long, val titles: List<HotSearchItem>)

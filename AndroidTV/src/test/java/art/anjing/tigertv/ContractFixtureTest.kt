@@ -24,6 +24,8 @@ class ContractFixtureTest {
         val json = Json { ignoreUnknownKeys = true }
         val saved = json.decodeFromString<SearchResponse>(findRepoFixture("docs/fixtures/search-playback.sample.json").readText())
         assertEquals(art.anjing.tigertv.domain.PlaybackBookmark("0", "第02集"), saved.works.single().playback["🎬二"])
+        assertEquals(754_000L, saved.works.single().playbackPositions["🎬二"]?.get("0")?.get("第02集"))
+        assertEquals(45_000L, saved.works.single().playbackPositions["🎬二"]?.get("2")?.get("第02集"))
         val search = json.decodeFromString<SearchResponse>(findRepoFixture("docs/fixtures/search.sample.json").readText())
         assertEquals(listOf(1, 99), search.works.single().sources.map { it.vodId })
         assertEquals("🎬二", search.works.single().defaultSource.site)

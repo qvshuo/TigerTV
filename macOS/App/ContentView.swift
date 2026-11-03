@@ -2,6 +2,8 @@ import AVKit
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject private var appDelegate: TigerTVAppDelegate
+    @State private var playbackOwner = UUID()
     @StateObject private var viewModel = TigerTVViewModel()
 
     @State private var hasSearched = false
@@ -103,21 +105,31 @@ struct ContentView: View {
                 Text(activeErrorMessage ?? "播放失败，请重试")
             }
         )
-        .onDisappear { controller.close() }
+        .onAppear {
+            playbackOwner = UUID()
+            appDelegate.playbackFlushers[playbackOwner] = {
+                controller.close()
+                await viewModel.flushPlaybackWrites()
+            }
+        }
+        .onDisappear {
+            controller.close()
+            let owner = playbackOwner
+            Task {
+                await viewModel.flushPlaybackWrites()
+                appDelegate.playbackFlushers.removeValue(forKey: owner)
+            }
+        }
         .onChange(of: activeErrorMessage) { _, newValue in
             showError = newValue != nil
-        }
-        .onReceive(controller.player.publisher(for: \.timeControlStatus)) { status in
-            guard status == .playing,
-                let asset = controller.player.currentItem?.asset as? AVURLAsset
-            else { return }
-            viewModel.playbackDidStart(url: asset.url.absoluteString)
         }
         .onChange(of: viewModel.playbackRevision) { _, _ in
             guard let url = viewModel.resolvedPlaybackUrl else { return }
             controller.close()
-            controller.load(url: url)
-            controller.play()
+            guard let session = viewModel.playbackSession else { return }
+            controller.load(url: url, positionMillis: session.positionMillis,
+                onStarted: { viewModel.playbackDidStart(session) },
+                onPosition: { viewModel.savePlaybackPosition(session, positionMillis: $0) })
         }
     }
 

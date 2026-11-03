@@ -69,7 +69,8 @@ data class VideoWork(
     val id: String, val title: String, val sources: List<SearchResult>,
     @SerialName("last_played_site") val lastPlayedSite: String? = null,
     @SerialName("recent_played_site") val recentPlayedSite: String? = null,
-    val playback: Map<String, PlaybackBookmark> = emptyMap()
+    val playback: Map<String, PlaybackBookmark> = emptyMap(),
+    @SerialName("playback_positions") val playbackPositions: Map<String, Map<String, Map<String, Long>>> = emptyMap()
 ) {
     val orderedSources: List<SearchResult> get() = sources.sortedBy {
         when (it.site) { lastPlayedSite -> 0; recentPlayedSite -> 1; else -> 2 }

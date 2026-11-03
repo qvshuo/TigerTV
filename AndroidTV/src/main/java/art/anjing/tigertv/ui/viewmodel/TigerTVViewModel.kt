@@ -20,6 +20,9 @@ import art.anjing.tigertv.util.normalizeCoverUrl
 import coil3.SingletonImageLoader
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -116,26 +119,59 @@ class TigerTVViewModel(
     /** Source-specific fallback URLs; failures are not cached. */
     var coverFallbacks by mutableStateOf<Map<String, String>>(emptyMap())
         private set
+    // Flushes must survive disposal of the screen and its ViewModel scope.
+    private val playbackSaveScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var sourceSaveJob: Job? = null
-    fun playbackDidStart(url: String) {
-        val source = selectedResult ?: return
-        if (url != resolvedPlaybackUrl || selectedEpisodeIndex < 0) return
+    private val changedPlaybackWorks = mutableSetOf<String>()
+    private var latestPlayedSite: String? = null
+    data class PlaybackSession(val workId: String, val site: String, val line: String, val episode: String, val positionMillis: Long, val revision: Int)
+
+    val playbackSession: PlaybackSession? get() {
+        val work = selectedWork ?: return null
+        val source = selectedResult ?: return null
+        val line = fetchResponse?.playSources?.getOrNull(selectedPlaybackSourceIndex) ?: return null
+        val episode = episodes.getOrNull(selectedEpisodeIndex) ?: return null
+        return PlaybackSession(work.id, source.site, line.id, episode.name,
+            work.playbackPositions[source.site]?.get(line.id)?.get(episode.name) ?: 0, playbackRevision)
+    }
+
+    fun playbackDidStart(session: PlaybackSession) {
+        val active = playbackSession ?: return
+        if (resolvedPlaybackUrl == null || session.copy(positionMillis = active.positionMillis) != active) return
         val work = selectedWork ?: return
-        val episode = episodes.getOrNull(selectedEpisodeIndex) ?: return
-        val line = fetchResponse?.playSources?.getOrNull(selectedPlaybackSourceIndex) ?: return
-        val bookmark = PlaybackBookmark(line.id, episode.name)
-        if (work.playback[source.site] == bookmark && work.lastPlayedSite == source.site && work.recentPlayedSite == source.site) return
+        val bookmark = PlaybackBookmark(session.line, session.episode)
+        if (work.playback[session.site] == bookmark && work.lastPlayedSite == session.site && work.recentPlayedSite == session.site) return
+        changedPlaybackWorks += session.workId
+        latestPlayedSite = session.site
         works = works.map {
             it.copy(
-                lastPlayedSite = if (it.id == work.id) source.site else it.lastPlayedSite,
-                recentPlayedSite = source.site,
-                playback = if (it.id == work.id) it.playback + (source.site to bookmark) else it.playback
+                lastPlayedSite = if (it.id == session.workId) session.site else it.lastPlayedSite,
+                recentPlayedSite = session.site,
+                playback = if (it.id == session.workId) it.playback + (session.site to PlaybackBookmark(session.line, session.episode)) else it.playback
             )
         }
         val previous = sourceSaveJob
-        sourceSaveJob = viewModelScope.launch {
+        sourceSaveJob = playbackSaveScope.launch {
             previous?.join()
-            repository.recordPlayback(work.id, source.site, line.id, episode.name)
+            repository.recordPlayback(session.workId, session.site, session.line, session.episode)
+        }
+    }
+
+    fun savePlaybackPosition(session: PlaybackSession, positionMillis: Long) {
+        if (positionMillis < 0) return
+        works = works.map { work ->
+            if (work.id != session.workId) work else {
+                changedPlaybackWorks += session.workId
+                val sites = work.playbackPositions
+                val lines = sites[session.site].orEmpty()
+                val episodes = lines[session.line].orEmpty()
+                work.copy(playbackPositions = sites + (session.site to (lines + (session.line to (episodes + (session.episode to positionMillis))))))
+            }
+        }
+        val previous = sourceSaveJob
+        sourceSaveJob = playbackSaveScope.launch {
+            previous?.join()
+            repository.recordPlaybackPosition(session.workId, session.site, session.line, session.episode, positionMillis)
         }
     }
     private val coverJobs = mutableMapOf<String, Job>()
@@ -307,18 +343,22 @@ class TigerTVViewModel(
         fetchErrorMessage = null
         playbackErrorMessage = null
         works = emptyList()
+        changedPlaybackWorks.clear()
+        latestPlayedSite = null
         selectedResult = null
         fetchResponse = null
         selectedEpisodeIndex = -1
         resolvedPlaybackUrl = null
 
         searchJob = viewModelScope.launch {
+            sourceSaveJob?.join()
+            ensureActive()
             when (val result = repository.search(trimmed) { update ->
-                withContext(Dispatchers.Main) { ensureActive(); works = update.works }
+                withContext(Dispatchers.Main) { ensureActive(); applySearchWorks(update.works) }
             }) {
                 is Result.Success -> {
                     ensureActive()
-                    works = result.data.works
+                    applySearchWorks(result.data.works)
                     isSearching = false
                 }
                 is Result.Error -> {
@@ -328,6 +368,21 @@ class TigerTVViewModel(
             }
         }
         return true
+    }
+
+    private fun applySearchWorks(incoming: List<VideoWork>) {
+        if (changedPlaybackWorks.isEmpty()) { works = incoming; return }
+        // A delayed search snapshot must not undo playback performed during that search.
+        val local = works.filter { it.id in changedPlaybackWorks }.associateBy { it.id }
+        works = incoming.map { work ->
+            val played = local[work.id]
+            work.copy(
+                recentPlayedSite = latestPlayedSite ?: work.recentPlayedSite,
+                lastPlayedSite = if (played != null) played.lastPlayedSite else work.lastPlayedSite,
+                playback = played?.playback ?: work.playback,
+                playbackPositions = played?.playbackPositions ?: work.playbackPositions
+            )
+        }
     }
 
     private fun cancelCoverLoads() {
@@ -349,6 +404,8 @@ class TigerTVViewModel(
         fetchJob?.cancel()
         clearPlayback()
         works = emptyList()
+        changedPlaybackWorks.clear()
+        latestPlayedSite = null
         submittedKeyword = ""
         selectedResult = null
         fetchResponse = null
@@ -485,7 +542,11 @@ class TigerTVViewModel(
         fetchJob?.cancel()
         playbackJob?.cancel()
         prefetchJob?.cancel()
-        repository.close()
+        playbackSaveScope.launch {
+            sourceSaveJob?.join()
+            repository.close()
+            playbackSaveScope.cancel()
+        }
     }
 
     companion object {

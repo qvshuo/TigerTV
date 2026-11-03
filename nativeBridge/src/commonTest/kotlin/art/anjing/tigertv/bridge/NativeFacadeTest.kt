@@ -6,6 +6,32 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class NativeFacadeTest {
+    @Test fun playbackPositionUsesExactIntegerMilliseconds() = runBlocking {
+        val files = mutableMapOf<String, String>()
+        val store = object : Storage {
+            override fun read(path: String) = files[path]
+            override fun writeAtomic(path: String, text: String) { files[path] = text }
+        }
+        val facade = NativeFacade(CoreService("cache", storage = store))
+        suspend fun request(operation: String, position: String = "0"): JsonObject {
+            val id = facade.begin("""{"version":1,"operation":"$operation","work_id":"work","site":"A","line":"0","episode":"一","position_millis":$position}""")
+            return withTimeout(5000) {
+                var result: String? = null
+                while (result == null) { result = facade.takeResult(id); if (result == null) delay(10) }
+                wireJson.parseToJsonElement(result).jsonObject
+            }
+        }
+        try {
+            assertEquals(JsonPrimitive(true), request("recordPlayback")["data"])
+            assertEquals(JsonPrimitive(true), request("recordPlaybackPosition", "754000")["data"])
+            assertTrue(files.values.single().contains("754000"))
+            for (invalid in listOf("-1", "1.5", "null", "true", "9223372036854775808")) {
+                assertNotNull(request("recordPlaybackPosition", invalid)["error"])
+            }
+            assertEquals(JsonPrimitive(true), request("recordPlaybackPosition", "0")["data"])
+        } finally { facade.close() }
+    }
+
     @Test fun resultsAreConsumedAndCancelledRequestsAreReleased() = runBlocking {
         val store = object : Storage {
             private val files = mutableMapOf<String, String>()

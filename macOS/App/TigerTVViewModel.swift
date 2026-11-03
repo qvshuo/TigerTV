@@ -55,28 +55,55 @@ final class TigerTVViewModel: ObservableObject {
     private var historySaveTask: Task<Void, Never>?
     private var historyRevision = 0
     private var sourceSaveTask: Task<Void, Never>?
-    func playbackDidStart(url: String) {
-        guard resolvedPlaybackUrl == url, let episode = selectedEpisode,
-              let lines = fetchResponse?.playSources, lines.indices.contains(selectedPlaybackSourceIndex), let source = selectedResult,
-              let work = selectedWork else { return }
+    private var changedPlaybackWorks = Set<String>()
+    private var latestPlayedSite: String?
+    var playbackSession: PlaybackSession? {
+        guard let work = selectedWork, let source = selectedResult, let episode = selectedEpisode,
+              let lines = fetchResponse?.playSources, lines.indices.contains(selectedPlaybackSourceIndex) else { return nil }
         let line = lines[selectedPlaybackSourceIndex]
-        let bookmark = PlaybackBookmark(line: line.id, episode: episode.name)
-        guard work.playback[source.site] != bookmark || work.lastPlayedSite != source.site || work.recentPlayedSite != source.site else { return }
+        return PlaybackSession(workId: work.id, site: source.site, line: line.id, episode: episode.name,
+            positionMillis: work.playbackPositions[source.site]?[line.id]?[episode.name] ?? 0, revision: playbackRevision)
+    }
+
+    func playbackDidStart(_ session: PlaybackSession) {
+        guard let active = playbackSession, resolvedPlaybackUrl != nil, session.revision == active.revision,
+              session.workId == active.workId, session.site == active.site, session.line == active.line,
+              session.episode == active.episode, let work = selectedWork else { return }
+        let bookmark = PlaybackBookmark(line: session.line, episode: session.episode)
+        guard work.playback[session.site] != bookmark || work.lastPlayedSite != session.site || work.recentPlayedSite != session.site else { return }
+        changedPlaybackWorks.insert(session.workId)
+        latestPlayedSite = session.site
         works = works.map {
             var updated = $0
-            updated.recentPlayedSite = source.site
-            if updated.id == work.id {
-                updated.lastPlayedSite = source.site
-                updated.playback[source.site] = bookmark
+            updated.recentPlayedSite = session.site
+            if updated.id == session.workId {
+                updated.lastPlayedSite = session.site
+                updated.playback[session.site] = PlaybackBookmark(line: session.line, episode: session.episode)
             }
             return updated
         }
         let previous = sourceSaveTask
         sourceSaveTask = Task {
             await previous?.value
-            await repository.recordPlayback(workId: work.id, site: source.site, line: line.id, episode: episode.name)
+            await repository.recordPlayback(workId: session.workId, site: session.site, line: session.line, episode: session.episode)
         }
     }
+
+    func savePlaybackPosition(_ session: PlaybackSession, positionMillis: Int64) {
+        guard positionMillis >= 0 else { return }
+        if let index = works.firstIndex(where: { $0.id == session.workId }) {
+            changedPlaybackWorks.insert(session.workId)
+            works[index].playbackPositions[session.site, default: [:]][session.line, default: [:]][session.episode] = positionMillis
+        }
+        let previous = sourceSaveTask
+        sourceSaveTask = Task {
+            await previous?.value
+            await repository.recordPlaybackPosition(workId: session.workId, site: session.site, line: session.line,
+                episode: session.episode, positionMillis: positionMillis)
+        }
+    }
+    func flushPlaybackWrites() async { await sourceSaveTask?.value }
+
     private var coverLoadsInFlight: Set<String> = []
 
     private var searchTask: Task<Void, Never>?
@@ -91,17 +118,7 @@ final class TigerTVViewModel: ObservableObject {
     private var playbackGeneration = 0
 
     convenience init() {
-        let cachesDir = FileManager.default
-            .urls(for: .cachesDirectory, in: .userDomainMask)
-            .first ?? FileManager.default.temporaryDirectory
-        let cacheDirectory = cachesDir
-            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "art.anjing.TigerTV")
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let dataDirectory = support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "art.anjing.TigerTV")
-            .appendingPathComponent("shared-v1")
-        let repository = SharedCoreRepository(directory: cacheDirectory.appendingPathComponent("shared-v1"), dataDirectory: dataDirectory)
-        self.init(repository: repository)
+        self.init(repository: SharedCoreRepository.shared)
     }
 
     init(repository: any VideoRepository) {
@@ -198,6 +215,8 @@ final class TigerTVViewModel: ObservableObject {
         fetchErrorMessage = nil
         playbackErrorMessage = nil
         works = []
+        changedPlaybackWorks.removeAll()
+        latestPlayedSite = nil
         coverFallbacks = [:]
         selectedResult = nil
         fetchResponse = nil
@@ -207,6 +226,8 @@ final class TigerTVViewModel: ObservableObject {
         searchGeneration += 1
         let gen = searchGeneration
         searchTask = Task {
+            await sourceSaveTask?.value
+            guard gen == searchGeneration, !Task.isCancelled else { return }
             let result = await repository.search(keyword: trimmed) { response in
                 await self.applySearchUpdate(response, generation: gen)
             }
@@ -214,7 +235,7 @@ final class TigerTVViewModel: ObservableObject {
             switch result {
             case .success(let response):
                 isSearching = false
-                works = response.works
+                applySearchWorks(response.works)
             case .failure:
                 isSearching = false
                 searchErrorMessage = "搜索失败，请重试"
@@ -224,7 +245,23 @@ final class TigerTVViewModel: ObservableObject {
 
     private func applySearchUpdate(_ response: SearchResponse, generation: Int) {
         guard generation == searchGeneration, !Task.isCancelled else { return }
-        works = response.works
+        applySearchWorks(response.works)
+    }
+
+    private func applySearchWorks(_ incoming: [VideoWork]) {
+        guard !changedPlaybackWorks.isEmpty else { works = incoming; return }
+        // Preserve local playback while later sites add resources to the same work.
+        let local = Dictionary(uniqueKeysWithValues: works.filter { changedPlaybackWorks.contains($0.id) }.map { ($0.id, $0) })
+        works = incoming.map { work in
+            var updated = work
+            if let site = latestPlayedSite { updated.recentPlayedSite = site }
+            if let played = local[work.id] {
+                updated.lastPlayedSite = played.lastPlayedSite
+                updated.playback = played.playback
+                updated.playbackPositions = played.playbackPositions
+            }
+            return updated
+        }
     }
 
     var resumeEpisode: EpisodeLink? {
@@ -315,6 +352,8 @@ final class TigerTVViewModel: ObservableObject {
     func clearResults() {
         cancelAll(includeSearch: true)
         works = []
+        changedPlaybackWorks.removeAll()
+        latestPlayedSite = nil
         submittedKeyword = ""
         selectedResult = nil
         fetchResponse = nil
