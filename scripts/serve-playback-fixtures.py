@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Serve generated H.264/AAC MP4/HLS files plus a MacCMS fixture for native GUI smoke tests.
 
-Never serves the repository. Supply a dedicated media directory; see cross-platform.md.
+Never serves the repository. Supply a dedicated media directory; see docs/README.md.
 """
 import argparse
 from functools import partial

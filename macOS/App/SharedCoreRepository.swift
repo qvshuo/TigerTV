@@ -8,6 +8,7 @@ protocol VideoRepository: Sendable {
     func resolvePlaybackUrl(url: String) async -> LoadResult<String>
     func coverFallbackURL(siteName: String, vodId: Int) async -> URL?
     func recordPlayback(workId: String, site: String, line: String, episode: String) async
+    func recordPlaybackPosition(workId: String, site: String, line: String, episode: String, positionMillis: Int64) async
     func loadHotSearchCategories() async -> [HotSearchCategory]
     func warmHotSearches(category: String) async
     func loadHotSearches(category: String) async -> [HotSearchItem]
@@ -17,6 +18,20 @@ protocol VideoRepository: Sendable {
 
 /// Owns one Kotlin/Native service. No subprocess or JVM is involved.
 actor SharedCoreRepository: VideoRepository {
+    // All windows share caches and the core's serialized persistent state.
+    static let shared: SharedCoreRepository = {
+        let cachesDir = FileManager.default
+            .urls(for: .cachesDirectory, in: .userDomainMask)
+            .first ?? FileManager.default.temporaryDirectory
+        let cacheDirectory = cachesDir
+            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "art.anjing.TigerTV")
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let dataDirectory = support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "art.anjing.TigerTV")
+            .appendingPathComponent("shared-v1")
+        return SharedCoreRepository(directory: cacheDirectory.appendingPathComponent("shared-v1"), dataDirectory: dataDirectory)
+    }()
+
     private let facade: NativeFacade
 
     init(directory: URL, dataDirectory: URL) {
@@ -59,6 +74,9 @@ actor SharedCoreRepository: VideoRepository {
 
     func recordPlayback(workId: String, site: String, line: String, episode: String) async {
         _ = await request("recordPlayback", ["work_id": workId, "site": site, "line": line, "episode": episode], as: Bool.self)
+    }
+    func recordPlaybackPosition(workId: String, site: String, line: String, episode: String, positionMillis: Int64) async {
+        _ = await request("recordPlaybackPosition", ["work_id": workId, "site": site, "line": line, "episode": episode, "position_millis": positionMillis], as: Bool.self)
     }
     func warmHotSearches(category: String) async {
         _ = await request("warmHotSearches", ["category": category], as: Bool.self)

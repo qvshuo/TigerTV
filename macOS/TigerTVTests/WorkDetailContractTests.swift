@@ -20,6 +20,12 @@ final class WorkDetailContractTests: XCTestCase {
     func testPlaybackBookmarkContract() throws {
         let response = try JSONDecoder().decode(SearchResponse.self, from: fixture("search-playback.sample.json"))
         XCTAssertEqual(response.works.first?.playback["🎬二"], PlaybackBookmark(line: "0", episode: "第02集"))
+        let positions = try XCTUnwrap(response.works.first?.playbackPositions)
+        XCTAssertEqual(positions["🎬二"]?["0"]?["第02集"], 754_000)
+        XCTAssertEqual(positions["🎬二"]?["2"]?["第02集"], 45_000)
+        XCTAssertNil(positions["🎬一"]?["0"]?["第02集"])
+        let roundTrip = try JSONDecoder().decode(SearchResponse.self, from: JSONEncoder().encode(response))
+        XCTAssertEqual(roundTrip.works.first?.playbackPositions, positions)
     }
 
     func testResourceBookmarksAndLineFallbackStayIndependent() throws {
@@ -73,6 +79,12 @@ final class WorkDetailContractTests: XCTestCase {
     func testOldPayloadsAreRejected() throws {
         let search = Data(#"{"keyword":"逐玉","results":[]}"#.utf8)
         XCTAssertThrowsError(try JSONDecoder().decode(SearchResponse.self, from: search))
+        let current = try fixture("search.sample.json")
+        var missingPositions = try XCTUnwrap(JSONSerialization.jsonObject(with: current) as? [String: Any])
+        var works = try XCTUnwrap(missingPositions["works"] as? [[String: Any]])
+        works[0].removeValue(forKey: "playback_positions")
+        missingPositions["works"] = works
+        XCTAssertThrowsError(try JSONDecoder().decode(SearchResponse.self, from: JSONSerialization.data(withJSONObject: missingPositions)))
         let detail = Data(#"{"vod_id":1,"site":"A","vod_play_url":[],"vod_down_url":[]}"#.utf8)
         XCTAssertThrowsError(try JSONDecoder().decode(FetchResponse.self, from: detail))
     }

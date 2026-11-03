@@ -22,6 +22,9 @@ class TigerTVRepository(private val core: CoreService) {
     suspend fun recordPlayback(workId: String, site: String, line: String, episode: String) = withContext(Dispatchers.IO) {
         core.recordPlayback(workId, site, line, episode)
     }
+    suspend fun recordPlaybackPosition(workId: String, site: String, line: String, episode: String, positionMillis: Long) = withContext(Dispatchers.IO) {
+        core.recordPlaybackPosition(workId, site, line, episode, positionMillis)
+    }
     suspend fun warmHotSearches(category: String) = withContext(Dispatchers.IO) { core.warmHotSearches(category) }
     fun hotSearchCategories(): List<HotSearchCategory> = core.hotSearchCategories()
     suspend fun hotSearches(category: String): List<art.anjing.tigertv.domain.HotSearchItem> = withContext(Dispatchers.IO) { core.hotSearches(category) }

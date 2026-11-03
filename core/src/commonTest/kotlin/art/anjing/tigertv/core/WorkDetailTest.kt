@@ -50,6 +50,7 @@ class WorkDetailTest {
     @Test fun groupedContractFixtures() {
         val saved = wireJson.decodeFromString<SearchResponse>(contractFixtures.getValue("search-playback.sample.json"))
         assertEquals(PlaybackBookmark("0", "第02集"), saved.works.single().playback["🎬二"])
+        assertEquals(754_000L, saved.works.single().playbackPositions["🎬二"]?.get("0")?.get("第02集"))
         val search = wireJson.decodeFromString<SearchResponse>(contractFixtures.getValue("search.sample.json"))
         assertEquals(listOf(1, 99), search.works.single().sources.map { it.vodId })
         val detail = wireJson.decodeFromString<FetchResponse>(contractFixtures.getValue("fetch.sample.json"))
@@ -126,7 +127,11 @@ class WorkDetailTest {
             assertNull(unwatched.lastPlayedSite)
             assertEquals("🎬B", unwatched.defaultSource.site)
             core.recordPlayback(work.id, "🎬A", "2", "02")
+            core.recordPlaybackPosition(work.id, "🎬A", "2", "02", 12000)
             core.recordPlayback(work.id, "🎬A", "2", "03")
+            core.recordPlaybackPosition(work.id, "🎬A", "2", "03", 23000)
+            core.recordPlaybackPosition(work.id, "🎬A", "3", "02", 34000)
+            core.recordPlaybackPosition(work.id, "🎬B", "0", "第一集", 45000)
             val cached = core.search("同作").works.single()
             assertEquals(mapOf("🎬A" to PlaybackBookmark("2", "03"), "🎬B" to PlaybackBookmark("0", "第一集")), cached.playback)
             val saved = wireJson.parseToJsonElement(store.files.getValue("persistent/last-played-sources.json")).jsonObject
@@ -142,8 +147,80 @@ class WorkDetailTest {
             val restored = restarted.search("同作").works.single()
             assertEquals("🎬A", restored.lastPlayedSite)
             assertEquals(mapOf("🎬A" to PlaybackBookmark("2", "03"), "🎬B" to PlaybackBookmark("0", "第一集")), restored.playback)
+            assertEquals(mapOf("🎬A" to mapOf("2" to mapOf("02" to 12000L, "03" to 23000L), "3" to mapOf("02" to 34000L)),
+                "🎬B" to mapOf("0" to mapOf("第一集" to 45000L))), restored.playbackPositions)
         }
         finally { restarted.close() }
+    }
+
+    @Test fun progressValidationCompletionAndIsolation() = runTest {
+        val store = MemoryStorage()
+        val core = CoreService("cache", storage = store, historyDirectory = "persistent")
+        try {
+            assertFailsWith<IllegalArgumentException> { core.recordPlaybackPosition("work", "A", "0", "一", -1) }
+            assertFailsWith<IllegalArgumentException> { core.recordPlaybackPosition("work", "A", "", "一", 100) }
+            core.recordPlaybackPosition("unplayed", "A", "0", "一", 100)
+            assertNull(store.files["persistent/last-played-sources.json"])
+            core.recordPlayback("work", "A", "0", "一")
+            core.recordPlaybackPosition("work", "A", "0", "一", 754000)
+            core.recordPlaybackPosition("work", "A", "2", "一", 45000)
+            core.recordPlayback("other", "B", "0", "一")
+            core.recordPlaybackPosition("work", "A", "0", "一", 0)
+            val saved = wireJson.parseToJsonElement(store.files.getValue("persistent/last-played-sources.json")).jsonObject
+            assertEquals("B", saved.text("recentSite"))
+            val works = saved.getValue("byWork").jsonObject
+            val positions = works.getValue("work").jsonObject.getValue("positions").jsonObject.getValue("A").jsonObject
+            assertEquals("0", positions.getValue("0").jsonObject.getValue("一").toString())
+            assertEquals("45000", positions.getValue("2").jsonObject.getValue("一").toString())
+            assertEquals("{}", works.getValue("other").jsonObject.getValue("positions").toString())
+        } finally { core.close() }
+    }
+
+    @Test fun cancelledPersistentReadsDoNotOverwritePlaybackState() = runTest {
+        var writes = 0
+        val store = object : Storage {
+            override fun read(path: String): String? = throw kotlinx.coroutines.CancellationException("cancelled")
+            override fun writeAtomic(path: String, text: String) { writes++ }
+        }
+        val core = CoreService("cache", storage = store)
+        try {
+            assertFailsWith<kotlinx.coroutines.CancellationException> { core.recordPlayback("work", "A", "0", "one") }
+            assertFailsWith<kotlinx.coroutines.CancellationException> { core.recordPlaybackPosition("work", "A", "0", "one", 1000) }
+            assertEquals(0, writes)
+        } finally { core.close() }
+    }
+
+    @Test fun unchangedProgressAvoidsWritesAndStorageFailuresRemainRetryable() = runTest {
+        val files = mutableMapOf<String, String>()
+        val diagnostics = mutableListOf<String>()
+        var writes = 0
+        var failWrites = false
+        val store = object : Storage {
+            override fun read(path: String) = files[path]
+            override fun writeAtomic(path: String, text: String) {
+                if (failWrites) error("disk unavailable")
+                writes++
+                files[path] = text
+            }
+        }
+        val core = CoreService("cache", storage = store, logger = Logger { _, context, message -> diagnostics += "$context: $message" })
+        try {
+            core.recordPlayback("work", "A", "0", "one")
+            core.recordPlayback("work", "A", "0", "one")
+            assertEquals(1, writes)
+            core.recordPlaybackPosition("work", "A", "0", "one", 1234)
+            core.recordPlaybackPosition("work", "A", "0", "one", 1234)
+            assertEquals(2, writes)
+            val beforeFailure = files.toMap()
+            failWrites = true
+            core.recordPlaybackPosition("work", "A", "0", "one", 2345)
+            assertEquals(beforeFailure, files)
+            assertTrue(diagnostics.single().contains("disk unavailable"))
+            failWrites = false
+            core.recordPlaybackPosition("work", "A", "0", "one", 2345)
+            assertEquals(3, writes)
+            assertTrue(files.getValue("cache/last-played-sources.json").contains("2345"))
+        } finally { core.close() }
     }
 
     @Test fun resumeRequiresTheRecordedLineAndExactEpisodeName() {

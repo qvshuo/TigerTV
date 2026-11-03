@@ -39,6 +39,10 @@ class NativeFacade internal constructor(private val service: CoreService) {
                             service.recordPlayback(payload.text("work_id"), payload.text("site"), payload.text("line"), payload.text("episode"))
                             JsonPrimitive(true)
                         }
+                        "recordPlaybackPosition" -> {
+                            service.recordPlaybackPosition(payload.text("work_id"), payload.text("site"), payload.text("line"), payload.text("episode"), payload["position_millis"]!!.jsonPrimitive.long)
+                            JsonPrimitive(true)
+                        }
                         "warmHotSearches" -> { service.warmHotSearches(payload.text("category")); JsonPrimitive(true) }
                         "hotSearchCategories" -> wireJson.encodeToJsonElement(service.hotSearchCategories())
                         "hotSearches" -> wireJson.encodeToJsonElement(service.hotSearches(payload.text("category")))

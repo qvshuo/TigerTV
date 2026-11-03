@@ -27,6 +27,8 @@ python3 scripts/check-cli-contract.py cli/build/bin/macosArm64/releaseExecutable
 swift test --package-path macOS
 xcodebuild -project macOS/TigerTV.xcodeproj -scheme TigerTV -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO build
 ./AndroidTV/gradlew testDebugUnitTest lintDebug assembleDebug
+# With an Android TV emulator or device connected:
+./AndroidTV/gradlew connectedDebugAndroidTest
 ```
 
 Xcode 自动构建 framework，递归跟踪 Kotlin 输入及产物；不要恢复每次必跑的脚本。Gradle 与 Xcode 原生构建应顺序执行，避免同时修改同一 framework。
@@ -43,7 +45,7 @@ swiftc -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -fr
 
 ## 发布
 
-当前版本 4.1.0，Android versionCode 15，macOS build 11。手动发布的 versionCode 必须大于仓库当前值，默认 16。
+当前版本 4.2.0，Android 默认 versionCode 16，macOS build 12。本次 4.2.0 发布使用 versionCode 17；手动发布的 versionCode 必须大于仓库默认值。
 
 PR/main 执行检查；仅手动 `workflow_dispatch` 发布。Actions 使用 Xcode 27.2 版本别名，校验 Xcode 与 macOS SDK 27.2，不锁定构建号；托管镜像更新前允许使用该别名指向的 RC。产物为未签名 macOS ZIP、Android universal APK、macOS CLI tar.gz 及 SHA-256。
 
