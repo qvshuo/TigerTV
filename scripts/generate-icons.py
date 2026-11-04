@@ -11,9 +11,8 @@ from pathlib import Path
 import struct
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
-from xml.etree import ElementTree
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageOps
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,11 +33,6 @@ def render_icons():
         opaque = ImageOps.exif_transpose(source).convert("RGB")
     with Image.open(BRANDING / "originals/tv-banner.png") as source:
         banner = ImageOps.fit(ImageOps.exif_transpose(source).convert("RGB"), (1280, 720), method=Image.Resampling.LANCZOS)
-    font = ImageFont.truetype("/System/Library/Fonts/STHeiti Medium.ttc", 64)
-    label = ElementTree.parse(ROOT / "AndroidTV/src/main/res/values/strings.xml").findtext("string[@name='app_name']")
-    if not label:
-        raise ValueError("Missing Android app_name for the TV banner")
-    ImageDraw.Draw(banner).text((640, 22), label, font=font, anchor="mt", fill="#6F2E13")
 
     assets = {WEB / "logo.png": png(transparent, (256, 256))}
     for size in (16, 32, 48):
