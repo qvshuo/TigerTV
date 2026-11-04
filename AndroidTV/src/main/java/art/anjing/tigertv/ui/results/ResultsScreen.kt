@@ -2,10 +2,10 @@ package art.anjing.tigertv.ui.results
 
 import art.anjing.tigertv.ui.components.MediaCard
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.border
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,21 +20,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.snapshotFlow
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -44,10 +48,10 @@ import coil3.compose.SubcomposeAsyncImage
 import art.anjing.tigertv.R
 import art.anjing.tigertv.domain.VideoWork
 import art.anjing.tigertv.domain.SearchResult
-import art.anjing.tigertv.ui.components.BackButton
+import art.anjing.tigertv.ui.components.UiMetrics
+import art.anjing.tigertv.ui.components.CardFocusScroll
 import art.anjing.tigertv.ui.components.ErrorMessage
 import art.anjing.tigertv.ui.components.SearchButton
-import art.anjing.tigertv.ui.components.UiSpacing
 import art.anjing.tigertv.ui.requestFocusSafely
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
 import art.anjing.tigertv.util.normalizeCoverUrl
@@ -64,18 +68,16 @@ fun ResultsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = UiSpacing.lg, vertical = UiSpacing.xl)
+                .padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                BackButton(onClick = onBack)
                 Text(
                     text = "${stringResource(R.string.results_title)}: ${viewModel.submittedKeyword}",
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -115,7 +117,7 @@ fun ResultsScreen(
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun ResultsGrid(
     works: List<VideoWork>,
@@ -125,33 +127,40 @@ private fun ResultsGrid(
     onSelectResult: (SearchResult) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val focusWorkId = remember {
-        works.firstOrNull { work -> work.sources.any { it.coverKey == restoreSourceKey } }?.id ?: works.first().id
-    }
+    val focusWorkId = works.firstOrNull { work -> work.sources.any { it.coverKey == restoreSourceKey } }?.id ?: works.first().id
     val cardFocusRequester = remember { FocusRequester() }
+    val gridState = rememberLazyGridState()
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
 
-    // Request focus on entry only; incremental snapshots must not steal D-pad focus.
-    LaunchedEffect(Unit) {
-        if (works.isNotEmpty()) {
+    // Navigation must finish and the restored card must attach before requesting focus.
+    LaunchedEffect(lifecycleState, focusWorkId) {
+        if (lifecycleState == Lifecycle.State.RESUMED) {
+            if (gridState.layoutInfo.visibleItemsInfo.none { it.key == focusWorkId }) {
+                gridState.scrollToItem(works.indexOfFirst { it.id == focusWorkId })
+            }
+            snapshotFlow { gridState.layoutInfo.visibleItemsInfo.any { it.key == focusWorkId } }.first { it }
             requestFocusSafely(cardFocusRequester)
         }
     }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(5),
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = GridContentPadding, vertical = GridVerticalPadding),
-        horizontalArrangement = Arrangement.spacedBy(ColumnSpacing),
-        verticalArrangement = Arrangement.spacedBy(RowSpacing)
-    ) {
-        itemsIndexed(works, key = { _, work -> work.id }) { _, work ->
-            WorkCard(
-                work = work,
-                coverFallbacks = coverFallbacks,
-                onLoadCoverFallback = onLoadCoverFallback,
-                onSelectResult = onSelectResult,
-                modifier = if (work.id == focusWorkId) Modifier.focusRequester(cardFocusRequester) else Modifier
-            )
+    CompositionLocalProvider(LocalBringIntoViewSpec provides CardFocusScroll) {
+        LazyVerticalGrid(
+            state = gridState,
+            columns = GridCells.Fixed(5),
+            modifier = modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = UiMetrics.cardGridHorizontalPadding, vertical = UiMetrics.cardGridVerticalPadding),
+            horizontalArrangement = Arrangement.spacedBy(UiMetrics.cardGap),
+            verticalArrangement = Arrangement.spacedBy(UiMetrics.cardGap)
+        ) {
+            itemsIndexed(works, key = { _, work -> work.id }) { _, work ->
+                WorkCard(
+                    work = work,
+                    coverFallbacks = coverFallbacks,
+                    onLoadCoverFallback = onLoadCoverFallback,
+                    onSelectResult = onSelectResult,
+                    modifier = if (work.id == focusWorkId) Modifier.focusRequester(cardFocusRequester) else Modifier
+                )
+            }
         }
     }
 }
@@ -174,7 +183,7 @@ private fun WorkCard(
                     normalizeCoverUrl(source.vodPic) ?: normalizeCoverUrl(coverFallbacks[source.coverKey].orEmpty())
                 }.distinct(),
                 title = result.vodName,
-                modifier = Modifier.fillMaxWidth().aspectRatio(CoverAspectRatio).clip(RoundedCornerShape(10.dp))
+                modifier = Modifier.fillMaxWidth().aspectRatio(CoverAspectRatio).clip(MaterialTheme.shapes.small)
             )
             art.anjing.tigertv.ui.components.MediaCardDetails(
                 title = if (result.vodYear.isBlank()) result.vodName else "${result.vodName} (${result.vodYear})",
@@ -184,8 +193,7 @@ private fun WorkCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("${work.sources.size} 个资源", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary, maxLines = 1,
-                        modifier = Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
-                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                        modifier = Modifier.background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.small)
                             .padding(horizontal = 6.dp, vertical = 2.dp))
                     Text(result.vodRemarks, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
@@ -197,10 +205,6 @@ private fun WorkCard(
 }
 
 
-private val GridContentPadding = 8.dp
-private val GridVerticalPadding = 16.dp
-private val ColumnSpacing = 16.dp
-private val RowSpacing = 16.dp
 private const val CoverAspectRatio = 2f / 3f
 
 /**
@@ -226,7 +230,7 @@ private fun CoverImage(
         } else {
             SubcomposeAsyncImage(
                 model = url,
-                contentDescription = title,
+                contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
                 loading = { CoverPlaceholder(title) },
@@ -240,16 +244,7 @@ private fun CoverImage(
 @Composable
 private fun CoverPlaceholder(title: String) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.06f),
-                        Color.Black.copy(alpha = 0.18f)
-                    )
-                )
-            ),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center
     ) {
         Text(

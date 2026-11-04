@@ -1,11 +1,13 @@
 package art.anjing.tigertv.ui.home
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -14,9 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import art.anjing.tigertv.ui.components.GlassButton
+import art.anjing.tigertv.ui.components.ActionButton
 import art.anjing.tigertv.ui.components.UiMetrics
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.InputChip
 import androidx.tv.material3.Text
 import art.anjing.tigertv.R
 
@@ -36,9 +39,9 @@ fun SearchHistoryRow(
         ) {
             Text(
                 text = stringResource(R.string.history_title),
-                style = MaterialTheme.typography.headlineLarge
+                style = MaterialTheme.typography.titleLarge
             )
-            GlassButton(onClick = onClear, height = UiMetrics.chipHeight, focusOnly = true,
+            ActionButton(onClick = onClear, height = UiMetrics.chipHeight, colors = androidx.tv.material3.ButtonDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
                 contentPadding = PaddingValues(horizontal = 16.dp)) {
                 Text(stringResource(R.string.clear_history), style = MaterialTheme.typography.bodyMedium)
             }
@@ -46,16 +49,18 @@ fun SearchHistoryRow(
         Spacer(modifier = Modifier.height(12.dp))
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
         ) {
             items(history) { item ->
-                GlassButton(
+                InputChip(
+                    selected = false,
                     onClick = { onSelect(item) },
                     onLongClick = { onRemove(item) },
-                    height = UiMetrics.chipHeight,
-                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    modifier = Modifier.heightIn(min = UiMetrics.chipHeight),
                 ) {
-                    Text(item, style = MaterialTheme.typography.bodyMedium)
+                    Box(Modifier.heightIn(min = UiMetrics.chipHeight - 16.dp), contentAlignment = Alignment.Center) {
+                        Text(item, style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
             }
         }

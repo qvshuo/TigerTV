@@ -11,6 +11,11 @@ object UiSpacing {
 }
 
 object UiMetrics {
+    val pageHorizontalPadding = 48.dp
+    val pageVerticalPadding = 28.dp
+    val cardGridHorizontalPadding = 12.dp
+    val cardGridVerticalPadding = 24.dp
+    val cardGap = 24.dp
     val compactLoadingIndicator = 20.dp
     val loadingIndicator = 32.dp
     val loadingRegion = 160.dp

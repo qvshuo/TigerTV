@@ -9,11 +9,14 @@ TigerTV 的业务实现集中在 Kotlin Multiplatform `core`。Android 直接调
 | `cli/` | macOS arm64 命令行 |
 | `macOS/` | SwiftUI、AVPlayer、Xcode 工程 |
 | `AndroidTV/` | Compose TV、Media3 应用模块 |
+| `assets/branding/` | 品牌母图、README 图标与网站 favicon |
 | `docs/fixtures/` | 核心、双端共用契约夹具 |
-| `scripts/` | 契约、桥接、播放器和发布校验 |
+| `scripts/` | 契约、桥接、播放器、发布校验与图标生成 |
 | `skills/` | Agent Skill、CLI 安装器及源配置 |
 
 接口和交互见[契约](contract.md)，实现限制见 [AGENTS.md](../AGENTS.md)。生产源配置位于 `skills/references/LunaTV-config.json`，由定时工作流同步上游。
+
+图标用途、平台尺寸与 TinyPNG 压缩命令见[品牌图标说明](../assets/branding/README.md)。
 
 ## 构建与检查
 
@@ -53,4 +56,4 @@ Android 固定复用 Interlude 的既有 debug keystore，CI 从现有四项签�
 
 保持依赖更新检查开启，不为消除提示而屏蔽诊断。Kotlin 2.4.21 在 Gradle 9.8.2 下存在上游 Native 属性弃用及部分调试符号诊断；未采用 Beta 或隐藏这些诊断。
 
-首页热门卡片与搜索结果卡片共用平台原生组件上的样式封装：macOS 使用 SwiftUI Button、GroupBox 与 Layout；Android TV 使用 TV Material Card/Button、Foundation BasicTextField 与布局。热门接口与缓存属于 core，样例见 `fixtures/douban-hot.sample.json`（上游）与 `fixtures/hot-search.sample.json`（共享输出）。豆瓣图片带 Referer，并逐行并发加载；具体字号、间距与平台交互以 `contract.md` 为准。
+首页热门卡片与搜索结果卡片共用平台原生组件上的样式封装：macOS 使用 SwiftUI Button、GroupBox 与 Layout；Android TV 使用默认 TV Material 3 主题及 Button、Card、FilterChip、InputChip、ListItem、Surface，搜索输入与布局使用 Foundation；不再自绘玻璃材质。热门接口与缓存属于 core，样例见 `fixtures/douban-hot.sample.json`（上游）与 `fixtures/hot-search.sample.json`（共享输出）。豆瓣图片带 Referer，并逐行并发加载；具体字号、间距与平台交互以 `contract.md` 为准。

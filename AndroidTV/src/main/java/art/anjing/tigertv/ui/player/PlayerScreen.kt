@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -35,6 +36,8 @@ import androidx.tv.material3.Text
 import androidx.tv.material3.Icon
 import androidx.compose.ui.res.painterResource
 import art.anjing.tigertv.R
+import art.anjing.tigertv.ui.components.ActionButton
+import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.components.LoadingOverlay
 import art.anjing.tigertv.ui.requestFocusSafely
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
@@ -51,12 +54,14 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
     val controller = remember { Media3Controller(context) }
     val snapshot = controller.snapshot
     val url = viewModel.resolvedPlaybackUrl
-    val blocked = viewModel.isResolvingPlayback || viewModel.playbackErrorMessage != null || url == null
+    val playbackError = viewModel.playbackErrorMessage
+    val blocked = viewModel.isResolvingPlayback || playbackError != null || url == null
     var controls by remember { mutableStateOf(PlaybackControlsState()) }
     var focusArea by remember { mutableStateOf(PlayerFocusArea.Surface) }
     var focusRequest by remember { mutableStateOf(PlayerFocusArea.Surface to 0) }
     var consumedCenter by remember { mutableStateOf(false) }
     var showBuffering by remember { mutableStateOf(false) }
+    var exiting by remember { mutableStateOf(false) }
     val surfaceFocus = remember { FocusRequester() }
     val timelineFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
@@ -78,9 +83,10 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
         if (seek.wasPlaying) controller.play() else controller.pause()
     }
     fun exitPlayer() {
+        if (exiting) return
+        exiting = true
         finishSeek(false)
-        controller.unload()
-        viewModel.clearPlayback()
+        controller.pause()
         onBack()
     }
     fun switchEpisode(offset: Int) {
@@ -112,9 +118,11 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
     LaunchedEffect(windowFocused) {
         if (!windowFocused) finishSeek(false)
     }
-    LaunchedEffect(focusRequest, blocked, controls.visible, controls.speedMenuOpen) {
+    // An error can arrive while loading is already blocked, without changing `blocked`.
+    LaunchedEffect(focusRequest, blocked, playbackError, controls.visible, controls.speedMenuOpen, windowFocused, lifecycleState) {
+        if (!windowFocused || lifecycleState != Lifecycle.State.RESUMED) return@LaunchedEffect
         when {
-            viewModel.playbackErrorMessage != null -> requestFocusSafely(retryFocus)
+            playbackError != null -> requestFocusSafely(retryFocus)
             blocked || !controls.visible -> requestFocusSafely(surfaceFocus)
             controls.speedMenuOpen -> requestFocusSafely(speedOptionFocus)
             focusRequest.first == PlayerFocusArea.Timeline -> requestFocusSafely(timelineFocus)
@@ -151,6 +159,7 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             controller.close()
+            if (exiting) viewModel.clearPlayback()
         }
     }
     DisposableEffect(url, viewModel.playbackRevision) {
@@ -198,7 +207,7 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
         val code = key.keyCode
         val down = key.action == KeyEvent.ACTION_DOWN
         if (code == KeyEvent.KEYCODE_BACK) {
-            if (down && key.repeatCount == 0) handleBack()
+            if (!down && !key.isCanceled) handleBack()
             return@onPreviewKeyEvent true
         }
         val center = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER
@@ -301,22 +310,23 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
         if (viewModel.isResolvingPlayback || showBuffering) {
             LoadingOverlay("正在准备播放…", Modifier.background(if (viewModel.isResolvingPlayback) Color.Black.copy(alpha = 0.75f) else Color.Transparent))
         }
-        viewModel.playbackErrorMessage?.let { error ->
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f)), contentAlignment = Alignment.Center) {
+        playbackError?.let { error ->
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))
+                .padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding),
+                contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(error, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(16.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        PlayerButton(onClick = { controller.unload(); viewModel.retryPlayback() }, modifier = Modifier.focusRequester(retryFocus).width(144.dp)) {
-                            Icon(painterResource(R.drawable.player_refresh), contentDescription = null, modifier = Modifier.size(24.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.retry))
-                        }
-                        PlayerButton(onClick = ::exitPlayer, modifier = Modifier.width(144.dp)) {
-                            Icon(painterResource(R.drawable.player_arrow_back), contentDescription = null, modifier = Modifier.size(24.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.back))
-                        }
+                    ActionButton(onClick = { controller.unload(); viewModel.retryPlayback() },
+                        modifier = Modifier.focusRequester(retryFocus).widthIn(min = 144.dp).focusProperties {
+                            up = FocusRequester.Cancel
+                            down = FocusRequester.Cancel
+                            left = FocusRequester.Cancel
+                            right = FocusRequester.Cancel
+                        }) {
+                        Icon(painterResource(R.drawable.player_refresh), contentDescription = null, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.retry))
                     }
                 }
             }

@@ -32,7 +32,7 @@ fun ErrorMessage(
     LaunchedEffect(message) { if (focusRetry && onRetry != null) requestFocusSafely(retryFocus) }
     val retry: @Composable () -> Unit = {
         if (onRetry != null) {
-            GlassButton(onClick = onRetry, modifier = Modifier.focusRequester(retryFocus)) {
+            ActionButton(onClick = onRetry, modifier = Modifier.focusRequester(retryFocus)) {
                 Text(stringResource(R.string.retry))
             }
         }

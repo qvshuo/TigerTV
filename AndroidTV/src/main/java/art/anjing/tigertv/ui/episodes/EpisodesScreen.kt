@@ -1,7 +1,5 @@
 package art.anjing.tigertv.ui.episodes
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.activity.compose.BackHandler
 
 import androidx.compose.foundation.focusGroup
@@ -14,7 +12,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,16 +28,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import kotlinx.coroutines.launch
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.PlatformTextStyle
-import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
@@ -51,12 +45,11 @@ import art.anjing.tigertv.R
 import art.anjing.tigertv.domain.EpisodeLink
 import art.anjing.tigertv.domain.FetchResponse
 import art.anjing.tigertv.domain.SearchResult
-import art.anjing.tigertv.ui.components.tvGlass
 import art.anjing.tigertv.ui.components.UiSpacing
 import art.anjing.tigertv.ui.components.UiMetrics
+import art.anjing.tigertv.ui.components.SelectionChip
 import art.anjing.tigertv.ui.components.ErrorMessage
-import art.anjing.tigertv.ui.components.GlassButton
-import art.anjing.tigertv.ui.components.BackButton
+import art.anjing.tigertv.ui.components.ActionButton
 import art.anjing.tigertv.ui.components.LoadingOverlay
 import art.anjing.tigertv.ui.requestFocusSafely
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
@@ -76,7 +69,6 @@ fun EpisodesScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int
     val gridState = rememberLazyGridState()
     val lineRow = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    val backFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
     val sourceFocus = remember { FocusRequester() }
     val lineFocus = remember { FocusRequester() }
@@ -109,14 +101,12 @@ fun EpisodesScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int
             entryFocusRequested = true
             if (episodes.isNotEmpty()) focusPlay()
             else if (sources.isNotEmpty()) focusSources()
-            else requestFocusSafely(backFocus)
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = UiSpacing.lg, vertical = UiSpacing.xl)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            BackButton(onClick = onBack, modifier = Modifier.focusRequester(backFocus))
-            Text(result?.site.orEmpty(), modifier = Modifier.weight(1f).padding(start = UiSpacing.md),
+            Text(result?.site.orEmpty(), modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.End, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -160,7 +150,7 @@ fun EpisodesScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int
                                 }
                             }
                             .focusGroup(),
-                        horizontalArrangement = Arrangement.spacedBy(UiSpacing.sm),
+                        horizontalArrangement = Arrangement.spacedBy(UiSpacing.md),
                         verticalArrangement = Arrangement.spacedBy(UiSpacing.sm)
                     ) {
                         sources.forEachIndexed { index, source ->
@@ -184,7 +174,7 @@ fun EpisodesScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int
                         LazyRow(state = lineRow,
                             modifier = Modifier.onDpad(Key.DirectionUp, ::focusSources)
                                 .onDpad(Key.DirectionDown, if (episodes.isNotEmpty()) ::focusEpisodes else null),
-                            horizontalArrangement = Arrangement.spacedBy(UiSpacing.sm), contentPadding = PaddingValues(vertical = UiSpacing.sm)) {
+                            horizontalArrangement = Arrangement.spacedBy(UiSpacing.md), contentPadding = PaddingValues(horizontal = UiSpacing.sm, vertical = UiSpacing.sm)) {
                             itemsIndexed(response.playSources, key = { _, source -> source.id }) { index, source ->
                                 DetailChoice(source.name, index == viewModel.selectedPlaybackSourceIndex,
                                     modifier = if (index == preferredLine) Modifier.focusRequester(lineFocus) else Modifier) {
@@ -208,7 +198,7 @@ fun EpisodesScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int
                         // Long titles can span two compact columns; short titles keep one.
                         val cellWidth = (availableWidth - UiSpacing.sm * (maxLineSpan - 1)) / maxLineSpan
                         val textWidth = with(density) { (cellWidth - UiSpacing.md * 2).roundToPx().coerceAtLeast(1) }
-                        val overflow = measurer.measure(AnnotatedString("✓ ${episode.name}"), style = episodeStyle,
+                        val overflow = measurer.measure(AnnotatedString(episode.name), style = episodeStyle,
                             maxLines = 2, constraints = Constraints(maxWidth = textWidth)).hasVisualOverflow
                         GridItemSpan(if (overflow) minOf(2, maxLineSpan) else 1)
                     }) { index, episode ->
@@ -233,7 +223,7 @@ private fun DetailOverview(result: SearchResult, detail: FetchResponse?, fallbac
     resumeIndex: Int, episodes: List<EpisodeLink>, onPlay: (Int) -> Unit, onPlayFocus: () -> Unit, playFocus: FocusRequester, onPlayDown: () -> Unit) {
     Row(
         Modifier.fillMaxWidth()
-            .tvGlass()
+            .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.large)
             .padding(UiSpacing.lg),
         horizontalArrangement = Arrangement.spacedBy(UiSpacing.lg),
         verticalAlignment = Alignment.Top
@@ -243,28 +233,27 @@ private fun DetailOverview(result: SearchResult, detail: FetchResponse?, fallbac
         SourcePoster(result, urls, Modifier.width(UiMetrics.posterWidth).height(UiMetrics.posterHeight))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(UiSpacing.sm)) {
             Text(detail?.vodName?.ifBlank { result.vodName } ?: result.vodName,
-                style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.headlineMedium)
             val metadata = listOf(detail?.vodYear ?: result.vodYear, detail?.typeName ?: result.typeName, detail?.vodArea.orEmpty()).filter { it.isNotBlank() }
             if (metadata.isNotEmpty()) Text(metadata.joinToString(" · "), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
                 if (!detail?.vodLang.isNullOrBlank()) Text(detail.vodLang, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 val status = detail?.vodRemarks ?: result.vodRemarks
                 if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), RoundedCornerShape(12.dp)).padding(horizontal = UiSpacing.sm, vertical = UiSpacing.xs))
+                    modifier = Modifier.background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.small).padding(horizontal = UiSpacing.sm, vertical = UiSpacing.xs))
             }
             episodes.getOrNull(resumeIndex)?.let { episode ->
-                GlassButton(onClick = { onPlay(resumeIndex) },
-                    radius = 32.dp, height = 64.dp,
+                ActionButton(onClick = { onPlay(resumeIndex) },
+                    height = 64.dp,
+                    colors = ButtonDefaults.colors(containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary),
                     contentPadding = PaddingValues(horizontal = UiSpacing.lg, vertical = 0.dp),
                     modifier = Modifier.padding(vertical = UiSpacing.sm).focusRequester(playFocus).onDpad(Key.DirectionDown, onPlayDown)
                         .onFocusChanged { if (it.isFocused) onPlayFocus() }) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(painterResource(R.drawable.player_play_arrow), contentDescription = null, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(UiSpacing.sm))
                     Text("播放 · ${episode.name}", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            platformStyle = PlatformTextStyle(includeFontPadding = false),
-                            lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both)
-                        ))
+                        style = MaterialTheme.typography.titleMedium)
                 }
             }
             if (!detail?.vodDirector.isNullOrBlank()) Credit("导演", detail.vodDirector)
@@ -279,7 +268,7 @@ private fun DetailOverview(result: SearchResult, detail: FetchResponse?, fallbac
 @Composable
 private fun Credit(label: String, value: String, maxLines: Int = 2) {
     Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.sm), verticalAlignment = Alignment.Top) {
-        Text(label, modifier = Modifier.width(32.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f))
+        Text(label, modifier = Modifier.width(32.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -294,10 +283,12 @@ private fun SectionTitle(title: String) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun DetailChoice(title: String, selected: Boolean, modifier: Modifier = Modifier, maxLines: Int = 1, onClick: () -> Unit) {
-    GlassButton(onClick = onClick, modifier = modifier, contentPadding = PaddingValues(horizontal = UiSpacing.md, vertical = 0.dp)) {
-        Box(Modifier.height(UiMetrics.controlHeight), contentAlignment = Alignment.Center) {
-            Text((if (selected) "✓ " else "") + title, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier = Modifier, maxLines: Int = 1, onClick: () -> Unit) {
+    SelectionChip(selected = selected, onClick = onClick,
+        modifier = modifier.width(IntrinsicSize.Max).heightIn(min = UiMetrics.controlHeight)) {
+        Box(Modifier.heightIn(min = UiMetrics.controlHeight - 16.dp), contentAlignment = Alignment.Center) {
+            Text(title, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+                maxLines = maxLines, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -306,9 +297,9 @@ private fun DetailChoice(title: String, selected: Boolean, modifier: Modifier = 
 private fun SourcePoster(result: SearchResult, urls: List<String>, modifier: Modifier) {
     var index by remember(result.coverKey, urls) { mutableIntStateOf(0) }
     val url = urls.getOrNull(index)
-    Box(modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+    Box(modifier.clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
         if (url == null) PosterPlaceholder(result.vodName)
-        else SubcomposeAsyncImage(model = url, contentDescription = result.vodName, contentScale = ContentScale.Crop,
+        else SubcomposeAsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(), loading = { PosterPlaceholder(result.vodName) }, error = { PosterPlaceholder(result.vodName) },
             onError = { if (urls.getOrNull(index) == url) index++ })
     }
@@ -316,7 +307,7 @@ private fun SourcePoster(result: SearchResult, urls: List<String>, modifier: Mod
 
 @Composable
 private fun PosterPlaceholder(title: String) {
-    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color.White.copy(alpha = 0.06f), Color.Black.copy(alpha = 0.18f)))), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(title.take(1), style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
     }
 }

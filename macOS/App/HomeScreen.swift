@@ -65,10 +65,11 @@ struct HotSearchSection: View {
 
     @State private var images: [String: NSImage] = [:]
     @State private var columns = 5
+    @State private var contentHeight = AppMetrics.hotSearchHeight
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            Text("豆瓣热门").font(.caption).foregroundStyle(.secondary)
+            Text("豆瓣热门").font(.headline).foregroundStyle(.primary)
             ViewThatFits(in: .horizontal) {
                 categoryButtons
                 ScrollView(.horizontal) { categoryButtons }.scrollIndicators(.hidden)
@@ -77,9 +78,10 @@ struct HotSearchSection: View {
             Group {
                 if isLoading {
                     AppLoadingState(message: "正在加载热门内容…", compact: true)
-                        .frame(height: AppMetrics.hotSearchHeight)
+                        .frame(height: contentHeight)
                 } else if titles.isEmpty {
                     AppFailureState(message: "热门内容暂不可用，请重试", onRetry: onRetry, compact: true)
+                        .frame(height: contentHeight)
                 } else {
                     LazyVGrid(
                         columns: [
@@ -123,6 +125,9 @@ struct HotSearchSection: View {
                             }.buttonStyle(.plain).modifier(MediaCardHover())
                         }
                     }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                        contentHeight = max(AppMetrics.hotSearchHeight, $0)
+                    }
                     .onGeometryChange(for: Int.self) {
                         max(1, Int(($0.size.width + 16) / 216))
                     } action: {
@@ -162,7 +167,6 @@ struct HotSearchSection: View {
                 }
             }
             .frame(minHeight: AppMetrics.hotSearchHeight, alignment: .top)
-            .animation(reduceMotion ? nil : AppMotion.control, value: isLoading)
 
         }
         .padding(AppSpacing.sm)

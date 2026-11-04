@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="128" height="128" src="macOS/App/Assets.xcassets/AppIcon.appiconset/icon_256x256.png" alt="TigerTV 图标">
+  <img width="128" height="128" src="assets/branding/web/logo.png" alt="TigerTV 图标">
 </p>
 
 # 小老虎爱看剧（TigerTV）

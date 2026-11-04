@@ -183,7 +183,7 @@ struct ResultsLayout: View {
                     .id(result.id)
                 VStack(alignment: .leading, spacing: AppSpacing.md) {
                     Text(detail?.vodName.isEmpty == false ? (detail?.vodName ?? result.vodName) : result.vodName)
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .font(.system(size: 28, weight: .semibold))
                         .textSelection(.enabled)
                     if !metadata.isEmpty {
                         Text(metadata.joined(separator: " · ")).font(.callout).foregroundStyle(.secondary)
@@ -248,10 +248,7 @@ struct ResultsLayout: View {
         -> some View
     {
         Button(action: action) {
-            HStack(spacing: AppSpacing.xs) {
-                if selected { Image(systemName: "checkmark") }
-                Text(title).font(.callout).lineLimit(1)
-            }
+            Text(title).font(.callout).lineLimit(1)
             .frame(minWidth: compact ? 72 : nil, maxWidth: compact ? 168 : .infinity)
             .padding(.vertical, AppSpacing.xs)
         }
