@@ -11,12 +11,12 @@ TigerTV 的业务实现集中在 Kotlin Multiplatform `core`。Android 直接调
 | `AndroidTV/` | Compose TV、Media3 应用模块 |
 | `assets/branding/` | 品牌母图、README 图标与网站 favicon |
 | `docs/fixtures/` | 核心、双端共用契约夹具 |
-| `scripts/` | 契约、桥接、播放器、发布校验与图标生成 |
+| `scripts/` | 契约、桥接、播放器与发布校验 |
 | `skills/` | Agent Skill、CLI 安装器及源配置 |
 
 接口和交互见[契约](contract.md)，实现限制见 [AGENTS.md](../AGENTS.md)。生产源配置位于 `skills/references/LunaTV-config.json`，由定时工作流同步上游。
 
-图标用途、平台尺寸与 TinyPNG 压缩命令见[品牌图标说明](../assets/branding/README.md)。
+图标用途与各平台尺寸见[品牌图标说明](../assets/branding/README.md)。
 
 ## 构建与检查
 
