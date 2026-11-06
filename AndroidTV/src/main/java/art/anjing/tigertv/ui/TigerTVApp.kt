@@ -10,7 +10,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import art.anjing.tigertv.ui.episodes.EpisodesScreen
+import art.anjing.tigertv.ui.detail.DetailScreen
 import art.anjing.tigertv.ui.home.HomeScreen
 import art.anjing.tigertv.ui.player.PlayerScreen
 import art.anjing.tigertv.ui.results.ResultsScreen
@@ -65,7 +65,7 @@ internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostC
             exitTransition = { if (targetState.destination.route == Screen.Player.route) ExitTransition.None else null },
             popEnterTransition = { if (initialState.destination.route == Screen.Player.route) EnterTransition.None else null }
         ) {
-            EpisodesScreen(
+            DetailScreen(
                 viewModel = viewModel,
                 onBack = {
                     viewModel.leaveDetail()

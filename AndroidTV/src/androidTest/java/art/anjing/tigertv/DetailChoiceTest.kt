@@ -16,7 +16,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import art.anjing.tigertv.ui.episodes.DetailChoice
+import art.anjing.tigertv.ui.detail.DetailChoice
 import art.anjing.tigertv.ui.home.SearchHistoryRow
 import art.anjing.tigertv.ui.theme.TigerTVTheme
 import org.junit.Assert.*

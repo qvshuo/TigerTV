@@ -9,7 +9,7 @@ Keep API/config/history/playback logic in core. Do not add alternate parameters,
 - `core/`: models, aggregation, MacCMS/config networking, playback resolution, QuanX domains, caches and history.
 - `nativeBridge/`: static `TigerTVCore.framework` and versioned async JSON boundary.
 - `cli/`: macOS arm64 executable `tigertv`.
-- `macOS/App/SharedCoreRepository.swift` and Android `data/TigerTVRepository.kt`: production adapters.
+- `macOS/App/Data/SharedCoreRepository.swift` and Android `data/TigerTVRepository.kt`: production adapters.
 - Authoritative contracts and fixtures: `docs/contract.md` and `docs/fixtures/`. Update them together with both platforms whenever changing models or parsing.
 - Build and release notes: `docs/README.md`; current API and UI contract: `docs/contract.md`.
 
@@ -81,7 +81,7 @@ Android: custom Compose playback controls over Media3 video/subtitles, styled wi
 
 ## Signing and release
 
-Current version 4.2.0; Android default versionCode 16 (4.2.0 release: 17), macOS build 12. CI checks PRs/main; releases only through workflow_dispatch. Package macOS arm64 ZIP, universal Android APK and macOS arm64 CLI tar.gz with checksums. macOS app unsigned.
+Current version 4.2.1; Android default versionCode 18 (4.2.1 release: 19), macOS build 13. CI checks PRs/main; releases only through workflow_dispatch. Package macOS arm64 ZIP, universal Android APK and macOS arm64 CLI tar.gz with checksums. macOS app unsigned.
 
 Android debug and release share Interlude's existing `~/.android/debug.keystore`, alias `androiddebugkey`, standard Android debug-key credentials. CI restores the same key using the existing four Android signing secrets. Required certificate SHA-256: `0d81ab7cb1a16d58d91a953fe62049eb77fc840cc544a297ae1854f54bc73b96`. Never generate a temporary release signing key. This user-requested key supersedes the former TigerTV certificate; old-certificate installations cannot be updated in place. Increment Android versionCode for releases; do not publish/deploy without user authorization.
 

@@ -1,4 +1,4 @@
-package art.anjing.tigertv.ui.episodes
+package art.anjing.tigertv.ui.detail
 
 import androidx.activity.compose.BackHandler
 
@@ -53,11 +53,11 @@ import art.anjing.tigertv.ui.components.ActionButton
 import art.anjing.tigertv.ui.components.LoadingOverlay
 import art.anjing.tigertv.ui.requestFocusSafely
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
-import art.anjing.tigertv.util.normalizeCoverUrl
+import art.anjing.tigertv.data.normalizeCoverUrl
 
 @OptIn(ExperimentalTvMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun EpisodesScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) -> Unit) {
+fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) -> Unit) {
     BackHandler(onBack = onBack)
     val result = viewModel.selectedResult
     val response = viewModel.fetchResponse?.takeIf { it.site == result?.site && it.vodId == result.vodId }

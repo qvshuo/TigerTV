@@ -58,7 +58,7 @@ struct SearchResultCard: View {
     private var candidateURLs: [URL] {
         var seen = Set<URL>()
         return work.orderedSources.compactMap { source in
-            HTTPClient.percentEncodedURL(from: source.vodPic) ?? coverFallbacks[source.id]
+            HTTPConfiguration.percentEncodedURL(from: source.vodPic) ?? coverFallbacks[source.id]
         }.filter { seen.insert($0).inserted }
     }
 

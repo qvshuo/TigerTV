@@ -54,7 +54,7 @@ import art.anjing.tigertv.ui.components.ErrorMessage
 import art.anjing.tigertv.ui.components.SearchButton
 import art.anjing.tigertv.ui.requestFocusSafely
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
-import art.anjing.tigertv.util.normalizeCoverUrl
+import art.anjing.tigertv.data.normalizeCoverUrl
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable

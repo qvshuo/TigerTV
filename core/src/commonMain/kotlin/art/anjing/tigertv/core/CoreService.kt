@@ -7,7 +7,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.*
 import kotlinx.serialization.json.*
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerialName
 
 const val CONFIG_CDN_URL = "https://cdn.jsdelivr.net/gh/qvshuo/TigerTV@main/skills/references/LunaTV-config.json"
 const val CONFIG_RAW_URL = "https://raw.githubusercontent.com/qvshuo/TigerTV/refs/heads/main/skills/references/LunaTV-config.json"
@@ -381,30 +380,3 @@ private data class PlayedSources(val recentSite: String? = null, val byWork: Map
 @Serializable
 private data class WorkPlayback(val site: String, val resources: Map<String, PlaybackBookmark>,
     val positions: Map<String, Map<String, Map<String, Long>>> = emptyMap())
-
-@Serializable
-private data class HotSearchCache(val fetchedAtMillis: Long, val titles: List<HotSearchItem>)
-
-@Serializable
-private data class HotSearchPage(@SerialName("subject_collection_items") val items: List<DoubanItem>)
-
-@Serializable
-private data class DoubanItem(
-    val id: String, val title: String, val year: String = "", val pic: DoubanPicture? = null,
-    val rating: DoubanRating? = null, @SerialName("episodes_info") val status: String = ""
-)
-@Serializable
-private data class DoubanPicture(val large: String = "")
-@Serializable
-private data class DoubanRating(val value: Double = 0.0, val count: Int = 0)
-
-private data class HotSearchCollection(val id: String, val name: String, val collection: String)
-
-private val HOT_SEARCH_COLLECTIONS = listOf(
-    HotSearchCollection("chinese", "国产剧", "tv_domestic"),
-    HotSearchCollection("tvshow", "综艺", "tv_variety_show"),
-    HotSearchCollection("american", "英美剧", "tv_american"),
-    HotSearchCollection("korean", "韩剧", "tv_korean"),
-    HotSearchCollection("japanese", "日剧", "tv_japanese"),
-    HotSearchCollection("animation", "动漫", "tv_animation")
-)

@@ -47,9 +47,8 @@ struct ContentView: View {
                         removal: .opacity.combined(with: .move(edge: .leading))
                     ))
             } else {
-                ResultsLayout(
+                BrowseScreen(
                     keyword: $viewModel.keyword,
-                    submittedKeyword: viewModel.submittedKeyword,
                     works: viewModel.works,
                     availableSources: viewModel.availableSources,
                     episodes: viewModel.episodes,

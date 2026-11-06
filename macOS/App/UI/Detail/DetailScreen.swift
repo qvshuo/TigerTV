@@ -1,0 +1,226 @@
+import AppKit
+import SwiftUI
+
+struct DetailScreen: View {
+    let result: SearchResult
+    let availableSources: [SearchResult]
+    let episodes: [EpisodeLink]
+    let selectedPlaybackSourceIndex: Int
+    let fetchErrorMessage: String?
+    let onRetryFetch: () -> Void
+    let onSelectPlaybackSource: (Int) -> Void
+    let fetchResponse: FetchResponse?
+    let isFetching: Bool
+    let selectedEpisode: EpisodeLink?
+    let coverFallbacks: [String: URL]
+    let onSelectResult: (SearchResult) -> Void
+    let onSelectEpisode: (EpisodeLink) -> Void
+    let resumeEpisode: EpisodeLink?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                detailOverview(result)
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        sectionTitle("资源")
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 160), spacing: AppSpacing.sm)],
+                            spacing: AppSpacing.sm
+                        ) {
+                            ForEach(availableSources) { source in
+                                detailChoice(source.site, selected: source.id == result.id) {
+                                    onSelectResult(source)
+                                }
+                            }
+                        }
+                    }
+                    .padding(AppSpacing.md)
+                }
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                        VStack(alignment: .leading, spacing: AppSpacing.md) {
+                            sectionTitle("线路")
+                            Group {
+                                if isFetching {
+                                    AppLoadingState(message: "正在加载资源…", compact: true)
+                                        .frame(height: AppMetrics.resourceStatusHeight)
+                                } else if let error = fetchErrorMessage {
+                                    AppFailureState(message: error, onRetry: onRetryFetch, compact: true)
+                                } else if let response = fetchResponse, !response.playSources.isEmpty {
+                                    LazyVGrid(
+                                        columns: [GridItem(.adaptive(minimum: 140), spacing: AppSpacing.sm)],
+                                        spacing: AppSpacing.sm
+                                    ) {
+                                        ForEach(Array(response.playSources.enumerated()), id: \.element.id) {
+                                            index, source in
+                                            detailChoice(
+                                                source.name, selected: index == selectedPlaybackSourceIndex
+                                            ) {
+                                                onSelectPlaybackSource(index)
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Text("暂无线路").foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(minHeight: AppMetrics.resourceStatusHeight)
+                        }
+                        Divider().opacity(0.5)
+                        sectionTitle("选集")
+                        if isFetching || fetchErrorMessage != nil {
+                            Color.clear.frame(height: AppMetrics.loadingRegion)
+                        } else if episodes.isEmpty {
+                            Text("暂无播放内容").foregroundStyle(.secondary)
+                        } else {
+                            FlowLayout(spacing: AppSpacing.sm, lineSpacing: AppSpacing.sm) {
+                                ForEach(Array(episodes.enumerated()), id: \.offset) { _, episode in
+                                    detailChoice(episode.name, selected: selectedEpisode == episode, compact: true)
+                                    {
+                                        onSelectEpisode(episode)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(AppSpacing.md)
+                }
+            }
+            .frame(maxWidth: AppMetrics.contentWidth, alignment: .leading)
+            .frame(maxWidth: .infinity)
+            .padding(AppSpacing.lg)
+        }
+    }
+
+    private func detailOverview(_ result: SearchResult) -> some View {
+        let detail = fetchResponse?.id == result.id ? fetchResponse : nil
+        let metadata = [detail?.vodYear ?? result.vodYear, detail?.typeName ?? result.typeName, detail?.vodArea ?? ""]
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        let status = detail?.vodRemarks ?? result.vodRemarks
+        var seen = Set<URL>()
+        let urls =
+            [detail?.vodPic, result.vodPic].compactMap { $0 }.compactMap(HTTPConfiguration.percentEncodedURL)
+            + [coverFallbacks[result.id]].compactMap { $0 }
+        let candidates = urls.filter { seen.insert($0).inserted }
+        return GroupBox {
+            HStack(alignment: .top, spacing: AppSpacing.lg) {
+                SourceDetailPoster(title: result.vodName, candidates: candidates)
+                    .frame(width: AppMetrics.posterWidth, height: AppMetrics.posterHeight)
+                    .id(result.id)
+                VStack(alignment: .leading, spacing: AppSpacing.md) {
+                    Text(detail?.vodName.isEmpty == false ? (detail?.vodName ?? result.vodName) : result.vodName)
+                        .font(.system(size: 28, weight: .semibold))
+                        .textSelection(.enabled)
+                    if !metadata.isEmpty {
+                        Text(metadata.joined(separator: " · ")).font(.callout).foregroundStyle(.secondary)
+                    }
+                    HStack(spacing: AppSpacing.sm) {
+                        if let language = detail?.vodLang, !language.isEmpty {
+                            Text(language).font(.caption).foregroundStyle(.secondary)
+                        }
+                        if !status.isEmpty {
+                            Text(status).font(.caption.weight(.semibold))
+                                .padding(.horizontal, AppSpacing.sm).padding(.vertical, AppSpacing.xs)
+                                .background(Color.accentColor.opacity(0.12), in: Capsule())
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                    if let episode = resumeEpisode ?? episodes.first {
+                        Button {
+                            onSelectEpisode(episode)
+                        } label: {
+                            Label("播放 · \(episode.name)", systemImage: "play.fill")
+                                .font(.body.weight(.semibold))
+                                .padding(AppSpacing.xs)
+                        }
+                        .buttonStyle(.glassProminent)
+                        .controlSize(.large)
+                        .buttonBorderShape(.capsule)
+                        .tint(Color.accentColor)
+                        .padding(.vertical, AppSpacing.xs)
+                    }
+                    if let director = detail?.vodDirector, !director.isEmpty {
+                        detailCredit("导演", value: director)
+                    }
+                    if let actor = detail?.vodActor, !actor.isEmpty {
+                        detailCredit("主演", value: actor)
+                    }
+                    if let content = detail?.vodContent, !content.isEmpty {
+                        detailCredit("简介", value: content, lineLimit: nil)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(AppSpacing.md)
+        }
+    }
+
+    private func detailCredit(_ label: String, value: String, lineLimit: Int? = 2) -> some View {
+        HStack(alignment: .top, spacing: AppSpacing.sm) {
+            Text(label).foregroundStyle(.tertiary).frame(width: 32, alignment: .leading)
+            Text(value).foregroundStyle(.secondary).lineLimit(lineLimit).textSelection(.enabled)
+        }
+        .font(.callout)
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        HStack {
+            Text(title).font(.headline)
+            Spacer()
+        }
+    }
+
+    private func detailChoice(_ title: String, selected: Bool, compact: Bool = false, action: @escaping () -> Void)
+        -> some View
+    {
+        Button(action: action) {
+            Text(title).font(.callout).lineLimit(1)
+            .frame(minWidth: compact ? 72 : nil, maxWidth: compact ? 168 : .infinity)
+            .padding(.vertical, AppSpacing.xs)
+        }
+        .buttonStyle(.glass)
+        .controlSize(.large)
+        .buttonBorderShape(.capsule)
+        .tint(selected ? Color.accentColor : nil)
+        .fixedSize(horizontal: compact, vertical: false)
+        .help(title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .animation(reduceMotion ? nil : AppMotion.control, value: selected)
+    }
+
+}
+
+/// Detail posters only use URLs belonging to the currently selected source.
+private struct SourceDetailPoster: View {
+    let title: String
+    let candidates: [URL]
+    @State private var image: NSImage?
+
+    var body: some View {
+        Color.clear.overlay {
+            if let image {
+                Image(nsImage: image).resizable().scaledToFill()
+            } else {
+                ZStack {
+                    LinearGradient(
+                        colors: [Color.accentColor.opacity(0.15), Color.secondary.opacity(0.1)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing)
+                    Text(String(title.prefix(1))).font(.system(size: 44, weight: .light)).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: AppRadius.md))
+        .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
+        .task(id: candidates) {
+            image = nil
+            let loaded = await loadFirstCover(candidates: candidates) { await CoverImageCache.shared.image(for: $0) }
+            guard !Task.isCancelled else { return }
+            image = loaded?.value
+        }
+    }
+}

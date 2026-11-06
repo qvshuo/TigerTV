@@ -25,7 +25,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.tv.material3.Surface
 import art.anjing.tigertv.core.*
 import art.anjing.tigertv.data.TigerTVRepository
-import art.anjing.tigertv.ui.episodes.EpisodesScreen
+import art.anjing.tigertv.ui.detail.DetailScreen
 import art.anjing.tigertv.ui.Screen
 import art.anjing.tigertv.ui.TigerTVNavHost
 import art.anjing.tigertv.ui.player.Media3Controller
@@ -97,7 +97,7 @@ class PlayerRemoteTest {
                                 nav.navigate(Screen.Episodes.route)
                                 nav.navigate(Screen.Player.route)
                             }
-                        } else if (detailShown.value) EpisodesScreen(model, onBack = { exits++ }, onPlay = { model.selectEpisode(it) })
+                        } else if (detailShown.value) DetailScreen(model, onBack = { exits++ }, onPlay = { model.selectEpisode(it) })
                         else PlayerScreen(model) { exits++; shown.value = false }
                     }
                 }

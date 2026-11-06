@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | GitHub README | `originals/icon-transparent.png` | `web/logo.png`，256×256，以 128×128 显示 |
 | 网站 favicon | `originals/icon-transparent.png` | `web/favicon.ico`，内含 16、32、48 三种尺寸 |
-| macOS 客户端 | `originals/icon-opaque.png` | `macOS/App/Assets.xcassets/AppIcon.appiconset/`，16–1024 像素，覆盖现有 1x/2x 槽位 |
+| macOS 客户端 | `originals/icon-opaque.png` | `macOS/App/Resources/Assets.xcassets/AppIcon.appiconset/`，16–1024 像素，覆盖现有 1x/2x 槽位 |
 | Android TV 启动图标 | `originals/icon-opaque.png` | 原生自适应图标 `mipmap-anydpi/ic_launcher.xml`；前景位图为 108、162、216、324、432 像素，覆盖 mdpi 至 xxxhdpi |
 | Android TV 横排 Banner | `originals/tv-banner.png` | 同一组 mipmap 目录中的 `banner.png`，160×90 至 640×360 |
 

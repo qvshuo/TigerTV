@@ -16,7 +16,7 @@ import art.anjing.tigertv.domain.PlaybackBookmark
 import art.anjing.tigertv.domain.FetchResponse
 import art.anjing.tigertv.domain.VideoWork
 import art.anjing.tigertv.domain.SearchResult
-import art.anjing.tigertv.util.normalizeCoverUrl
+import art.anjing.tigertv.data.normalizeCoverUrl
 import coil3.SingletonImageLoader
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest

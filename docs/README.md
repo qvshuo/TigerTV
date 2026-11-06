@@ -16,6 +16,8 @@ TigerTV 的业务实现集中在 Kotlin Multiplatform `core`。Android 直接调
 
 接口和交互见[契约](contract.md)，实现限制见 [AGENTS.md](../AGENTS.md)。生产源配置位于 `skills/references/LunaTV-config.json`，由定时工作流同步上游。
 
+macOS 源码按职责组织在 `App/Application`（入口、页面协调、ViewModel）、`App/Data`（核心适配、模型与封面缓存）、`App/UI`（首页、结果、详情、播放器及共用组件）和 `App/Resources`。SwiftPM 的测试库只包含 `App/Data` 中不依赖原生桥接的代码；Xcode 构建完整应用。Android 页面位于 `ui/home`、`ui/results`、`ui/detail`、`ui/player`，平台数据适配与封面 URL 工具集中在 `data`。core 的热门接口模型与分类定义放在 `HotSearchModels.kt`，业务仍由 `CoreService` 统一实现。
+
 图标用途与各平台尺寸见[品牌图标说明](../assets/branding/README.md)。
 
 ## 构建与检查
@@ -48,7 +50,7 @@ swiftc -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -fr
 
 ## 发布
 
-当前版本 4.2.0，Android 默认 versionCode 16，macOS build 12。本次 4.2.0 发布使用 versionCode 17；手动发布的 versionCode 必须大于仓库默认值。
+当前版本 4.2.1，Android 默认 versionCode 18，macOS build 13。本次 4.2.1 发布使用 versionCode 19；手动发布的 versionCode 必须大于仓库默认值。
 
 PR/main 执行检查；仅手动 `workflow_dispatch` 发布。Actions 使用 Xcode 27.2 版本别名，校验 Xcode 与 macOS SDK 27.2，不锁定构建号；托管镜像更新前允许使用该别名指向的 RC。产物为未签名 macOS ZIP、Android universal APK、macOS CLI tar.gz 及 SHA-256。
 

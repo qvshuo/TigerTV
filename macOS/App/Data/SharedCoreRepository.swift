@@ -102,7 +102,7 @@ actor SharedCoreRepository: VideoRepository {
     func resolvePlaybackUrl(url: String) async -> LoadResult<String> { await request("resolve", ["url": url], as: String.self) }
     func coverFallbackURL(siteName: String, vodId: Int) async -> URL? {
         if case .success(let url) = await request("cover", ["site": siteName, "video_id": vodId], as: String.self) {
-            return HTTPClient.percentEncodedURL(from: url)
+            return HTTPConfiguration.percentEncodedURL(from: url)
         }
         return nil
     }

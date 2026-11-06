@@ -19,10 +19,10 @@ final class AVPlayerController: ObservableObject {
 
     func load(url: String, positionMillis: Int64, onStarted: @escaping () -> Void, onPosition: @escaping (Int64) -> Void) {
         close()
-        guard let url = HTTPClient.percentEncodedURL(from: url) else { return }
+        guard let url = HTTPConfiguration.percentEncodedURL(from: url) else { return }
         self.onPosition = onPosition
         restoring = true
-        let asset = AVURLAsset(url: url, options: [AVURLAssetHTTPUserAgentKey: HTTPClient.userAgent])
+        let asset = AVURLAsset(url: url, options: [AVURLAssetHTTPUserAgentKey: HTTPConfiguration.userAgent])
         let item = AVPlayerItem(asset: asset)
         player.replaceCurrentItem(with: item)
         item.publisher(for: \.status)
@@ -133,15 +133,5 @@ final class AVPlayerController: ObservableObject {
         player.replaceCurrentItem(with: nil)
         hasItem = false
         errorMessage = nil
-    }
-}
-
-struct PlayerContainer: View {
-    let player: AVPlayer
-
-    var body: some View {
-        VideoPlayer(player: player)
-            .aspectRatio(16 / 9, contentMode: .fit)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

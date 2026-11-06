@@ -25,7 +25,7 @@ final class CoverImageCache: @unchecked Sendable {
         self.session = session ?? {
             let configuration = URLSessionConfiguration.ephemeral
             configuration.timeoutIntervalForRequest = 20
-            configuration.httpAdditionalHeaders = ["User-Agent": HTTPClient.userAgent]
+            configuration.httpAdditionalHeaders = ["User-Agent": HTTPConfiguration.userAgent]
             return URLSession(configuration: configuration)
         }()
     }

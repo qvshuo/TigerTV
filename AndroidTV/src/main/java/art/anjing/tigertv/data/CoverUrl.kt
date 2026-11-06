@@ -1,8 +1,8 @@
-package art.anjing.tigertv.util
+package art.anjing.tigertv.data
 
 /**
  * 封面 URL 规范化：仅对非 ASCII 字符做百分号编码（UTF-8），
- * 与 macOS `HTTPClient.percentEncodedURL(from:)` 语义一致。
+ * 与 macOS `HTTPConfiguration.percentEncodedURL(from:)` 语义一致。
  * 已编码的 `%XX` 序列与 ASCII 部分保持原样，避免双重编码。
  */
 fun normalizeCoverUrl(raw: String): String? {

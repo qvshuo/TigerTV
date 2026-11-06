@@ -147,7 +147,7 @@ struct HotSearchSection: View {
                                 for item in row {
                                     group.addTask {
                                         guard
-                                            let url = HTTPClient.percentEncodedURL(
+                                            let url = HTTPConfiguration.percentEncodedURL(
                                                 from: item.poster)
                                         else {
                                             return (item.id, nil)
