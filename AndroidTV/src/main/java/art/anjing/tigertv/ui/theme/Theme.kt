@@ -5,15 +5,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme
 
-private val GlassColors = darkColorScheme(
-    primary = Color(0xFF78B7FF), onPrimary = Color(0xFF071727),
-    secondary = Color(0xFFB8C7DA), tertiary = Color(0xFF94BDE5),
-    background = Color(0xFF101217), surface = Color(0xFF191D25),
-    surfaceVariant = Color(0xFF252B35), onSurface = Color(0xFFF3F5FA),
-    onSurfaceVariant = Color(0xFFBCC4D2)
+private val Content = Color(0xFFF0F0F4)
+private val TvColors = darkColorScheme(
+    primary = Content, onPrimary = Color(0xFF1C1C22),
+    primaryContainer = Color(0xFF36363E), onPrimaryContainer = Content,
+    inversePrimary = Color(0xFF62626E),
+    secondary = Color(0xFFC6C6D0), onSecondary = Color(0xFF26262E),
+    secondaryContainer = Color(0xFF303038), onSecondaryContainer = Content,
+    tertiary = Color(0xFFCCCCD4), onTertiary = Color(0xFF282830),
+    tertiaryContainer = Color(0xFF383840), onTertiaryContainer = Content,
+    background = Color(0xFF141416), onBackground = Content,
+    surface = Color(0xFF141416), onSurface = Content,
+    surfaceVariant = Color(0xFF28282E), onSurfaceVariant = Color(0xFFC4C4CC),
+    inverseSurface = Content, inverseOnSurface = Color(0xFF202024),
+    border = Color(0xFF8C8C96), borderVariant = Color(0xFF44444C)
 )
 
 @Composable
 fun TigerTVTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = GlassColors, typography = Typography, content = content)
+    MaterialTheme(colorScheme = TvColors, content = content)
 }

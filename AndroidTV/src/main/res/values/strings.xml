@@ -10,5 +10,4 @@
     <string name="error_no_results">未找到相关作品</string>
     <string name="retry">重试</string>
     <string name="retry_load_config">重试</string>
-    <string name="back">返回</string>
 </resources>

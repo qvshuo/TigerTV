@@ -2,13 +2,15 @@ package art.anjing.tigertv.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import art.anjing.tigertv.ui.episodes.EpisodesScreen
+import art.anjing.tigertv.ui.detail.DetailScreen
 import art.anjing.tigertv.ui.home.HomeScreen
 import art.anjing.tigertv.ui.player.PlayerScreen
 import art.anjing.tigertv.ui.results.ResultsScreen
@@ -32,6 +34,11 @@ fun TigerTVApp(
         factory = remember(appContext) { TigerTVViewModelFactory(appContext) }
     )
 
+    TigerTVNavHost(viewModel, navController)
+}
+
+@Composable
+internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostController) {
     NavHost(navController = navController, startDestination = Screen.Home.route) {
         composable(Screen.Home.route) {
             HomeScreen(
@@ -54,8 +61,11 @@ fun TigerTVApp(
                 }
             )
         }
-        composable(Screen.Episodes.route) {
-            EpisodesScreen(
+        composable(Screen.Episodes.route,
+            exitTransition = { if (targetState.destination.route == Screen.Player.route) ExitTransition.None else null },
+            popEnterTransition = { if (initialState.destination.route == Screen.Player.route) EnterTransition.None else null }
+        ) {
+            DetailScreen(
                 viewModel = viewModel,
                 onBack = {
                     viewModel.leaveDetail()
@@ -67,7 +77,11 @@ fun TigerTVApp(
                 }
             )
         }
-        composable(Screen.Player.route) {
+        // Video uses its own Surface; alpha transitions expose an empty frame on teardown.
+        composable(Screen.Player.route,
+            enterTransition = { EnterTransition.None }, exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None }, popExitTransition = { ExitTransition.None }
+        ) {
             PlayerScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() }

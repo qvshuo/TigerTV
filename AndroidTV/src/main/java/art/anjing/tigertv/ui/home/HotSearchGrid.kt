@@ -2,7 +2,6 @@ package art.anjing.tigertv.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -10,11 +9,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import art.anjing.tigertv.domain.HotSearchItem
 import art.anjing.tigertv.ui.components.MediaCard
+import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.components.MediaCardDetails
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
@@ -47,16 +46,16 @@ internal fun HotSearchGrid(items: List<HotSearchItem>, modifier: Modifier = Modi
             loadedRows = index + 1
         }
     }
-    Column(modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier.fillMaxWidth().padding(horizontal = UiMetrics.cardGridHorizontalPadding, vertical = UiMetrics.cardGridVerticalPadding), verticalArrangement = Arrangement.spacedBy(UiMetrics.cardGap)) {
         rows.forEachIndexed { index, row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(UiMetrics.cardGap)) {
                 row.forEach { item ->
                     MediaCard(onClick = { onSearch(item.title) }, modifier = Modifier.weight(1f)) {
                         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(MaterialTheme.shapes.small)
                             .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
                             Text(item.title.take(1), style = MaterialTheme.typography.displayMedium)
-                            if (index < loadedRows) AsyncImage(model = requests.getValue(item.id), contentDescription = item.title,
+                            if (index < loadedRows) AsyncImage(model = requests.getValue(item.id), contentDescription = null,
                                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                         }
                         MediaCardDetails(
