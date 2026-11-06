@@ -46,11 +46,18 @@ swiftc -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -fr
 /tmp/check-native-bridge
 ```
 
-`scripts/serve-playback-fixtures.py DIR` 仅暴露指定测试目录中的媒体与测试 API；`scripts/check-macos-playback.swift` 验证实际 AVPlayer 播放、暂停、跳转与释放。
+`scripts/serve-playback-fixtures.py DIR` 仅暴露指定测试目录中的媒体与测试 API；`scripts/check-macos-playback.swift` 验证实际 AVPlayer 播放、暂停、跳转与释放，并经 AppKit 事件分发检查方向键跳转与连续按键时的播放状态。
+
+键盘播放检查使用至少 45 秒的 MP4/HLS 点播夹具，编译后传入本机测试媒体 URL：
+
+```bash
+swiftc -swift-version 6 -parse-as-library macOS/App/Data/HTTPConfiguration.swift macOS/App/UI/Player/AVPlayerController.swift macOS/App/UI/Player/PlayerContainer.swift scripts/check-macos-playback.swift -o /tmp/check-macos-playback
+/tmp/check-macos-playback http://127.0.0.1:18766/index.m3u8 http://127.0.0.1:18766/sample.mp4
+```
 
 ## 发布
 
-当前版本 4.2.1，Android 默认 versionCode 18，macOS build 13。本次 4.2.1 发布使用 versionCode 19；手动发布的 versionCode 必须大于仓库默认值。
+当前版本 4.2.2，Android 默认 versionCode 20，macOS build 14。本次 4.2.2 发布使用 versionCode 21；手动发布的 versionCode 必须大于仓库默认值。
 
 PR/main 执行检查；仅手动 `workflow_dispatch` 发布。Actions 使用 Xcode 27.2 版本别名，校验 Xcode 与 macOS SDK 27.2，不锁定构建号；托管镜像更新前允许使用该别名指向的 RC。产物为未签名 macOS ZIP、Android universal APK、macOS CLI tar.gz 及 SHA-256。
 
