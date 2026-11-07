@@ -12,7 +12,7 @@
 - **Android TV 应用**：与 macOS 流程一致，适配遥控器
 - **命令行工具**：搜索、获取链接、生成 Quantumult X 直连规则、查看日志
 - **Agent Skill**：影视搜索、链接获取、直连规则与下载流程指引
-- **浏览与播放**：豆瓣热门展示六类榜单、评分与更新状态，点击搜索；切换资源、线路与选集，记住同源同线路的播放进度
+- **浏览播放**：支持豆瓣热门与记住播放进度
 
 ## 截图
 
@@ -20,10 +20,12 @@
 
 <table>
   <tr>
-    <td width="25%"><img src="screenshots/macos-1.png" alt="macOS 首页" width="100%"></td>
-    <td width="25%"><img src="screenshots/macos-2.png" alt="macOS 小城良方搜索结果" width="100%"></td>
-    <td width="25%"><img src="screenshots/macos-3.png" alt="macOS 嫁金钗作品详情" width="100%"></td>
-    <td width="25%"><img src="screenshots/macos-4.png" alt="macOS 嫁金钗播放界面" width="100%"></td>
+    <td width="50%"><img src="screenshots/macos-1.png" alt="macOS 首页" width="100%"></td>
+    <td width="50%"><img src="screenshots/macos-2.png" alt="macOS 小城良方搜索结果" width="100%"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="screenshots/macos-3.png" alt="macOS 嫁金钗作品详情" width="100%"></td>
+    <td width="50%"><img src="screenshots/macos-4.png" alt="macOS 嫁金钗播放界面" width="100%"></td>
   </tr>
 </table>
 
@@ -31,10 +33,12 @@
 
 <table>
   <tr>
-    <td width="25%"><img src="screenshots/androidtv-1.png" alt="Android TV 首页" width="100%"></td>
-    <td width="25%"><img src="screenshots/androidtv-2.png" alt="Android TV 小城良方搜索结果" width="100%"></td>
-    <td width="25%"><img src="screenshots/androidtv-3.png" alt="Android TV 嫁金钗作品详情" width="100%"></td>
-    <td width="25%"><img src="screenshots/androidtv-4.png" alt="Android TV 嫁金钗播放界面" width="100%"></td>
+    <td width="50%"><img src="screenshots/androidtv-1.png" alt="Android TV 首页" width="100%"></td>
+    <td width="50%"><img src="screenshots/androidtv-2.png" alt="Android TV 小城良方搜索结果" width="100%"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="screenshots/androidtv-3.png" alt="Android TV 嫁金钗作品详情" width="100%"></td>
+    <td width="50%"><img src="screenshots/androidtv-4.png" alt="Android TV 嫁金钗播放界面" width="100%"></td>
   </tr>
 </table>
 

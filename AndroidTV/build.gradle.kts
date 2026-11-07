@@ -15,8 +15,8 @@ android {
         minSdk = 34
         targetSdk = 37
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = providers.gradleProperty("androidVersionCode").orElse("20").get().toInt()
-        versionName = providers.gradleProperty("releaseVersion").orElse("4.2.2").get()
+        versionCode = providers.gradleProperty("androidVersionCode").orElse("22").get().toInt()
+        versionName = providers.gradleProperty("releaseVersion").orElse("4.2.3").get()
 
         // Include both 32-bit (TV) and 64-bit (modern devices/emulators) ABIs.
         ndk {

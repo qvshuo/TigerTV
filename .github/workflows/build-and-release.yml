@@ -2,18 +2,16 @@ name: Build and Release
 
 on:
   pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       version:
         description: 'Release version (MAJOR.MINOR.PATCH)'
         required: true
-        default: '4.2.2'
+        default: '4.2.3'
       android_version_code:
         description: 'Increasing Android versionCode'
         required: true
-        default: '21'
+        default: '23'
 
 permissions:
   contents: read
@@ -27,8 +25,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 env:
-  RELEASE_VERSION: ${{ inputs.version || '4.2.2' }}
-  ANDROID_VERSION_CODE: ${{ inputs.android_version_code || '20' }}
+  RELEASE_VERSION: ${{ inputs.version || '4.2.3' }}
+  ANDROID_VERSION_CODE: ${{ inputs.android_version_code || '22' }}
   ANDROID_SIGNING_CERT_SHA256: 0d81ab7cb1a16d58d91a953fe62049eb77fc840cc544a297ae1854f54bc73b96
 
 jobs:

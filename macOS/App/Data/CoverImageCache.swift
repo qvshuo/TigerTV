@@ -52,10 +52,7 @@ final class CoverImageCache: @unchecked Sendable {
         if let host = url.host, host == "doubanio.com" || host.hasSuffix(".doubanio.com") {
             request.setValue("https://m.douban.com/", forHTTPHeaderField: "Referer")
         }
-        guard let (data, response) = try? await session.data(for: request),
-              let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode),
-              data.count <= Self.maxResponseSize,
+        guard let data = await downloadImage(request), !Task.isCancelled,
               let image = NSImage(data: data) else {
             return nil
         }
@@ -65,6 +62,27 @@ final class CoverImageCache: @unchecked Sendable {
             try? data.write(to: file, options: .atomic)
         }
         return image
+    }
+
+    private func downloadImage(_ request: URLRequest) async -> Data? {
+        do {
+            let (bytes, response) = try await session.bytes(for: request)
+            defer { bytes.task.cancel() }
+            guard let response = response as? HTTPURLResponse,
+                  (200..<300).contains(response.statusCode),
+                  response.expectedContentLength <= Self.maxResponseSize else { return nil }
+            var data = Data()
+            if response.expectedContentLength > 0 {
+                data.reserveCapacity(Int(response.expectedContentLength))
+            }
+            for try await byte in bytes {
+                guard data.count < Self.maxResponseSize else { return nil }
+                data.append(byte)
+            }
+            return data
+        } catch {
+            return nil
+        }
     }
 
     private func imageCost(_ image: NSImage) -> Int {

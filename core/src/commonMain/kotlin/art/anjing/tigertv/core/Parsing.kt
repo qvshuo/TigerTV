@@ -6,12 +6,33 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 
 val wireJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
+private val decimalNumber = Regex("^([+-]?)(?:([0-9]+)(?:\\.([0-9]*))?|\\.([0-9]+))(?:[eE]([+-]?[0-9]+))?$")
 
 /** Upstream numeric fields may be JSON numbers or strings, but must represent exact integers. */
 fun apiInt(value: JsonElement?, field: String): Int {
     val primitive = value as? JsonPrimitive ?: error("$field 必须是整数")
-    val number = primitive.content.toDoubleOrNull() ?: error("$field 必须是整数")
-    check(number.isFinite() && number >= Int.MIN_VALUE && number <= Int.MAX_VALUE && number == number.toInt().toDouble()) { "$field 必须是整数" }
+    val raw = primitive.content.trim()
+    raw.toIntOrNull()?.let { return it }
+    val match = decimalNumber.matchEntire(raw) ?: error("$field 必须是整数")
+    val (sign, whole, fraction, fractionalOnly, exponentText) = match.destructured
+    val decimals = fraction.ifEmpty { fractionalOnly }
+    val digits = (whole + decimals).trimStart('0')
+    if (digits.isEmpty()) return 0
+    val exponent = if (exponentText.isEmpty()) 0L else exponentText.toLongOrNull() ?: error("$field 必须是整数")
+    check(exponent in -(raw.length.toLong() + 10)..(raw.length.toLong() + 10)) { "$field 必须是整数" }
+    val shift = exponent - decimals.length
+    val integer = if (shift >= 0) {
+        check(digits.length + shift <= 10) { "$field 必须是整数" }
+        digits + "0".repeat(shift.toInt())
+    } else {
+        val count = -shift
+        check(count < digits.length) { "$field 必须是整数" }
+        val length = digits.length - count.toInt()
+        check(length <= 10 && (length until digits.length).all { digits[it] == '0' }) { "$field 必须是整数" }
+        digits.substring(0, length)
+    }
+    val number = (if (sign == "-") "-$integer" else integer).toLongOrNull() ?: error("$field 必须是整数")
+    check(number in Int.MIN_VALUE..Int.MAX_VALUE) { "$field 必须是整数" }
     return number.toInt()
 }
 

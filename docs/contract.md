@@ -33,7 +33,7 @@ tigertv logs [--full] [--clear]
 - 搜索：`ac=detail&wd=…&pg=…&pagesize=100`，只解码轻量卡片字段，跳过简介与播放字段；缺少 pagecount 视为一页，空页终止，最多 100 页。
 - 详情：`ac=detail&ids=…`，响应必须包含所请求 ID。
 - QuanX：先 `ac=list&wd=…&pagesize=1`，再取首项详情及各线路首集。
-- code 必须表示整数 1；接受数值字符串与精确整数浮点，拒绝小数、布尔、null、溢出；内容 ID 必须为正数。
+- code 必须表示整数 1；接受数值字符串与精确整数浮点，按十进制原文判断整数与范围，拒绝小数、布尔、null、溢出；内容 ID 必须为正数。边界样例见 `fixtures/api-integers.sample.json`。
 - 保留无关查询参数，替换当前操作参数，支持 `url=` 包装代理。Unicode URL 编码保留已有转义与加号。
 - 原始线路按 `$$$` 分组，剧集按 `#` 分项，首个 `$` 分名称和 URL；先对齐 from 名称，再过滤空分组。线路 ID 是原始零起始位置。
 - 单源搜索/QuanX 失败记录后继续；所有源均失败时搜索报错，不冒充空结果；取消必须向上传播。API/config/HTML/HLS 响应上限 10MB，搜索与详情超时 20 秒。
