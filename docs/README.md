@@ -38,12 +38,12 @@ xcodebuild -project macOS/TigerTV.xcodeproj -scheme TigerTV -destination 'platfo
 
 Xcode 自动构建 framework，递归跟踪 Kotlin 输入及产物。Gradle 与 Xcode 原生构建应顺序执行，避免同时修改同一 framework。
 
-Linux 原生 CLI 使用 Ktor Curl 引擎，共享 POSIX 文件和控制台适配。发布包以 Ubuntu 24.04（glibc 2.39）为验证基线，依赖系统 `libcurl.so.4` 和 CA 证书。Ubuntu 可安装 `libcurl4-openssl-dev ca-certificates`；运行无需 JDK/JVM。CI 分别在 x86_64 和 arm64 runner 上执行 CLI 契约检查，x86_64 同时运行核心 Native 测试。
+Linux 原生 CLI 使用 Ktor Curl 引擎，共享 POSIX 文件和控制台适配。发布包以 Ubuntu 24.04（glibc 2.39）为验证基线，依赖系统 `libcurl.so.4` 和 CA 证书。Ubuntu 可安装 `libcurl4-openssl-dev ca-certificates`；运行无需 JDK/JVM。CI 在 Linux x86_64 runner 编译两个 Linux 目标，再分别在 x86_64 和 arm64 runner 上执行 CLI 契约检查；x86_64 同时运行核心 Native 测试。Kotlin/Native 编译主机使用 Linux x86_64 或 macOS。
 
 ```bash
 ./gradlew :cli:linkReleaseExecutableLinuxX64 :core:linuxX64Test
 python3 scripts/check-cli-contract.py cli/build/bin/linuxX64/releaseExecutable/tigertv.kexe
-# arm64 主机：
+# 在支持的编译主机上交叉编译 arm64，再将产物复制到 arm64 主机运行检查：
 ./gradlew :cli:linkReleaseExecutableLinuxArm64
 python3 scripts/check-cli-contract.py cli/build/bin/linuxArm64/releaseExecutable/tigertv.kexe
 ```
