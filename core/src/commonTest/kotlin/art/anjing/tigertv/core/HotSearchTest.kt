@@ -12,7 +12,7 @@ import kotlin.test.*
 @OptIn(ExperimentalCoroutinesApi::class)
 class HotSearchTest {
     @Test fun hotCardsNormalizeScoresAndMatchSharedFixture() = runTest {
-        val core = CoreService("cache", storage = MemoryStorage(), client = configureClient(HttpClient(MockEngine {
+        val core = CoreService("cache", storage = MemoryStorage(), client = configureClient(HttpClient(testEngine {
             respond(contractFixtures.getValue("douban-hot.sample.json"))
         })))
         try {
@@ -22,7 +22,7 @@ class HotSearchTest {
     }
 
     @Test fun missingPostersAndInvalidScoresKeepUsableCards() = runTest {
-        val core = CoreService("cache", storage = MemoryStorage(), client = configureClient(HttpClient(MockEngine {
+        val core = CoreService("cache", storage = MemoryStorage(), client = configureClient(HttpClient(testEngine {
             respond("""{"subject_collection_items":[
                 {"id":"1","title":" 甲 ","pic":null,"rating":{"value":11,"count":-1}},
                 {"id":"2","title":"乙","rating":null},
@@ -41,7 +41,7 @@ class HotSearchTest {
         var now = 0L
         var requests = 0
         var unavailable = false
-        val core = CoreService("cache", storage = store, client = configureClient(HttpClient(MockEngine { request ->
+        val core = CoreService("cache", storage = store, client = configureClient(HttpClient(testEngine { request ->
             requests++
             assertEquals("m.douban.com", request.url.host)
             assertTrue(request.url.encodedPath.contains("tv_domestic/items"))
@@ -67,7 +67,7 @@ class HotSearchTest {
     @Test fun categoriesHaveSeparateCachesAndRejectUnknownIds() = runTest {
         val store = MemoryStorage()
         var requests = 0
-        val core = CoreService("cache", storage = store, client = configureClient(HttpClient(MockEngine {
+        val core = CoreService("cache", storage = store, client = configureClient(HttpClient(testEngine {
             requests++
             respond("""{"subject_collection_items":[{"id":"${it.url.encodedPath}","title":"${it.url.encodedPath}"}]}""")
         })))
@@ -146,7 +146,7 @@ class HotSearchTest {
 
     @Test fun failedHotSearchIsNotCachedAndCancellationPropagates() = runTest {
         val store = MemoryStorage()
-        val core = CoreService("cache", storage = store, client = configureClient(HttpClient(MockEngine {
+        val core = CoreService("cache", storage = store, client = configureClient(HttpClient(testEngine {
             awaitCancellation()
         })))
         try {
@@ -161,7 +161,7 @@ class HotSearchTest {
     @Test fun allFailedSitesAreAnErrorButSuccessfulEmptySitesAreNot() = runTest {
         val store = MemoryStorage().apply { files["source"] = """{"api_site":{"a":{"name":"🎬一","api":"https://a.test"}}}""" }
         var failed = true
-        val core = CoreService("cache", "source", store, configureClient(HttpClient(MockEngine {
+        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine {
             if (failed) respond("", HttpStatusCode.ServiceUnavailable)
             else respond("""{"code":1,"list":[]}""")
         })))

@@ -22,6 +22,8 @@ if (providers.gradleProperty("android").orNull == "true") {
 kotlin {
     jvm()
     macosArm64()
+    linuxX64()
+    linuxArm64()
     jvmToolchain(21)
     if (providers.gradleProperty("android").orNull == "true") {
         extensions.configure<com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryTarget> {
@@ -31,6 +33,7 @@ kotlin {
             withHostTest {}
         }
     }
+    applyDefaultHierarchyTemplate()
     sourceSets {
         commonTest { kotlin.srcDir(generateContractFixtures.map { layout.buildDirectory.dir("generated/fixtures").get() }) }
         commonMain.dependencies {
@@ -48,6 +51,7 @@ kotlin {
             dependencies { implementation("io.ktor:ktor-client-okhttp:3.6.1") }
         }
         jvmMain { dependsOn(jvmAndAndroidMain) }
+        linuxMain.dependencies { implementation("io.ktor:ktor-client-curl:3.6.1") }
         macosArm64Main.dependencies { implementation("io.ktor:ktor-client-darwin:3.6.1") }
         if (providers.gradleProperty("android").orNull == "true") {
             getByName("androidMain").dependsOn(jvmAndAndroidMain)

@@ -2,7 +2,9 @@
 set -euo pipefail
 case "$(uname -s)/$(uname -m)" in
   Darwin/arm64) ASSET="TigerTV-CLI-macOS-arm64.tar.gz" ;;
-  *) echo "当前仅提供 macOS arm64 原生 CLI。" >&2; exit 1 ;;
+  Linux/x86_64) ASSET="TigerTV-CLI-Linux-x86_64.tar.gz" ;;
+  Linux/aarch64|Linux/arm64) ASSET="TigerTV-CLI-Linux-arm64.tar.gz" ;;
+  *) echo "支持 macOS arm64、Linux x86_64 和 arm64。" >&2; exit 1 ;;
 esac
 INSTALL_DIR="${TIGERTV_INSTALL_DIR:-${HOME}/.local/bin}"
 RELEASE="${TIGERTV_VERSION:-latest}"
@@ -13,7 +15,11 @@ TEMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TEMP_DIR"' EXIT
 curl -fLsS --user-agent "$TIGERTV_USER_AGENT" --connect-timeout 10 --max-time 120 --retry 2 "$BASE/$ASSET" -o "$TEMP_DIR/$ASSET"
 curl -fLsS --user-agent "$TIGERTV_USER_AGENT" --connect-timeout 10 --max-time 120 --retry 2 "$BASE/$ASSET.sha256" -o "$TEMP_DIR/$ASSET.sha256"
-(cd "$TEMP_DIR" && shasum -a 256 -c "$ASSET.sha256")
+if command -v sha256sum >/dev/null 2>&1; then
+  (cd "$TEMP_DIR" && sha256sum -c "$ASSET.sha256")
+else
+  (cd "$TEMP_DIR" && shasum -a 256 -c "$ASSET.sha256")
+fi
 tar -xzf "$TEMP_DIR/$ASSET" -C "$TEMP_DIR"
 "$TEMP_DIR/tigertv" --version
 mkdir -p "$INSTALL_DIR"

@@ -1,6 +1,6 @@
 ---
 name: tigertv
-description: 使用 TigerTV 搜索影视、获取指定资源的播放和下载链接、下载剧集，或生成 Quantumult X 直连规则。适用于 macOS arm64 命令行工作流。
+description: 使用 TigerTV 搜索影视、获取指定资源的播放和下载链接、下载剧集，或生成 Quantumult X 直连规则。适用于 macOS arm64、Linux x86_64 / arm64 原生命令行工作流。
 ---
 
 # TigerTV
@@ -15,25 +15,25 @@ description: 使用 TigerTV 搜索影视、获取指定资源的播放和下载�
 bash <技能目录>/scripts/install.sh
 ```
 
-安装器仅支持 macOS arm64，验证发布包 SHA-256，默认安装到 `~/.local/bin`。`TIGERTV_VERSION` 可指定版本，`TIGERTV_INSTALL_DIR` 可指定目录；不会修改 PATH。安装后命令不在 PATH 时，直接使用安装路径。更新时重新运行安装器；卸载使用同目录的 `uninstall.sh`，保留缓存与日志。
+安装器支持 macOS arm64、Linux x86_64 / arm64，验证发布包 SHA-256，默认安装到 `~/.local/bin`。`TIGERTV_VERSION` 可指定版本，`TIGERTV_INSTALL_DIR` 可指定目录；不会修改 PATH。安装后命令不在 PATH 时，直接使用安装路径。更新时重新运行安装器；卸载使用同目录的 `uninstall.sh`，保留缓存与日志。
 
 ## 搜索与详情
 
 ```bash
-tigertv search --query '嫁金钗'
+tigertv search '嫁金钗'
 tigertv fetch --site '🎬站点完整名' --video-id 42
 ```
 
-搜索输出 `{query, works}`。每个作品包含 `id`、`title`、`sources`；从 `sources[]` 读取完整的 `site` 和正整数 `vod_id`，分别传给 `--site` 和 `--video-id`。作品 `id` 是不透明聚合标识，不能当作资源内容 ID。相同标题与年份会合并，可能存在误聚合；选择资源时保留用户指定的版本、年份和集数要求。
+搜索输出 `{query, works}`。关键词是单个位置参数，含空格时使用引号，以 `-` 开头时写作 `search -- '-剧名'`。每个作品包含 `id`、`title`、`sources`；从 `sources[]` 读取完整的 `site` 和正整数 `vod_id`，分别传给 `--site` 和 `--video-id`。作品 `id` 是不透明聚合标识，不能当作资源内容 ID。相同标题与年份会合并，可能存在误聚合；选择资源时保留用户指定的版本、年份和集数要求。
 
-所有配置资源并发搜索，CLI 等待完成后输出一次 JSON。空 `works` 表示没有匹配结果；部分资源失败会记录日志，其他资源继续返回。资源顺序沿用配置顺序，不代表清晰度或可用性排名。
+所有配置资源并发搜索，CLI 等待完成后输出一次 JSON。空 `works` 表示没有匹配结果；部分资源失败会记录日志，其他资源继续返回。卡片按首次返回顺序排列，资源按配置顺序排列；`display_source` 标识该卡片固定的文字展示来源。
 
 详情包含 `play_sources` 和 `download_sources`，两者均为线路数组；每条线路含 `id`、`name`、`episodes: [{name,url}]`。线路和选集可能为空；只使用实际返回的链接。资源的 `vod_id`、线路与选集只在所属资源内有效，切换资源后重新获取详情。
 
 本地配置放在命令之前，并在同一流程的搜索、详情或规则命令中保持一致：
 
 ```bash
-tigertv --config '/path/to/sources.json' search --query '嫁金钗'
+tigertv --config '/path/to/sources.json' search '嫁金钗'
 tigertv --config '/path/to/sources.json' fetch --site '🎬站点完整名' --video-id 42
 ```
 
@@ -60,13 +60,13 @@ yt-dlp --retries 10 --fragment-retries 10 \
 ## Quantumult X 与诊断
 
 ```bash
-tigertv quanx --query '嫁金钗'
+tigertv quanx '嫁金钗'
 tigertv logs
 tigertv logs --full
 tigertv logs --clear
 tigertv search --help
 ```
 
-`quanx` 输出资源站 API、播放/下载以及 HLS 相关域名的规则文本；按请求交付文本或文件，写入已有代理配置须有用户授权。
+`quanx` 搜索所有站点的匹配作品，探测各播放/下载线路首集，输出 API、入口、重定向及 HLS 链路域名的直连规则。部分站点未完整扫描时 stderr 提示并记录日志；规则正文保留已发现域名。按请求交付文本或文件，写入已有代理配置须有用户授权。
 
 `search` / `fetch` 的 stdout 为 JSON，`quanx` / `logs` 为文本；stderr 为错误。退出码：成功、帮助及下游关闭管道为 0，业务错误为 1，参数错误为 2。默认日志最近 50 行；`--clear` 会删除诊断记录，仅在需要清空时使用。`logs` 不使用 `--config`。

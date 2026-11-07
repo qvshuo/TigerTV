@@ -47,6 +47,7 @@ final class WorkDetailContractTests: XCTestCase {
         XCTAssertEqual(response.works.count, 1)
         XCTAssertEqual(work.sources.map(\.vodId), [1, 99])
         XCTAssertEqual(work.defaultSource?.site, "🎬二")
+        XCTAssertEqual(work.displaySource?.site, "🎬一")
     }
 
     func testLastPlayedSourceOverridesPosterAndMissingSourceFallsBack() throws {
@@ -56,6 +57,7 @@ final class WorkDetailContractTests: XCTestCase {
         XCTAssertEqual(work.orderedSources.first?.site, "🎬一")
         work.lastPlayedSite = "removed-source-9"
         XCTAssertEqual(work.defaultSource?.site, "🎬二")
+        XCTAssertEqual(work.displaySource?.site, "🎬一")
     }
 
     func testUnwatchedWorkUsesRecentSiteWithoutLosingOtherSourcesPoster() throws {
@@ -66,6 +68,7 @@ final class WorkDetailContractTests: XCTestCase {
         XCTAssertEqual(availableCovers.first?.site, "🎬二")
         work.lastPlayedSite = work.sources[1].site
         XCTAssertEqual(work.defaultSource?.site, "🎬二")
+        XCTAssertEqual(work.displaySource?.site, "🎬一")
     }
 
     func testDetailDecodesMetadataAndIndependentLines() throws {

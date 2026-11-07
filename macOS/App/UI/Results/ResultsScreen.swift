@@ -26,15 +26,16 @@ struct ResultsScreen: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: AppSpacing.md, alignment: .top)], spacing: AppSpacing.md)
                 {
                     ForEach(works) { work in
-                        if let result = work.defaultSource {
+                        if let result = work.displaySource {
+                            let isSelected = work.sources.contains { $0.id == selectedResult?.id }
                             SearchResultCard(
                                 work: work,
                                 result: result,
-                                isSelected: selectedResult?.id == result.id,
-                                isLoading: selectedResult?.id == result.id && isFetching,
+                                isSelected: isSelected,
+                                isLoading: isSelected && isFetching,
                                 coverFallbacks: coverFallbacks,
                                 onLoadCoverFallback: onLoadCoverFallback,
-                                onTap: { onSelectResult(result) }
+                                onTap: { if let source = work.defaultSource { onSelectResult(source) } }
                             )
                             .transition(.opacity)
                         }

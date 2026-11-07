@@ -66,6 +66,8 @@ xattr -dr com.apple.quarantine "/Applications/小老虎爱看剧.app"
 
 ### 命令行工具
 
+支持 macOS arm64、Linux x86_64 和 arm64，运行无需 JVM。Linux 发布包以 Ubuntu 24.04 为验证基线，依赖 glibc、libcurl 和系统 CA 证书。
+
 一键安装：
 
 ```bash
@@ -83,19 +85,19 @@ source ~/.zshrc
 
 ```bash
 # 搜索剧集
-tigertv search --query 嫁金钗
+tigertv search 嫁金钗
 
 # 获取播放 / 下载链接：使用搜索结果中的完整站点名和视频 ID
 tigertv fetch --site "🎬站点完整名称" --video-id 73480
 
 # 生成 Quantumult X 直连规则
-tigertv quanx --query 嫁金钗
+tigertv quanx 嫁金钗
 
 # 查看日志
 tigertv logs
 ```
 
-也可以通过 `tigertv --config sources.json search --query 嫁金钗` 使用本地来源配置。
+也可以通过 `tigertv --config sources.json search 嫁金钗` 使用本地来源配置。
 
 [Agent Skill](skills/SKILL.md) 提供完整的 Agent 工作流；下载剧集另需 `yt-dlp` 和 `ffmpeg`。
 

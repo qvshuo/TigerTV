@@ -15,6 +15,11 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
 
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "video/mp4")
+        self.end_headers()
+
     def do_GET(self):
         parsed = urlsplit(self.path)
         query = parse_qs(parsed.query)
@@ -33,7 +38,7 @@ class Handler(BaseHTTPRequestHandler):
         elif parsed.path == "/child.m3u8":
             return self.send(b'#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="https://keys.example/a.key"\nhttps://segments.example/1.ts\n')
         elif query.get("ids"):
-            data = {"code": 1.0, "list": [{"vod_id": 42, "vod_name": "逐玉🎬", "vod_pic": host + "/cover.jpg", "vod_play_from": "主线$$$备用", "vod_down_from": "下载", "vod_play_url": f" 第一集 ${host}/page#第二集${host}/two.mp4$$$备用${host}/master.m3u8", "vod_down_url": f"第一集${host}/one.mp4"}]}
+            data = {"code": 1.0, "list": [{"vod_id": int(query["ids"][0]), "vod_name": "逐玉🎬", "vod_pic": host + "/cover.jpg", "vod_play_from": "主线$$$备用", "vod_down_from": "下载", "vod_play_url": f" 第一集 ${host}/page#第二集${host}/two.mp4$$$备用${host}/master.m3u8", "vod_down_url": f"第一集${host}/one.mp4"}]}
         else:
             data = {"code": "1", "list": [{"vod_id": "42", "vod_name": "逐玉🎬", "vod_pic": None}, {"vod_id": 2.0, "vod_name": "数字", "vod_time": "2026"}]}
         self.send(json.dumps(data, ensure_ascii=False).encode())
@@ -78,7 +83,7 @@ def main():
                 return subprocess.run(command + (["--config", str(source)] if source_enabled else []) + arguments,
                                       capture_output=True, encoding="utf-8", env=env, timeout=45)
 
-            search = run(native, ["search", "--query", " 中文🎬 "])
+            search = run(native, ["search", " 中文🎬 "])
             assert search.returncode == 0 and not search.stderr, search
             payload = json.loads(search.stdout)
             assert set(payload) == {"query", "works"}, payload
@@ -95,8 +100,8 @@ def main():
             assert [line["name"] for line in payload["play_sources"]] == ["主线", "备用"]
             assert [len(line["episodes"]) for line in payload["play_sources"]] == [2, 1]
             assert payload["download_sources"][0]["episodes"][0]["url"] == host + "/one.mp4"
-            quanx = run(native, ["quanx", "--query", "逐玉"])
-            assert quanx.returncode == 0 and not quanx.stderr, quanx
+            quanx = run(native, ["quanx", "逐玉"])
+            assert quanx.returncode == 0 and "未完整扫描" in quanx.stderr, quanx
             for domain in ("127.0.0.1", "keys.example", "segments.example"):
                 assert "host-suffix, " + domain + ", direct" in quanx.stdout, quanx.stdout
             for arguments, code in [
@@ -108,26 +113,26 @@ def main():
                 (["fetch", "--site", "a", "--site", "b", "--video-id", "1"], 2),
                 (["fetch", "--site", "a", "--video-id", "1", "--video-id", "2"], 2),
                 (["fetch", "--site", "", "--video-id", "1"], 2),
-                (["--config", "", "search", "--query", "逐玉"], 2),
+                (["--config", "", "search", "逐玉"], 2),
                 (["fetch", "--site", "不存在", "--video-id", "42"], 1),
                 (["fetch", "--site", "🎬坏响应", "--video-id", "42"], 1),
                 (["fetch", "--video-id", "x"], 2),
                 (["nonsense"], 2),
                 (["search", "--wd", "逐玉"], 2),
                 (["fetch", "--site", "🎬站点", "--vod_id", "42"], 2),
-                (["search", "逐玉"], 2),
-                (["search", "--query", ""], 2),
+                (["search", ""], 2),
                 (["search", "--keyword", "逐玉"], 2),
-                (["quanx", "逐玉"], 2),
-                (["search", "--query", "a", "--query", "b"], 2),
-                (["--source", str(source), "search", "--query", "逐玉"], 2),
+                (["search", "--query", "逐玉"], 2),
+                (["quanx", "--query", "逐玉"], 2),
+                (["search", "a", "b"], 2),
+                (["--source", str(source), "search", "逐玉"], 2),
                 (["fetch", "--site", "🎬站点", "--video-id", "0"], 2),
                 (["fetch", "--site", "🎬站点", "--id", "42"], 2),
             ]:
                 actual = run(native, arguments)
                 assert actual.returncode == code and not actual.stdout and actual.stderr, (arguments, actual)
                 assert "Traceback" not in actual.stderr
-            literal_help = run(native, ["search", "--query", "--help"])
+            literal_help = run(native, ["search", "--", "--help"])
             assert literal_help.returncode == 0, literal_help
             assert json.loads(literal_help.stdout)["query"] == "--help"
             for command in ("search", "fetch", "quanx", "logs"):
@@ -136,7 +141,7 @@ def main():
             assert run(native, ["--version"], False).returncode == 0
             assert run(native, ["--help"], False).returncode == 0
             assert run(native, ["logs"], False).returncode == 0
-            closed_pipe = subprocess.Popen(native + ["--config", str(source), "search", "--query", "fixture"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            closed_pipe = subprocess.Popen(native + ["--config", str(source), "search", "fixture"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             closed_pipe.stdout.close()
             assert closed_pipe.wait(timeout=45) == 0
             assert not closed_pipe.stderr.read()

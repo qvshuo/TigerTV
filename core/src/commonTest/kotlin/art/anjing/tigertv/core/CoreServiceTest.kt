@@ -61,6 +61,7 @@ class CoreServiceTest {
             val merged = second.works.first()
             assertEquals(listOf("🎬0", "🎬11"), merged.sources.map { it.site })
             assertEquals("🎬0", merged.defaultSource.site)
+            assertEquals("🎬11", merged.displaySource.site)
             release[5].complete(Unit)
             val third = updates.receive()
             assertEquals(listOf("乙", "丙", "甲", "丁"), third.works.map { it.title })
@@ -131,7 +132,7 @@ class CoreServiceTest {
         assertEquals(signed, extractM3u8("https://page.test/", "<video src=\"${signed.replace("&", "&amp;")}\">").single())
         val wrapped = "https%3A%2F%2Fcdn.test%2Fvideo.m3u8%3Fsign%3Da%252Fb%252Bc%253D%26part%3D1"
         assertEquals(signed, extractM3u8("https://page.test/", "'$wrapped'").single())
-        val core = CoreService("cache", storage = MemoryStorage(), client = configureClient(HttpClient(MockEngine {
+        val core = CoreService("cache", storage = MemoryStorage(), client = configureClient(HttpClient(testEngine {
             respond("<script>var url=\"$signed\";</script>")
         })))
         try { assertEquals(signed, core.resolvePlaybackUrl("https://page.test/player")) }
@@ -164,7 +165,7 @@ class CoreServiceTest {
     @Test fun sourceIsolationAndTypedSearch() = runTest {
         val store = MemoryStorage().apply { files["source"] = config }
         val requests = mutableListOf<String>()
-        val client = configureClient(HttpClient(MockEngine { request ->
+        val client = configureClient(HttpClient(testEngine { request ->
             requests += request.url.toString()
             respond(if (request.url.parameters["wd"] != null) """{"code":"1","list":[{"vod_id":"42","vod_name":"测试"}]}"""
             else """{"code":1.0,"list":[{"vod_id":42,"vod_play_url":"一${'$'}https://media.test/a.m3u8"}]}""", headers = headersOf(HttpHeaders.ContentType, "application/json"))
@@ -183,7 +184,7 @@ class CoreServiceTest {
 
     @Test fun staleCacheFallbackAndHistoryLimit() = runTest {
         val store = MemoryStorage().apply { files["cache/tigertv-cli-config-cache.json"] = """{"fetchedAtMillis":0,"config":$config}""" }
-        val core = CoreService("cache", storage = store, client = configureClient(HttpClient(MockEngine { error("offline") })), clock = { 99 * CoreService.DAY })
+        val core = CoreService("cache", storage = store, client = configureClient(HttpClient(testEngine { error("offline") })), clock = { 99 * CoreService.DAY })
         try {
             assertEquals(1, core.loadConfig().apiSite.size)
             core.saveHistory((1..30).map { "剧$it" })
@@ -194,7 +195,7 @@ class CoreServiceTest {
     @Test fun remoteFallbackPersistsRawConfigAndFreshCacheSkipsNetwork() = runTest {
         val store = MemoryStorage()
         var requests = 0
-        val core = CoreService("cache", storage = store, client = configureClient(HttpClient(MockEngine {
+        val core = CoreService("cache", storage = store, client = configureClient(HttpClient(testEngine {
             requests++
             if (it.url.host == "cdn.test") error("CDN unavailable")
             respond(config)
@@ -211,7 +212,7 @@ class CoreServiceTest {
         val store = MemoryStorage().apply { files["source"] = config }
         var requests = 0
         var clock = 100L
-        val core = CoreService("cache", "source", store, configureClient(HttpClient(MockEngine {
+        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine {
             requests++
             respond(if (requests < 3) """{"code":1,"list":[{"vod_id":1,"vod_pic":""}]}""" else """{"code":1,"list":[{"vod_id":1,"vod_pic":"https://pic.test/a.jpg"}]}""")
         })), clock = { clock })
@@ -231,7 +232,7 @@ class CoreServiceTest {
         val store = MemoryStorage().apply {
             files["source"] = """{"api_site":{"a":{"name":"🎬好","api":"https://good.test"},"b":{"name":"🎬坏","api":"https://bad.test"}}}"""
         }
-        val core = CoreService("cache", "source", store, configureClient(HttpClient(MockEngine {
+        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine {
             respond(if (it.url.host == "bad.test") """{"code":1,"list":[null]}""" else """{"code":1,"list":[{"vod_id":1}]}""")
         })))
         try { assertEquals("🎬好", core.search("test").works.single().sources.single().site) }
@@ -249,14 +250,14 @@ class CoreServiceTest {
         } finally { core.close() }
     }
 
-    @Test fun quanxMasterFanoutIsBoundedAndCollectsKeyAndMediaDomains() = runTest {
+    @Test fun quanxTraversesAllVariantsAndCollectsKeyAndMediaDomains() = runTest {
         val store = MemoryStorage().apply { files["source"] = config }
         val requested = mutableListOf<String>()
-        val core = CoreService("cache", "source", store, configureClient(HttpClient(MockEngine { request ->
+        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine { request ->
             requested += request.url.toString()
             respond(when {
                 request.url.parameters["ac"] == "list" -> """{"code":1,"list":[{"vod_id":1}]}"""
-                request.url.parameters["ac"] == "detail" -> """{"code":1,"list":[{"vod_play_url":"一${'$'}https://media.test/master.m3u8"}]}"""
+                request.url.parameters["ac"] == "detail" -> """{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://media.test/master.m3u8"}]}"""
                 request.url.encodedPath == "/master.m3u8" -> "#EXTM3U\n" + (1..4).joinToString("\n") { "#EXT-X-STREAM-INF:BANDWIDTH=$it\nchild$it.m3u8" }
                 else -> "#EXTM3U\n#EXT-X-KEY:URI=\"https://key.test/key\"\n#EXT-X-MEDIA:URI=\"https://audio.test/a.m3u8\"\nhttps://segments.test/1.ts"
             })
@@ -264,18 +265,18 @@ class CoreServiceTest {
         try {
             val result = core.collectQuanxDomains("test")
             assertTrue(result.m3u8.containsAll(listOf("key.test", "audio.test", "segments.test")))
-            assertFalse(requested.any { "child4" in it })
+            assertTrue(requested.any { "child4" in it })
         } finally { core.close() }
     }
 
-    @Test fun quanxRevisitsSharedMasterWithMoreRemainingDepth() = runTest {
+    @Test fun quanxFetchesSharedPlaylistsOnce() = runTest {
         val store = MemoryStorage().apply { files["source"] = config }
         val requested = mutableListOf<String>()
-        val core = CoreService("cache", "source", store, configureClient(HttpClient(MockEngine { request ->
+        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine { request ->
             requested += request.url.encodedPath
             respond(when {
                 request.url.parameters["ac"] == "list" -> """{"code":1,"list":[{"vod_id":1}]}"""
-                request.url.parameters["ac"] == "detail" -> """{"code":1,"list":[{"vod_play_url":"一${'$'}https://media.test/root.m3u8"}]}"""
+                request.url.parameters["ac"] == "detail" -> """{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://media.test/root.m3u8"}]}"""
                 request.url.encodedPath == "/root.m3u8" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nbranch.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=2\nshared.m3u8"
                 request.url.encodedPath == "/branch.m3u8" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nshared.m3u8"
                 request.url.encodedPath == "/shared.m3u8" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nleaf.m3u8"
@@ -285,19 +286,82 @@ class CoreServiceTest {
         try {
             val result = core.collectQuanxDomains("test")
             assertTrue("segments.test" in result.m3u8)
-            assertEquals(2, requested.count { it == "/shared.m3u8" })
+            assertEquals(1, requested.count { it == "/shared.m3u8" })
             assertEquals(1, requested.count { it == "/leaf.m3u8" })
         } finally { core.close() }
     }
 
+    @Test fun quanxFollowsRedirectsAndAlternateMediaButOnlyProbesFirstEpisodes() = runTest {
+        val store = MemoryStorage().apply { files["source"] = config }
+        val requested = mutableListOf<String>()
+        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine { request ->
+            requested += "${request.method.value} ${request.url}"
+            when {
+                request.url.parameters["ac"] == "list" -> respond("""{"code":1,"list":[{"vod_id":1},{"vod_id":2}]}""")
+                request.url.parameters["ids"] == "1" -> respond("""{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://entry.test/start#二${'$'}https://never.test/two.m3u8"}]}""")
+                request.url.parameters["ids"] == "2" -> respond("""{"code":1,"list":[{"vod_id":2,"vod_play_url":"一${'$'}https://file.test/video.mp4"}]}""")
+                request.url.host == "entry.test" -> respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://final.test/path/master.m3u8"))
+                request.url.encodedPath.endsWith("master.m3u8") -> respond("#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=1\nvideo.m3u8")
+                request.url.encodedPath.endsWith("audio.m3u8") -> respond("#EXTM3U\nhttps://audio-segments.test/a.aac")
+                request.url.encodedPath.endsWith("video.m3u8") -> respond("#EXTM3U\n#EXT-X-MAP:URI=\"https://init.test/init.mp4\"\nhttps://segments.test/1.ts")
+                request.url.host == "file.test" -> {
+                    assertEquals(HttpMethod.Head, request.method)
+                    respond("", headers = headersOf(HttpHeaders.ContentType, "video/mp4"))
+                }
+                else -> error("Unexpected request: ${request.url}")
+            }
+        })))
+        try {
+            val domains = core.collectQuanxDomains("test")
+            assertTrue(domains.incompleteSites.isEmpty())
+            assertTrue(domains.m3u8.containsAll(listOf("entry.test", "final.test", "audio-segments.test", "init.test", "segments.test", "file.test")))
+            assertFalse(requested.any { "never.test" in it })
+            assertTrue(requested.any { "https://final.test/path/audio.m3u8" in it })
+        } finally { core.close() }
+    }
+
+    @Test fun quanxStopsAtBudgetAfterProbingEarlierWorks() = runTest {
+        val store = MemoryStorage().apply { files["source"] = config }
+        var requests = 0
+        var errors = 0
+        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine { request ->
+            requests++
+            respond(when {
+                request.url.parameters["ac"] == "list" -> """{"code":1,"list":[${(1..1500).joinToString(",") { """{"vod_id":$it}""" }}]}"""
+                request.url.parameters["ids"] != null -> """{"code":1,"list":[{"vod_id":${request.url.parameters["ids"]},"vod_play_url":"一${'$'}https://media.test/first.m3u8"}]}"""
+                else -> "#EXTM3U\n#EXT-X-KEY:URI=\"data:text/plain;base64,AAAA\"\nhttps://segments.test/1.ts"
+            })
+        })), logger = Logger { _, _, _ -> errors++ })
+        try {
+            val result = core.collectQuanxDomains("test")
+            assertEquals(1000, requests)
+            assertEquals(1, errors)
+            assertEquals(listOf("🎬一"), result.incompleteSites)
+            assertTrue("segments.test" in result.m3u8)
+            assertFalse(result.m3u8.any { "data:" in it })
+        } finally { core.close() }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun networkDeadlineIsAnOperationFailureAndRedirectsShareTheBudget() = runTest {
+        val client = configureClient(HttpClient(testEngine {
+            delay(6_000)
+            respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://next.test/path"))
+        }))
+        try {
+            assertFailsWith<IllegalStateException> { Network(client).get("https://first.test", 10_000) }
+            assertEquals(10_000, testScheduler.currentTime)
+        } finally { client.close() }
+    }
+
     @Test fun responseLimitAndCancellation() = runTest {
-        val exact = configureClient(HttpClient(MockEngine { respond("x".repeat(MAX_RESPONSE_SIZE)) }))
+        val exact = configureClient(HttpClient(testEngine { respond("x".repeat(MAX_RESPONSE_SIZE)) }))
         try { assertEquals(MAX_RESPONSE_SIZE, Network(exact).get("https://a.test").length) }
         finally { exact.close() }
-        val client = configureClient(HttpClient(MockEngine { respond("x".repeat(MAX_RESPONSE_SIZE + 1)) }))
+        val client = configureClient(HttpClient(testEngine { respond("x".repeat(MAX_RESPONSE_SIZE + 1)) }))
         try { assertFailsWith<IllegalStateException> { Network(client).get("https://a.test") } }
         finally { client.close() }
-        val cancelled = configureClient(HttpClient(MockEngine { throw CancellationException("cancelled") }))
+        val cancelled = configureClient(HttpClient(testEngine { throw CancellationException("cancelled") }))
         try { assertFailsWith<CancellationException> { Network(cancelled).get("https://a.test") } }
         finally { cancelled.close() }
     }
