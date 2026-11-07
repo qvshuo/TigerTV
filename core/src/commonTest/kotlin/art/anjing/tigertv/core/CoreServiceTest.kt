@@ -106,6 +106,20 @@ class CoreServiceTest {
         for (raw in listOf("""{"list":[]}""", """{"code":null,"list":[]}""", """{"code":1,"list":[null]}""")) assertFails { parseVodList(raw) }
     }
 
+    @Test fun upstreamIntegersMustBeExactEvenBeyondFloatingPointPrecision() {
+        val cases = wireJson.parseToJsonElement(contractFixtures.getValue("api-integers.sample.json")).jsonObject
+        for (entry in cases.getValue("valid").jsonArray) {
+            val item = entry.jsonObject
+            assertEquals(item.getValue("expected").jsonPrimitive.int, apiInt(item.getValue("value"), "value"))
+        }
+        for (value in cases.getValue("invalid").jsonArray) {
+            assertFails { apiInt(value, "value") }
+            assertFails { parseVodList("""{"code":$value,"list":[]}""") }
+            assertFails { wireJson.decodeFromString<SearchPage>("""{"code":1,"pagecount":$value}""").pageCount() }
+            assertFails { wireJson.decodeFromString<SearchPage>("""{"code":1,"list":[{"vod_id":$value}]}""").results("🎬站点") }
+        }
+    }
+
     @Test fun parsingPreservesEpisodeNamesAndSignedUrls() {
         assertEquals("第一集", parsePlaybackSources(" 第一集 ${'$'}https://a.test/a?x=1+2#二${'$'}u${'$'}${'$'}${'$'}三${'$'}v", "").first().episodes.first().name)
         assertEquals("https://a.test/path/a.m3u8?sign=a+b", extractM3u8("https://a.test/path/page", "'a.m3u8?sign=a+b'").single())
