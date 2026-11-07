@@ -8,9 +8,7 @@ struct SearchResultCard: View {
     let coverFallbacks: [String: URL]
     let onLoadCoverFallback: (SearchResult) async -> Void
     @State private var coverImage: NSImage?
-    @State private var loadedCoverURL: URL?
     let onTap: () -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: onTap) {
@@ -35,14 +33,14 @@ struct SearchResultCard: View {
             }
         }
         .task(id: work.sources) {
-            for source in work.sources where source.vodPic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            for source in work.orderedSources where source.vodPic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 guard !Task.isCancelled else { return }
                 await onLoadCoverFallback(source)
             }
         }
         .task(id: candidateURLs) {
             // New fallback URLs must not replace an already successful cover.
-            if let loadedCoverURL, candidateURLs.first == loadedCoverURL, coverImage != nil { return }
+            guard coverImage == nil else { return }
             if let loaded = await loadFirstCover(
                 candidates: candidateURLs,
                 load: { url in
@@ -50,7 +48,6 @@ struct SearchResultCard: View {
                 })
             {
                 coverImage = loaded.value
-                loadedCoverURL = loaded.url
             }
         }
     }
@@ -65,9 +62,7 @@ struct SearchResultCard: View {
     private var cover: some View {
         Color.clear
             .overlay {
-                if let image = coverImage
-                    ?? candidateURLs.lazy.compactMap({ CoverImageCache.shared.cachedImage(for: $0) }).first
-                {
+                if let image = coverImage {
                     Image(nsImage: image).resizable().scaledToFill()
                 } else {
                     coverPlaceholder

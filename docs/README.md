@@ -6,7 +6,7 @@ TigerTV 的业务实现集中在 Kotlin Multiplatform `core`。Android 直接调
 |---|---|
 | `core/` | 配置、MacCMS、聚合、播放解析、缓存、历史 |
 | `nativeBridge/` | Swift 异步 JSON 桥接 |
-| `cli/` | macOS arm64 命令行 |
+| `cli/` | macOS arm64、Linux x86_64 / arm64 原生命令行 |
 | `macOS/` | SwiftUI、AVPlayer、Xcode 工程 |
 | `AndroidTV/` | Compose TV、Media3 应用模块 |
 | `assets/branding/` | 品牌母图、README 图标与网站 favicon |
@@ -36,7 +36,17 @@ xcodebuild -project macOS/TigerTV.xcodeproj -scheme TigerTV -destination 'platfo
 ./AndroidTV/gradlew connectedDebugAndroidTest
 ```
 
-Xcode 自动构建 framework，递归跟踪 Kotlin 输入及产物；不要恢复每次必跑的脚本。Gradle 与 Xcode 原生构建应顺序执行，避免同时修改同一 framework。
+Xcode 自动构建 framework，递归跟踪 Kotlin 输入及产物。Gradle 与 Xcode 原生构建应顺序执行，避免同时修改同一 framework。
+
+Linux 原生 CLI 使用 Ktor Curl 引擎，共享 POSIX 文件和控制台适配。发布包以 Ubuntu 24.04（glibc 2.39）为验证基线，依赖系统 `libcurl.so.4` 和 CA 证书。Ubuntu 可安装 `libcurl4-openssl-dev ca-certificates`；运行无需 JDK/JVM。CI 分别在 x86_64 和 arm64 runner 上执行 CLI 契约检查，x86_64 同时运行核心 Native 测试。
+
+```bash
+./gradlew :cli:linkReleaseExecutableLinuxX64 :core:linuxX64Test
+python3 scripts/check-cli-contract.py cli/build/bin/linuxX64/releaseExecutable/tigertv.kexe
+# arm64 主机：
+./gradlew :cli:linkReleaseExecutableLinuxArm64
+python3 scripts/check-cli-contract.py cli/build/bin/linuxArm64/releaseExecutable/tigertv.kexe
+```
 
 桥接进程检查：
 
@@ -57,12 +67,12 @@ swiftc -swift-version 6 -parse-as-library macOS/App/Data/HTTPConfiguration.swift
 
 ## 发布
 
-当前版本 4.2.3，Android 默认 versionCode 22，macOS build 15。本次 4.2.3 发布使用 versionCode 23；手动发布的 versionCode 必须大于仓库默认值。
+当前版本 4.3.0，Android 默认 versionCode 23，macOS build 16。本次 4.3.0 发布使用 versionCode 24；手动发布的 versionCode 必须大于仓库默认值。
 
-PR 执行检查；仅手动 `workflow_dispatch` 发布。Actions 使用 Xcode 27.2 版本别名，校验 Xcode 与 macOS SDK 27.2，不锁定构建号；托管镜像更新前允许使用该别名指向的 RC。产物为未签名 macOS ZIP、Android universal APK、macOS CLI tar.gz 及 SHA-256。
+PR 执行检查；仅手动 `workflow_dispatch` 发布。Actions 使用 Xcode 27.2 版本别名，校验 Xcode 与 macOS SDK 27.2，不锁定构建号；托管镜像更新前允许使用该别名指向的 RC。产物为未签名 macOS ZIP、Android universal APK，以及 macOS arm64、Linux x86_64 / arm64 CLI tar.gz 和 SHA-256。
 
-Android 固定复用 Interlude 的既有 debug keystore，CI 从现有四项签名 secrets 恢复；不得临时生成密钥。每次发布增加 versionCode。发布前在实际设备验证遥控器、返回、HLS/MP4、重试、全屏、中文输入与关闭释放；自动测试不能代替设备验收。
+Android 使用 `~/.android/debug.keystore`，别名 `androiddebugkey`，采用标准 debug-key 凭据；CI 从四项 Android 签名 secrets 恢复。证书 SHA-256 为 `0d81ab7cb1a16d58d91a953fe62049eb77fc840cc544a297ae1854f54bc73b96`。每次发布增加 versionCode。发布前在实际设备验证遥控器、返回、HLS/MP4、重试、全屏、中文输入与关闭释放；自动测试不能代替设备验收。
 
 保持依赖更新检查开启，不为消除提示而屏蔽诊断。Kotlin 2.4.21 在 Gradle 9.8.2 下存在上游 Native 属性弃用及部分调试符号诊断；未采用 Beta 或隐藏这些诊断。
 
-首页热门卡片与搜索结果卡片共用平台原生组件上的样式封装：macOS 使用 SwiftUI Button、GroupBox 与 Layout；Android TV 使用默认 TV Material 3 主题及 Button、Card、FilterChip、InputChip、ListItem、Surface，搜索输入与布局使用 Foundation；不再自绘玻璃材质。热门接口与缓存属于 core，样例见 `fixtures/douban-hot.sample.json`（上游）与 `fixtures/hot-search.sample.json`（共享输出）。豆瓣图片带 Referer，并逐行并发加载；具体字号、间距与平台交互以 `contract.md` 为准。
+首页热门卡片与搜索结果卡片共用平台原生组件上的样式封装：macOS 使用 SwiftUI Button、GroupBox 与 Layout；Android TV 使用默认 TV Material 3 主题及 Button、Card、FilterChip、InputChip、ListItem、Surface，搜索输入与布局使用 Foundation。热门接口与缓存属于 core，样例见 `fixtures/douban-hot.sample.json`（上游）与 `fixtures/hot-search.sample.json`（共享输出）。豆瓣图片带 Referer，并逐行并发加载；具体字号、间距与平台交互以 `contract.md` 为准。

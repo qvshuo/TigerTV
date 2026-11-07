@@ -10,21 +10,21 @@ import kotlinx.coroutines.runBlocking
 expect fun output(text: String, error: Boolean = false): Boolean
 expect fun terminate(code: Int): Nothing
 expect fun initializeConsole()
-expect fun platformArguments(args: Array<String>): Array<String>
 
 private const val USAGE = "用法: tigertv [--config PATH] <command> [options]"
 private const val HELP = """小老虎爱看剧 (TigerTV)
 $USAGE
 
-  search --query <关键词>              搜索并聚合所有资源
+  search <关键词>                      搜索并聚合所有资源
   fetch --site <完整资源名> --video-id <正整数>
                                       获取指定资源的详情、线路和选集
-  quanx --query <关键词>               生成 Quantumult X 直连规则
+  quanx <关键词>                       生成 Quantumult X 直连规则
   logs [--full] [--clear]              最近 50 行日志；全部查看或清空
   --help                              显示帮助
   --version                           显示版本
 
 --config 必须放在业务命令之前，指定本地 JSON 配置并跳过远程配置。
+关键词含空格时使用引号，以 - 开头时使用 search / quanx -- <关键词>。
 search / fetch 输出 JSON；quanx / logs 输出文本；错误写入 stderr。
 退出码: 0 成功，1 业务错误，2 参数错误。
 """
@@ -51,8 +51,11 @@ private fun parse(args: List<String>): Arguments {
     val rest = args.drop(index + 1)
     return when (command) {
         "search", "quanx" -> {
-            if (rest.size != 2 || rest[0] != "--query" || rest[1].isBlank()) throw Usage("$command 需要 --query <关键词>")
-            Arguments(configPath, command, query = rest[1])
+            val values = if (rest.firstOrNull() == "--") rest.drop(1) else rest
+            if (values.size != 1 || values[0].isBlank() || (rest.firstOrNull() != "--" && values[0].startsWith("-"))) {
+                throw Usage("$command 需要一个关键词；以 - 开头时使用 -- <关键词>")
+            }
+            Arguments(configPath, command, query = values[0])
         }
         "fetch" -> {
             var site: String? = null
@@ -87,7 +90,7 @@ private fun parse(args: List<String>): Arguments {
 
 fun main(rawArgs: Array<String>) {
     initializeConsole()
-    val args = platformArguments(rawArgs)
+    val args = rawArgs
     val helpFlags = setOf("--help", "-h")
     val commands = setOf("search", "fetch", "quanx", "logs")
     if (args.isEmpty() || (args.size == 1 && args[0] in helpFlags) ||
@@ -118,7 +121,10 @@ fun main(rawArgs: Array<String>) {
                 when (parsed.command) {
                     "search" -> wireJson.encodeToString(core.search(parsed.query))
                     "fetch" -> wireJson.encodeToString(core.fetch(parsed.site, parsed.videoId))
-                    "quanx" -> core.collectQuanxDomains(parsed.query).render()
+                    "quanx" -> core.collectQuanxDomains(parsed.query).let {
+                        if (it.incompleteSites.isNotEmpty()) output("QX：${it.incompleteSites.size} 个站点未完整扫描，详见日志。\n", true)
+                        it.render()
+                    }
                     else -> error("unknown command")
                 }
             } } finally { core.close() }

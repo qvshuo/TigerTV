@@ -15,8 +15,8 @@ android {
         minSdk = 34
         targetSdk = 37
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = providers.gradleProperty("androidVersionCode").orElse("22").get().toInt()
-        versionName = providers.gradleProperty("releaseVersion").orElse("4.2.3").get()
+        versionCode = providers.gradleProperty("androidVersionCode").orElse("23").get().toInt()
+        versionName = providers.gradleProperty("releaseVersion").orElse("4.3.0").get()
 
         // Include both 32-bit (TV) and 64-bit (modern devices/emulators) ABIs.
         ndk {
@@ -31,7 +31,7 @@ android {
         }
         create("release") {
             initWith(getByName("debug"))
-            // Local builds share Interlude's key; CI restores the same key from secrets.
+            // CI restores ~/.android/debug.keystore from signing secrets.
             val ciStoreFile = System.getenv("CI_RELEASE_STORE_FILE")?.takeIf { it.isNotEmpty() }
             if (ciStoreFile != null) {
                 storeFile = file(ciStoreFile)

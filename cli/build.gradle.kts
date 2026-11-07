@@ -12,12 +12,16 @@ val generateVersion = tasks.register("generateVersion") {
     }
 }
 kotlin {
-    macosArm64 {
+    macosArm64()
+    linuxX64()
+    linuxArm64()
+    targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget>().configureEach {
         binaries.executable {
             baseName = "tigertv"
             entryPoint = "art.anjing.tigertv.cli.main"
         }
     }
+    applyDefaultHierarchyTemplate()
     sourceSets {
         commonMain { kotlin.srcDir(generateVersion.map { layout.buildDirectory.dir("generated/version").get() }) }
         commonMain.dependencies {

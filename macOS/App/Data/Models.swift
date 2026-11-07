@@ -68,12 +68,14 @@ struct VideoWork: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let title: String
     let sources: [SearchResult]
+    let displaySourceId: String
     var playback: [String: PlaybackBookmark] = [:]
     var playbackPositions: [String: [String: [String: Int64]]] = [:]
     var lastPlayedSite: String?
     var recentPlayedSite: String?
     enum CodingKeys: String, CodingKey {
         case playbackPositions = "playback_positions"
+        case displaySourceId = "display_source"
         case id, title, sources, playback, lastPlayedSite = "last_played_site", recentPlayedSite = "recent_played_site"
     }
     var defaultSource: SearchResult? {
@@ -81,11 +83,9 @@ struct VideoWork: Codable, Identifiable, Hashable, Sendable {
             ?? sources.first(where: { $0.site == recentPlayedSite })
             ?? sources.first(where: { !$0.vodPic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) ?? sources.first
     }
+    var displaySource: SearchResult? { sources.first { $0.id == displaySourceId } }
     var orderedSources: [SearchResult] {
-        let priorities = [lastPlayedSite, recentPlayedSite].compactMap { $0 }
-        var seen = Set<String>()
-        return (priorities.flatMap { site in sources.filter { $0.site == site } } + sources)
-            .filter { seen.insert($0.id).inserted }
+        sources.filter { $0.id == displaySourceId } + sources.filter { $0.id != displaySourceId }
     }
 }
 

@@ -12,7 +12,7 @@ class WorkDetailTest {
     @Test fun searchPublishesFastSitesBeforeSlowSitesAndKeepsConfiguredOrder() = runTest {
         val store = MemoryStorage().apply { files["source"] = """{"api_site":{"a":{"name":"🎬慢","api":"https://slow.test"},"b":{"name":"🎬快","api":"https://fast.test"}}}""" }
         val updates = mutableListOf<SearchResponse>()
-        val core = CoreService("cache", "source", store, configureClient(HttpClient(MockEngine {
+        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine {
             if (it.url.host == "slow.test") delay(1000)
             respond("""{"code":1,"list":[{"vod_id":1,"vod_name":"逐玉","vod_year":"2026"}]}""")
         })))
@@ -24,6 +24,8 @@ class WorkDetailTest {
             val cached = core.search("逐玉").works.single()
             assertEquals(PlaybackBookmark("0", "第二集"), cached.playback["🎬快"])
             assertEquals("🎬快", cached.defaultSource.site)
+            assertEquals("🎬快", cached.displaySource.site)
+            assertEquals("🎬快", result.works.single().displaySource.site)
         } finally { core.close() }
     }
 
@@ -31,7 +33,7 @@ class WorkDetailTest {
         val store = MemoryStorage().apply { files["source"] = """{"api_site":{"a":{"name":"🎬一","api":"https://a.test"}}}""" }
         var requests = 0
         var now = 0L
-        val core = CoreService("cache", "source", store, configureClient(HttpClient(MockEngine {
+        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine {
             requests++
             respond("""{"code":1,"list":[{"vod_id":1,"vod_name":"剧"}]}""")
         })), clock = { now })
@@ -67,7 +69,7 @@ class WorkDetailTest {
 
     @Test fun mismatchedDetailIdIsRejected() = runTest {
         val store = MemoryStorage().apply { files["source"] = """{"api_site":{"a":{"name":"🎬一","api":"https://a.test"}}}""" }
-        val core = CoreService("cache", "source", store, configureClient(HttpClient(MockEngine {
+        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine {
             respond("""{"code":1,"list":[{"vod_id":999}]}""")
         })))
         try { assertFails { core.fetch("🎬一", 42) } }
@@ -99,7 +101,7 @@ class WorkDetailTest {
         assertEquals(third, work.copy(lastPlayedSite = third.site, recentPlayedSite = first.site).defaultSource)
         val watchedWithoutPoster = work.copy(lastPlayedSite = first.site, recentPlayedSite = third.site)
         assertEquals(first, watchedWithoutPoster.defaultSource)
-        assertEquals(listOf(third, second), watchedWithoutPoster.orderedSources.filter { it.vodPic.isNotBlank() })
+        assertEquals(listOf(second, third), watchedWithoutPoster.orderedSources.filter { it.vodPic.isNotBlank() })
         assertEquals(first, work.copy(lastPlayedSite = first.site).defaultSource)
         assertEquals(third, work.copy(lastPlayedSite = third.site).defaultSource)
         assertEquals(second, work.copy(lastPlayedSite = "removed-site-99").defaultSource)
@@ -111,7 +113,7 @@ class WorkDetailTest {
             files["source"] = """{"api_site":{"a":{"name":"🎬A","api":"https://a.test"},"b":{"name":"🎬B","api":"https://b.test"}}}"""
         }
         var requests = 0
-        fun client() = configureClient(HttpClient(MockEngine { request ->
+        fun client() = configureClient(HttpClient(testEngine { request ->
             requests++
             val id = if (request.url.host == "a.test") 1 else 99
             respond("""{"code":1,"list":[{"vod_id":$id,"vod_name":"${request.url.parameters["wd"]}","vod_year":"2026"}]}""")
@@ -245,7 +247,7 @@ class WorkDetailTest {
     @Test fun fullSearchFollowsPaginationAndDetailRetainsMetadata() = runTest {
         val store = MemoryStorage().apply { files["source"] = """{"api_site":{"a":{"name":"🎬一","api":"https://a.test/api?ac=list"}}}""" }
         val requests = mutableListOf<String>()
-        val core = CoreService("cache", "source", store, configureClient(HttpClient(MockEngine { request ->
+        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine { request ->
             requests += request.url.toString()
             assertEquals(listOf("detail"), request.url.parameters.getAll("ac"))
             if (request.url.parameters["ids"] != null) {

@@ -26,7 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.snapshotFlow
@@ -174,43 +174,39 @@ private fun WorkCard(
     onSelectResult: (SearchResult) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val result = work.defaultSource
-    LaunchedEffect(work.sources) { work.sources.forEach(onLoadCoverFallback) }
-    MediaCard(onClick = { onSelectResult(result) }, modifier = modifier) {
-            CoverImage(
-                workId = work.id,
-                urls = work.orderedSources.mapNotNull { source ->
-                    normalizeCoverUrl(source.vodPic) ?: normalizeCoverUrl(coverFallbacks[source.coverKey].orEmpty())
-                }.distinct(),
-                title = result.vodName,
-                modifier = Modifier.fillMaxWidth().aspectRatio(CoverAspectRatio).clip(MaterialTheme.shapes.small)
-            )
-            art.anjing.tigertv.ui.components.MediaCardDetails(
-                title = if (result.vodYear.isBlank()) result.vodName else "${result.vodName} (${result.vodYear})",
-                footer = result.vodTime
-            ) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("${work.sources.size} 个资源", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary, maxLines = 1,
-                        modifier = Modifier.background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.small)
-                            .padding(horizontal = 6.dp, vertical = 2.dp))
-                    Text(result.vodRemarks, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                }
+    val result = work.displaySource
+    LaunchedEffect(work.sources) { work.orderedSources.forEach(onLoadCoverFallback) }
+    MediaCard(onClick = { onSelectResult(work.defaultSource) }, modifier = modifier) {
+        CoverImage(
+            workId = work.id,
+            urls = work.orderedSources.mapNotNull { source ->
+                normalizeCoverUrl(source.vodPic) ?: normalizeCoverUrl(coverFallbacks[source.coverKey].orEmpty())
+            }.distinct(),
+            title = result.vodName,
+            modifier = Modifier.fillMaxWidth().aspectRatio(CoverAspectRatio).clip(MaterialTheme.shapes.small)
+        )
+        art.anjing.tigertv.ui.components.MediaCardDetails(
+            title = if (result.vodYear.isBlank()) result.vodName else "${result.vodName} (${result.vodYear})",
+            footer = result.vodTime
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("${work.sources.size} 个资源", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary, maxLines = 1,
+                    modifier = Modifier.background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.small)
+                        .padding(horizontal = 6.dp, vertical = 2.dp))
+                Text(result.vodRemarks, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             }
-
+        }
     }
 }
 
 
 private const val CoverAspectRatio = 2f / 3f
 
-/**
- * 封面图：加载中显示占位背景，失败或无 URL 时回落到标题首字占位图。
- * 不同站点封面横竖版不一，统一 Crop 裁切到固定纵横比避免布局抖动。
- */
+/** Retain the first successful cover as incremental sources arrive. */
 @Composable
 private fun CoverImage(
     workId: String,
@@ -222,9 +218,9 @@ private fun CoverImage(
         modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center
     ) {
-        val ordered = urls
-        var index by remember(workId, ordered) { mutableIntStateOf(0) }
-        val url = ordered.getOrNull(index)
+        var loadedUrl by remember(workId) { mutableStateOf<String?>(null) }
+        var failedUrls by remember(workId) { mutableStateOf(emptySet<String>()) }
+        val url = loadedUrl ?: urls.firstOrNull { it !in failedUrls }
         if (url == null) {
             CoverPlaceholder(title)
         } else {
@@ -235,7 +231,8 @@ private fun CoverImage(
                 modifier = Modifier.fillMaxSize(),
                 loading = { CoverPlaceholder(title) },
                 error = { CoverPlaceholder(title) },
-                onError = { if (ordered.getOrNull(index) == url) index++ }
+                onSuccess = { loadedUrl = url },
+                onError = { failedUrls = failedUrls + url; loadedUrl = null }
             )
         }
     }

@@ -67,14 +67,14 @@ data class SourceSite(
 @Serializable
 data class VideoWork(
     val id: String, val title: String, val sources: List<SearchResult>,
+    @SerialName("display_source") val displaySourceId: String,
     @SerialName("last_played_site") val lastPlayedSite: String? = null,
     @SerialName("recent_played_site") val recentPlayedSite: String? = null,
     val playback: Map<String, PlaybackBookmark> = emptyMap(),
     @SerialName("playback_positions") val playbackPositions: Map<String, Map<String, Map<String, Long>>> = emptyMap()
 ) {
-    val orderedSources: List<SearchResult> get() = sources.sortedBy {
-        when (it.site) { lastPlayedSite -> 0; recentPlayedSite -> 1; else -> 2 }
-    }
+    val displaySource: SearchResult get() = sources.first { it.coverKey == displaySourceId }
+    val orderedSources: List<SearchResult> get() = listOf(displaySource) + sources.filter { it.coverKey != displaySourceId }
     val defaultSource: SearchResult get() = sources.firstOrNull { it.site == lastPlayedSite }
         ?: sources.firstOrNull { it.site == recentPlayedSite }
         ?: sources.firstOrNull { it.vodPic.isNotBlank() } ?: sources.first()
@@ -93,7 +93,7 @@ fun aggregateWorks(results: List<SearchResult>): List<VideoWork> = results.disti
     kotlinx.serialization.json.JsonArray(listOf(title.ifEmpty { result.coverKey }, year).map {
         kotlinx.serialization.json.JsonPrimitive(it)
     }).toString()
-}.map { (id, sources) -> VideoWork(id, sources.first().vodName, sources) }
+}.map { (id, sources) -> VideoWork(id, sources.first().vodName, sources, sources.first().coverKey) }
 
 @Serializable
 data class PlaybackBookmark(val line: String, val episode: String)

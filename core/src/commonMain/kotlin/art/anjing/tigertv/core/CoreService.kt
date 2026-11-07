@@ -125,13 +125,13 @@ class CoreService(
         val updateMutex = Mutex()
         var successfulSites = 0
         fun snapshot() = SearchResponse(keyword, aggregateWorks(results).map { work ->
-            // Card positions follow arrival; resource and cover priority still follow configuration.
+            // Keep arrival-based card identity while ordering resources by configuration.
             work.copy(sources = work.sources.sortedBy { sourceOrder.getValue(it.site) })
         })
         coroutineScope {
             sites.map { site -> async {
                 val batch = try {
-                    searchSite(site, keyword)
+                    withTimeoutOrNull(60_000) { searchSite(site, keyword) } ?: error("站点搜索超过 60 秒")
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) { log(site.name, e); return@async }
                 updateMutex.withLock {
@@ -240,12 +240,9 @@ class CoreService(
     suspend fun resolvePlaybackUrl(url: String): String {
         val path = Url(normalizeUrl(url)).encodedPath.lowercase()
         if (path.endsWith(".m3u8") || path.endsWith(".mp4")) return normalizeUrl(url)
-        val text = network.get(url, 10_000)
-        if (text.trimStart().startsWith("#EXTM3U", ignoreCase = true)) return normalizeUrl(url)
-        val absolute = Regex("https?://[^\\s\"'<>]+\\.m3u8(?:\\?[^\\s\"'<>]+)?", RegexOption.IGNORE_CASE)
-            .find(text.replace("\\/", "/"))?.value
-        if (absolute != null) return normalizeUrl(absolute.replace("&amp;", "&"))
-        return extractM3u8(url, text).firstOrNull() ?: error("无法解析播放地址")
+        val response = network.response(url, 10_000)
+        if (response.text.trimStart().startsWith("#EXTM3U", ignoreCase = true)) return response.url
+        return extractM3u8(response.url, response.text).firstOrNull() ?: error("无法解析播放地址")
     }
 
     suspend fun resolveCoverFallback(siteName: String, vodId: Int): String? = coverSemaphore.withPermit {
@@ -286,78 +283,8 @@ class CoreService(
         Unit
     }
 
-    suspend fun collectQuanxDomains(keyword: String): QuanxDomains {
-        val sites = loadConfig().apiSite.values
-        val cache = mutableMapOf<Pair<String, Int>, Set<String>>()
-        val cacheMutex = Mutex()
-        val semaphore = Semaphore(20)
-        val parts = coroutineScope {
-            sites.map { site -> async {
-                semaphore.withPermit {
-                    val links = mutableSetOf<String>()
-                    val playlists = mutableSetOf<String>()
-                    try {
-                        val first = list(site, mapOf("ac" to "list", "wd" to keyword, "pagesize" to "1")).firstOrNull()
-                        val id = first?.vodId()
-                        if (id != null) {
-                            val details = list(site, mapOf("ac" to "detail", "ids" to id.toString()))
-                            for (item in details) for ((field, names) in listOf("vod_play_url" to "vod_play_from", "vod_down_url" to "vod_down_from")) {
-                                for (link in parsePlaybackSources(item.text(field), item.text(names)).map { it.episodes.first() }) {
-                                    if (link.url.isEmpty()) continue
-                                    links += domain(link.url)
-                                    val urls = try { probeM3u8(link.url) } catch (e: CancellationException) { throw e }
-                                        catch (e: Exception) { log(site.name, e); emptyList() }
-                                    for (url in urls) playlists += playlistDomains(url, 0, cache, cacheMutex).first
-                                }
-                            }
-                        }
-                    } catch (e: CancellationException) { throw e }
-                    catch (e: Exception) { log(site.name, e) }
-                    links to playlists
-                }
-            } }.awaitAll()
-        }
-        return QuanxDomains(sites.map { domain(it.api) }.toSet(), parts.flatMap { it.first }.toSet(), parts.flatMap { it.second }.toSet())
-    }
-
-    private suspend fun probeM3u8(url: String): List<String> {
-        val path = Url(normalizeUrl(url)).encodedPath.lowercase()
-        if (path.endsWith(".m3u8") || path.endsWith(".mp4")) return listOf(url)
-        val text = network.get(url, 10_000)
-        return if (text.trimStart().startsWith("#EXTM3U")) listOf(url) else extractM3u8(url, text)
-    }
-
-    private suspend fun playlistDomains(url: String, depth: Int, cache: MutableMap<Pair<String, Int>, Set<String>>, mutex: Mutex): Pair<Set<String>, Boolean> {
-        if (depth > 2) return emptySet<String>() to false
-        val key = url to depth
-        mutex.withLock { cache[key]?.let { return it to true } }
-        var complete = true
-        val domains = mutableSetOf(domain(url))
-        try {
-            val lines = network.get(url, 10_000).lines().map { it.trim() }
-            val children = lines.indices.filter { lines[it].startsWith("#EXT-X-STREAM-INF") }.mapNotNull { index ->
-                lines.drop(index + 1).firstOrNull { it.isNotEmpty() && !it.startsWith('#') }
-            }.take(3)
-            // KEY/MEDIA declarations can occur in both master and media playlists.
-            for (line in lines.filter { it.startsWith("#EXT-X-KEY") || it.startsWith("#EXT-X-MEDIA") }) {
-                Regex("URI=[\"']?([^,\"']+)").find(line)?.groupValues?.get(1)?.let { domains += domain(resolveUrl(url, it)) }
-            }
-            if (children.isNotEmpty()) {
-                for (child in children) {
-                    val resolved = resolveUrl(url, child)
-                    domains += domain(resolved)
-                    val childResult = playlistDomains(resolved, depth + 1, cache, mutex)
-                    domains += childResult.first
-                    complete = complete && childResult.second
-                }
-            } else for (line in lines.filter { it.isNotEmpty() && !it.startsWith('#') }) domains += domain(resolveUrl(url, line))
-        } catch (e: CancellationException) { throw e }
-        catch (e: Exception) { complete = false; log("m3u8", e) }
-        // Ancestors of truncated or failed requests are incomplete too.
-        val result = domains.toSet()
-        if (complete) mutex.withLock { cache[key] = result }
-        return result to complete
-    }
+    suspend fun collectQuanxDomains(keyword: String): QuanxDomains =
+        QuanxCollector(network, ::log).collect(loadConfig().apiSite.values.toList(), keyword)
 
     fun close() = client.close()
 
@@ -368,7 +295,7 @@ class CoreService(
     }
 }
 
-data class QuanxDomains(val api: Set<String>, val urls: Set<String>, val m3u8: Set<String>) {
+data class QuanxDomains(val api: Set<String>, val urls: Set<String>, val m3u8: Set<String>, val incompleteSites: List<String> = emptyList()) {
     fun render(): String = listOf("资源站 API 域名" to api, "播放/下载域名" to urls, "m3u8 域名" to m3u8).joinToString("\n") { (title, domains) ->
         (listOf("; $title") + domains.sorted().map { "host-suffix, $it, direct" }).joinToString("\n")
     }
