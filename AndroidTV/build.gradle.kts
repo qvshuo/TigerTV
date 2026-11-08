@@ -15,8 +15,8 @@ android {
         minSdk = 34
         targetSdk = 37
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = providers.gradleProperty("androidVersionCode").orElse("24").get().toInt()
-        versionName = providers.gradleProperty("releaseVersion").orElse("4.4.0").get()
+        versionCode = providers.gradleProperty("androidVersionCode").orElse("25").get().toInt()
+        versionName = providers.gradleProperty("releaseVersion").orElse("4.4.1").get()
 
         // Include both 32-bit (TV) and 64-bit (modern devices/emulators) ABIs.
         ndk {
@@ -108,7 +108,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest:1.12.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
-    testImplementation("io.mockk:mockk:1.14.11")
+    testImplementation("io.mockk:mockk:1.14.12")
 }
 
 // Android unit tests need the same JDK as core, independently of the IDE/Gradle daemon JDK.

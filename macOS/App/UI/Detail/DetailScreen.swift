@@ -17,6 +17,8 @@ struct DetailScreen: View {
     let onSelectEpisode: (EpisodeLink) -> Void
     let resumeEpisode: EpisodeLink?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var retainedDetail: FetchResponse?
+    @State private var retainedEpisode: EpisodeLink?
 
     var body: some View {
         ScrollView {
@@ -94,16 +96,28 @@ struct DetailScreen: View {
             .frame(maxWidth: .infinity)
             .padding(AppSpacing.lg)
         }
+        .onChange(of: fetchResponse, initial: true) { _, response in
+            guard let response, response.id == result.id else { return }
+            retainedDetail = response
+            retainedEpisode = resumeEpisode ?? episodes.first
+        }
+        .onChange(of: resumeEpisode ?? episodes.first) { _, episode in
+            guard fetchResponse?.id == result.id else { return }
+            retainedEpisode = episode
+        }
     }
 
     private func detailOverview(_ result: SearchResult) -> some View {
-        let detail = fetchResponse?.id == result.id ? fetchResponse : nil
+        let currentDetail = fetchResponse?.id == result.id ? fetchResponse : nil
+        let detail = currentDetail ?? retainedDetail
+        let currentEpisode = resumeEpisode ?? episodes.first
+        let episode = currentDetail != nil ? currentEpisode : retainedEpisode
         let metadata = [detail?.vodYear ?? result.vodYear, detail?.typeName ?? result.typeName, detail?.vodArea ?? ""]
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         let status = detail?.vodRemarks ?? result.vodRemarks
         var seen = Set<URL>()
         let urls =
-            [detail?.vodPic, result.vodPic].compactMap { $0 }.compactMap(HTTPConfiguration.percentEncodedURL)
+            [currentDetail?.vodPic, result.vodPic].compactMap { $0 }.compactMap(HTTPConfiguration.percentEncodedURL)
             + [coverFallbacks[result.id]].compactMap { $0 }
         let candidates = urls.filter { seen.insert($0).inserted }
         return GroupBox {
@@ -129,20 +143,19 @@ struct DetailScreen: View {
                                 .foregroundStyle(Color.accentColor)
                         }
                     }
-                    if let episode = resumeEpisode ?? episodes.first {
-                        Button {
-                            onSelectEpisode(episode)
-                        } label: {
-                            Label("播放 · \(episode.name)", systemImage: "play.fill")
-                                .font(.body.weight(.semibold))
-                                .padding(AppSpacing.xs)
-                        }
-                        .buttonStyle(.glassProminent)
-                        .controlSize(.large)
-                        .buttonBorderShape(.capsule)
-                        .tint(Color.accentColor)
-                        .padding(.vertical, AppSpacing.xs)
+                    Button {
+                        if let currentEpisode { onSelectEpisode(currentEpisode) }
+                    } label: {
+                        Label(episode.map { "播放 · \($0.name)" } ?? "播放", systemImage: "play.fill")
+                            .font(.body.weight(.semibold))
+                            .padding(AppSpacing.xs)
                     }
+                    .disabled(isFetching || currentDetail == nil || currentEpisode == nil)
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.large)
+                    .buttonBorderShape(.capsule)
+                    .tint(Color.accentColor)
+                    .padding(.vertical, AppSpacing.xs)
                     if let director = detail?.vodDirector, !director.isEmpty {
                         detailCredit("导演", value: director)
                     }

@@ -15,7 +15,7 @@ Keep API/config/history and playback metadata logic in core. Native players own 
 
 ## Toolchain and validation
 
-Kotlin/Compose/serialization plugins 2.4.21, Gradle 9.8.2, AGP 9.5.0, JDK 21, Android SDK 37; Xcode 27.2 stable (27B52), its bundled Swift 6.4.2 toolchain, Swift 6 language mode, SwiftPM tools 6.4, macOS SDK 27.2 and deployment target macOS 26+.
+Kotlin/Compose/serialization plugins 2.4.21, Gradle 9.8.2, AGP 9.5.1, JDK 21, Android SDK 37; Xcode 27.2 stable (27B52), its bundled Swift 6.4.2 toolchain, Swift 6 language mode, SwiftPM tools 6.4, macOS SDK 27.2 and deployment target macOS 26+.
 
 ```bash
 ./gradlew :core:jvmTest :core:macosArm64Test :nativeBridge:macosArm64Test
@@ -38,7 +38,7 @@ CI uses the `xcode-27` arm64 runner and the Xcode 27.2 version alias, verifying 
 - Detail emits metadata plus required `play_sources` and `download_sources`. Each line has `{id,name,episodes:[{name,url}]}`.
 - Raw MacCMS line separator is `$$$`; item separator is `#`; first `$` splits name and URL. Preserve original group positions when aligning `*_from` names; discard empty items/groups only after alignment.
 - GUI flow on both platforms: search → work cards → detail → site/line/episode selection → player. Switching site/line cancels pending playback, resets episode selection and never auto-plays. Playback errors offer only retry and back; retry retains the selected resource, line and episode. TV shows only a default-focused Retry button and uses the remote Back key to exit; macOS retains its native back action. Back returns through detail and results.
-- Detail order/text on both platforms: current-source poster + overview → 资源 → 线路 → 选集 (no section counts). Keep line/episode headings mounted during loading, errors and empty responses; replace only their contents. Render overview content directly above the resource choices. Synopsis is always visible without disclosure controls. Hero play resumes the last actually played episode (first episode if unavailable); TV focus on hero play scrolls to top. Detail poster uses only the selected source, unlike work-card covers. Search progress stays inside a fixed-size search button (arrow becomes spinner); both platforms disable search buttons while searching; macOS also ignores keyboard submission until completion. The shared macOS loader uses the native indeterminate ProgressView without custom masks. The search variant is white/gray and remains animated while disabled.  Detail/playback loading share one component per platform and matching messages; retain native macOS hover/materials and TV focus/scale headroom. See `docs/contract.md`.
+- Detail order/text on both platforms: current-source poster + overview → 资源 → 线路 → 选集 (no section counts). Keep line/episode headings mounted during loading, errors and empty responses; replace only their contents. Render overview content directly above the resource choices. Synopsis is always visible without disclosure controls. Both platforms preserve the last loaded text overview and disable pending hero playback during source requests. TV keeps the selected resource focused at its current viewport position; late responses must not undo new directional navigation. Hero play resumes the last actually played episode (first episode if unavailable); TV focus on hero play scrolls to top. Detail poster uses only the selected source, unlike work-card covers. Search progress stays inside a fixed-size search button (arrow becomes spinner); both platforms disable search buttons while searching; macOS also ignores keyboard submission until completion. The shared macOS loader uses the native indeterminate ProgressView without custom masks. The search variant is white/gray and remains animated while disabled.  Detail/playback loading share one component per platform and matching messages; retain native macOS hover/materials and TV focus/scale headroom. See `docs/contract.md`.
 - Swift models require the current shared schema and must not fall back to an older schema.
 
 ## API and network
@@ -88,7 +88,7 @@ Android: custom Compose playback controls over Media3 video/subtitles, styled wi
 
 ## Signing and release
 
-Current version 4.4.0; Android default versionCode 24 (4.4.0 release: 25), macOS build 17. CI checks PRs; releases only through workflow_dispatch. Package macOS arm64 ZIP, universal Android APK, and macOS arm64 / Linux x86_64 / Linux arm64 CLI tar.gz with checksums. Linux uses Curl, glibc and system CA certificates; Ubuntu 24.04 is the CI baseline. macOS app unsigned.
+Current version 4.4.1; Android default versionCode 25 (4.4.1 releases require a higher versionCode), macOS build 18. CI checks PRs; releases only through workflow_dispatch. Package macOS arm64 ZIP, universal Android APK, and macOS arm64 / Linux x86_64 / Linux arm64 CLI tar.gz with checksums. Linux uses Curl, glibc and system CA certificates; Ubuntu 24.04 is the CI baseline. macOS app unsigned.
 
 Android debug and release use `~/.android/debug.keystore`, alias `androiddebugkey`, standard Android debug-key credentials. CI restores the same key using the existing four Android signing secrets. Required certificate SHA-256: `0d81ab7cb1a16d58d91a953fe62049eb77fc840cc544a297ae1854f54bc73b96`. Never generate a temporary release signing key. Increment Android versionCode for releases; do not publish/deploy without user authorization.
 

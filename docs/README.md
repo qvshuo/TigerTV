@@ -24,7 +24,7 @@ CoreService 负责业务入口与协调，Network 负责 HTTP 和网络约束，
 
 ## 构建与检查
 
-工具链：Kotlin 2.4.21、Gradle 9.8.2、AGP 9.5.0、JDK 21、Android SDK 37；Xcode 27.2（27B52）、Swift 6.4.2、macOS SDK 27.2。应用最低 macOS 26／Android 14；macOS 仅 arm64，Android APK 同时包含 v7a 和 arm64。
+工具链：Kotlin 2.4.21、Gradle 9.8.2、AGP 9.5.1、JDK 21、Android SDK 37；Xcode 27.2（27B52）、Swift 6.4.2、macOS SDK 27.2。应用最低 macOS 26／Android 14；macOS 仅 arm64，Android APK 同时包含 v7a 和 arm64。
 
 Android Studio 打开 `AndroidTV/`，Xcode 打开 `macOS/TigerTV.xcodeproj`。Android SDK 配在 `AndroidTV/local.properties` 或 `ANDROID_HOME`。根 Gradle 只构建核心、桥接和 CLI，无需 Android SDK；Android 工程直接引用同一份核心源码，产物隔离到 `AndroidTV/build/core`。两个入口通过 `AndroidTV/gradle` 符号链接共用 Wrapper、Java 21 规则和插件版本。
 
@@ -60,7 +60,7 @@ swiftc -swift-version 6 -parse-as-library -F nativeBridge/build/bin/macosArm64/d
 /tmp/check-macos-state
 ```
 
-`check-macos-state` 验证生产 ViewModel 的原始 URL 选集与重试、AVURLAsset 地址交接、迟到响应丢弃、原始播放会话进度隔离和释放。Core 测试覆盖 QX 的 HTML／重定向／全部 HLS 关系与取消，双端解码 `fetch-playback.sample.json`，Android 单测验证选集／重试不调用 Repository。设备测试继续覆盖真实媒体加载、暂停、跳转、返回、错误重试及释放；实体电视验收需在目标设备另行执行。
+`check-macos-state` 验证生产 ViewModel 的原始 URL 选集与重试、AVURLAsset 地址交接、迟到响应丢弃、原始播放会话进度隔离和释放。Core 测试覆盖 QX 的 HTML／重定向／全部 HLS 关系与取消，双端解码 `fetch-playback.sample.json`，Android 单测验证选集／重试不调用 Repository。TV 切源回归同时验证简介全文显示、长短简介互换、焦点与滚动位置、失败、迟到响应及字体缩放。设备测试继续覆盖真实媒体加载、暂停、跳转、返回、错误重试及释放；实体电视验收需在目标设备另行执行。
 
 `scripts/serve-playback-fixtures.py DIR` 仅暴露指定测试目录中的媒体与测试 API；`scripts/check-macos-playback.swift` 验证实际 AVPlayer 播放、暂停、跳转与释放，并经 AppKit 事件分发检查方向键跳转与连续按键时的播放状态。
 
@@ -73,7 +73,7 @@ swiftc -swift-version 6 -parse-as-library macOS/App/Data/HTTPConfiguration.swift
 
 ## 发布
 
-当前版本 4.4.0，Android 默认 versionCode 24，macOS build 17。本次 4.4.0 发布使用 versionCode 25；手动发布的 versionCode 必须大于仓库默认值。
+当前版本 4.4.1，Android 默认 versionCode 25，macOS build 18。4.4.1 发布时 versionCode 须大于 25；手动发布的 versionCode 必须大于仓库默认值。
 
 PR 执行检查；仅手动 `workflow_dispatch` 发布。Actions 使用 Xcode 27.2 版本别名，校验 Xcode 与 macOS SDK 27.2，不锁定构建号；托管镜像更新前允许使用该别名指向的 RC。产物为未签名 macOS ZIP、Android universal APK，以及 macOS arm64、Linux x86_64 / arm64 CLI tar.gz 和 SHA-256。
 
