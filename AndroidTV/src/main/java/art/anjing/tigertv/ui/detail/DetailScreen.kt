@@ -236,16 +236,13 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                     }
                     item(key = "episode-label", span = { GridItemSpan(maxLineSpan) }) { SectionTitle("选集") }
                     when {
-                        viewModel.isFetching || viewModel.fetchErrorMessage != null -> item(key = "loading", span = { GridItemSpan(maxLineSpan) }) {
-                            // Keep the resource row's scroll anchor while pending content is replaced.
-                            Spacer(Modifier.fillMaxWidth().height(maxOf(UiMetrics.loadingRegion, viewportHeight)))
-                        }
-                        episodes.isEmpty() -> item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
-                            // Empty content needs the same scroll room as loading to retain the resource anchor.
-                            Box(Modifier.fillMaxWidth().heightIn(min = maxOf(UiMetrics.loadingRegion, viewportHeight))) {
-                                Text("暂无播放内容")
+                        viewModel.isFetching || viewModel.fetchErrorMessage != null || episodes.isEmpty() ->
+                            item(key = "episode-status", span = { GridItemSpan(maxLineSpan) }) {
+                                // Retain scroll room when loading or empty content replaces the episodes.
+                                Box(Modifier.fillMaxWidth().heightIn(min = maxOf(UiMetrics.loadingRegion, viewportHeight))) {
+                                    if (!viewModel.isFetching && viewModel.fetchErrorMessage == null) Text("暂无播放内容")
+                                }
                             }
-                        }
                         else -> itemsIndexed(episodes, key = { index, _ -> "episode-$index" }, span = { _, episode ->
                             // Long titles can span two compact columns; short titles keep one.
                             val cellWidth = (availableWidth - UiSpacing.sm * (maxLineSpan - 1)) / maxLineSpan

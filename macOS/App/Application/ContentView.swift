@@ -124,7 +124,6 @@ struct ContentView: View {
         }
         .onChange(of: viewModel.playbackRevision) { _, _ in
             guard let url = viewModel.selectedEpisode?.url else { return }
-            controller.close()
             guard let session = viewModel.playbackSession else { return }
             controller.load(url: url, positionMillis: session.positionMillis,
                 onStarted: { viewModel.playbackDidStart(session) },

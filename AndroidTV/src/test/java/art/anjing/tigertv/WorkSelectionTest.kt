@@ -48,6 +48,20 @@ class WorkSelectionTest {
 
     private fun hotItem(title: String) = art.anjing.tigertv.domain.HotSearchItem(title, title, "2026", "", null, 0, "")
 
+    @Test fun supersededConfigFailureCannotReplaceSuccessfulRetry() = runTest(dispatcher) {
+        runCurrent()
+        val late = CompletableDeferred<Result<SourceConfig>>()
+        coEvery { repository.loadConfig() } coAnswers { withContext(NonCancellable) { late.await() } }
+        viewModel.retryLoadConfig()
+        runCurrent()
+        coEvery { repository.loadConfig() } returns Result.Success(SourceConfig())
+        viewModel.retryLoadConfig()
+        runCurrent()
+        late.complete(Result.Error(IllegalStateException("old failure")))
+        runCurrent()
+        assertNull(viewModel.configErrorMessage)
+    }
+
     @Test fun warmupStartsAfterVisibleTitlesAndSurvivesCategorySwitchUntilHomeCloses() = runTest(dispatcher) {
         every { repository.hotSearchCategories() } returns listOf(
             HotSearchCategory("chinese", "国产剧"), HotSearchCategory("korean", "韩剧")

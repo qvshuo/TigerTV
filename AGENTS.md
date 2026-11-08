@@ -88,7 +88,7 @@ Android: custom Compose playback controls over Media3 video/subtitles, styled wi
 
 ## Signing and release
 
-Current version 4.4.1; Android default versionCode 25 (4.4.1 releases require a higher versionCode), macOS build 18. CI checks PRs; releases only through workflow_dispatch. Package macOS arm64 ZIP, universal Android APK, and macOS arm64 / Linux x86_64 / Linux arm64 CLI tar.gz with checksums. Linux uses Curl, glibc and system CA certificates; Ubuntu 24.04 is the CI baseline. macOS app unsigned.
+Current version 4.4.2; Android default versionCode 26 (4.4.2 release: 27), macOS build 19. CI checks PRs; releases only through workflow_dispatch. Package macOS arm64 ZIP, universal Android APK, and macOS arm64 / Linux x86_64 / Linux arm64 CLI tar.gz with checksums. Linux uses Curl, glibc and system CA certificates; Ubuntu 24.04 is the CI baseline. macOS app unsigned.
 
 Android debug and release use `~/.android/debug.keystore`, alias `androiddebugkey`, standard Android debug-key credentials. CI restores the same key using the existing four Android signing secrets. Required certificate SHA-256: `0d81ab7cb1a16d58d91a953fe62049eb77fc840cc544a297ae1854f54bc73b96`. Never generate a temporary release signing key. Increment Android versionCode for releases; do not publish/deploy without user authorization.
 

@@ -60,7 +60,7 @@ swiftc -swift-version 6 -parse-as-library -F nativeBridge/build/bin/macosArm64/d
 /tmp/check-macos-state
 ```
 
-`check-macos-state` 验证生产 ViewModel 的原始 URL 选集与重试、AVURLAsset 地址交接、迟到响应丢弃、原始播放会话进度隔离和释放。Core 测试覆盖 QX 的 HTML／重定向／全部 HLS 关系与取消，双端解码 `fetch-playback.sample.json`，Android 单测验证选集／重试不调用 Repository。TV 切源回归同时验证简介全文显示、长短简介互换、焦点与滚动位置、失败、迟到响应及字体缩放。设备测试继续覆盖真实媒体加载、暂停、跳转、返回、错误重试及释放；实体电视验收需在目标设备另行执行。
+`check-macos-state` 验证生产 ViewModel 的原始 URL 选集与重试、AVURLAsset 地址交接、异常地址拒绝、迟到响应丢弃、原始播放会话进度隔离和释放。Core 测试覆盖 QX 的 HTML／重定向／全部 HLS 关系与取消，双端解码 `fetch-playback.sample.json`，Android 单测验证选集／重试不调用 Repository。TV 切源回归同时验证简介全文显示、长短简介互换、焦点与滚动位置、失败、迟到响应及字体缩放；播放器输入回归验证非法地址及同步建源失败不会崩溃或写入进度。设备测试继续覆盖真实媒体加载、暂停、跳转、返回、错误重试及释放；实体电视验收需在目标设备另行执行。
 
 `scripts/serve-playback-fixtures.py DIR` 仅暴露指定测试目录中的媒体与测试 API；`scripts/check-macos-playback.swift` 验证实际 AVPlayer 播放、暂停、跳转与释放，并经 AppKit 事件分发检查方向键跳转与连续按键时的播放状态。
 
@@ -73,7 +73,7 @@ swiftc -swift-version 6 -parse-as-library macOS/App/Data/HTTPConfiguration.swift
 
 ## 发布
 
-当前版本 4.4.1，Android 默认 versionCode 25，macOS build 18。4.4.1 发布时 versionCode 须大于 25；手动发布的 versionCode 必须大于仓库默认值。
+当前版本 4.4.2，Android 默认 versionCode 26，macOS build 19。4.4.2 发布使用 versionCode 27；手动发布的 versionCode 必须大于仓库默认值。
 
 PR 执行检查；仅手动 `workflow_dispatch` 发布。Actions 使用 Xcode 27.2 版本别名，校验 Xcode 与 macOS SDK 27.2，不锁定构建号；托管镜像更新前允许使用该别名指向的 RC。产物为未签名 macOS ZIP、Android universal APK，以及 macOS arm64、Linux x86_64 / arm64 CLI tar.gz 和 SHA-256。
 

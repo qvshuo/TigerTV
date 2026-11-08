@@ -140,7 +140,8 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
         consumedCenter = false
         requestFocus(PlayerFocusArea.Surface)
     }
-    LaunchedEffect(snapshot.playWhenReady, snapshot.ready, blocked) {
+    // A seek can change readiness while paused; it must not restore focus over navigation.
+    LaunchedEffect(snapshot.playWhenReady, blocked) {
         if (!snapshot.playWhenReady && snapshot.ready && !blocked && controls.seek == null) showControls(PlayerFocusArea.Actions)
     }
     LaunchedEffect(snapshot.ended) {

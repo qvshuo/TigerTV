@@ -181,6 +181,7 @@ class TigerTVViewModel(
 
     private var searchJob: Job? = null
     private var fetchJob: Job? = null
+    private var configJob: Job? = null
     private var hotSearchGeneration = 0
     private var hotWarmJob: Job? = null
 
@@ -230,8 +231,11 @@ class TigerTVViewModel(
     }
 
     private fun loadConfig() {
-        viewModelScope.launch {
-            configErrorMessage = when (val result = repository.loadConfig()) {
+        configJob?.cancel()
+        configJob = viewModelScope.launch {
+            val result = repository.loadConfig()
+            ensureActive()
+            configErrorMessage = when (result) {
                 is Result.Success -> null
                 is Result.Error -> "资源列表加载失败，请重试"
             }
