@@ -345,6 +345,7 @@ class PlayerRemoteTest {
                 controller.load(video.toURI().toString(), 30_000, "后台完成的加载",
                     onStarted = { starts++ }, onPosition = { positions += it }, onError = { error(it) })
                 controller.play()
+                assertEquals("Background loads must wait for foreground", 0, controller.player.mediaItemCount)
                 assertFalse("Late resolution must not play in background", controller.player.playWhenReady)
                 controller.onForeground()
                 assertTrue(controller.player.playWhenReady)

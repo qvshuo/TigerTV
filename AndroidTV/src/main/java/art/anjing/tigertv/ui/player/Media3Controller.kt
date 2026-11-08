@@ -1,6 +1,7 @@
 package art.anjing.tigertv.ui.player
 
 import android.content.Context
+import androidx.core.net.toUri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -44,6 +45,7 @@ class Media3Controller(context: Context) {
         private set
     private var resumeOnForeground = false
     private var inBackground = false
+    private var pendingLoad: (() -> Unit)? = null
     private var listener: Player.Listener? = null
     private var onPosition: ((Long) -> Unit)? = null
     private var lastSavedPosition: Long? = null
@@ -53,7 +55,22 @@ class Media3Controller(context: Context) {
     private var closed = false
 
     fun load(url: String, positionMillis: Long, title: String, onStarted: () -> Unit, onPosition: (Long) -> Unit, onError: (String) -> Unit) {
+        if (closed) return
         unload()
+        if (inBackground) {
+            pendingLoad = { load(url, positionMillis, title, onStarted, onPosition, onError) }
+            return
+        }
+        val uri = normalizeUrl(url).toUri()
+        val valid = when (uri.scheme?.lowercase()) {
+            "http", "https" -> !uri.host.isNullOrBlank()
+            "file" -> uri.path?.startsWith("/") == true
+            else -> false
+        }
+        if (!valid) {
+            onError("无效播放地址")
+            return
+        }
         this.onPosition = onPosition
         restoring = true
         listener = object : Player.Listener {
@@ -92,9 +109,14 @@ class Media3Controller(context: Context) {
                 onError(error.message ?: "播放失败")
             }
         }.also(player::addListener)
-        val metadata = MediaMetadata.Builder().setTitle(title).build()
-        player.setMediaItem(MediaItem.Builder().setUri(normalizeUrl(url)).setMediaMetadata(metadata).build(), positionMillis.coerceAtLeast(0))
-        player.prepare()
+        try {
+            val metadata = MediaMetadata.Builder().setTitle(title).build()
+            player.setMediaItem(MediaItem.Builder().setUri(uri).setMediaMetadata(metadata).build(), positionMillis.coerceAtLeast(0))
+            player.prepare()
+        } catch (error: Exception) {
+            unload()
+            onError(error.message ?: "播放失败")
+        }
     }
 
     fun refresh() {
@@ -139,6 +161,9 @@ class Media3Controller(context: Context) {
         inBackground = false
         val resume = resumeOnForeground
         resumeOnForeground = false
+        val load = pendingLoad
+        pendingLoad = null
+        load?.invoke()
         if (resume && player.mediaItemCount > 0) play()
     }
 
@@ -162,6 +187,7 @@ class Media3Controller(context: Context) {
     }
     fun unload() {
         if (closed) return
+        pendingLoad = null
         savePosition()
         listener?.let(player::removeListener)
         listener = null

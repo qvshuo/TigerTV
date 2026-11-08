@@ -102,6 +102,15 @@ struct MacStateCheck {
             controller.close()
             precondition(controller.player.currentItem == nil)
         }
+        let invalidPlayer = AVPlayerController()
+        for url in ["", "   ", "relative/video.mp4", "https://", "data:text/plain,video"] {
+            invalidPlayer.load(url: url, positionMillis: 0,
+                onStarted: { preconditionFailure("Invalid URL started playback") },
+                onPosition: { _ in preconditionFailure("Invalid URL wrote progress") })
+            precondition(invalidPlayer.errorMessage != nil && invalidPlayer.player.currentItem == nil)
+        }
+        invalidPlayer.close()
+        precondition(invalidPlayer.errorMessage == nil)
         precondition(repository.calls == calls, "Playback selection or retry called the repository")
 
         model.selectEpisode(model.episodes[0])

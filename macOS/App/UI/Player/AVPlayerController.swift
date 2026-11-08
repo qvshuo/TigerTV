@@ -19,7 +19,8 @@ final class AVPlayerController: ObservableObject {
 
     func load(url: String, positionMillis: Int64, onStarted: @escaping () -> Void, onPosition: @escaping (Int64) -> Void) {
         close()
-        guard let url = HTTPConfiguration.percentEncodedURL(from: url) else {
+        guard let url = HTTPConfiguration.percentEncodedURL(from: url),
+              url.isFileURL || (["http", "https"].contains(url.scheme?.lowercased() ?? "") && url.host?.isEmpty == false) else {
             errorMessage = "播放失败，请重试"
             return
         }
