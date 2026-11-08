@@ -12,13 +12,13 @@ struct TigerTVApp: App {
     }
 }
 
-/// Give pending native persistence requests time to finish before a normal Quit.
+/// Flush search history and playback writes before a normal Quit.
 @MainActor
 final class TigerTVAppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
-    var playbackFlushers: [UUID: @MainActor () async -> Void] = [:]
+    var persistenceFlushers: [UUID: @MainActor () async -> Void] = [:]
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        let flushers = Array(playbackFlushers.values)
+        let flushers = Array(persistenceFlushers.values)
         guard !flushers.isEmpty else { return .terminateNow }
         Task {
             for flush in flushers { await flush() }

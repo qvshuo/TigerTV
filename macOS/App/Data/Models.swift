@@ -28,7 +28,6 @@ struct SearchResult: Codable, Identifiable, Hashable, Sendable {
     let typeName: String
 
     var id: String { "\(site)-\(vodId)" }
-    var displayTitle: String { vodName }
 
     enum CodingKeys: String, CodingKey {
         case site

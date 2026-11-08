@@ -5,7 +5,6 @@ protocol VideoRepository: Sendable {
     func loadConfig() async -> LoadResult<SourceConfig>
     func search(keyword: String, onUpdate: @escaping @Sendable (SearchResponse) async -> Void) async -> LoadResult<SearchResponse>
     func fetch(siteName: String, vodId: Int) async -> LoadResult<FetchResponse>
-    func resolvePlaybackUrl(url: String) async -> LoadResult<String>
     func coverFallbackURL(siteName: String, vodId: Int) async -> URL?
     func recordPlayback(workId: String, site: String, line: String, episode: String) async
     func recordPlaybackPosition(workId: String, site: String, line: String, episode: String, positionMillis: Int64) async
@@ -13,7 +12,9 @@ protocol VideoRepository: Sendable {
     func warmHotSearches(category: String) async
     func loadHotSearches(category: String) async -> [HotSearchItem]
     func loadHistory() async -> [String]
-    func saveHistory(_ items: [String]) async
+    func addHistory(_ item: String) async
+    func removeHistory(_ item: String) async
+    func clearHistory() async
 }
 
 /// Owns one Kotlin/Native service. No subprocess or JVM is involved.
@@ -93,13 +94,18 @@ actor SharedCoreRepository: VideoRepository {
         if case .success(let history) = await request("history", as: [String].self) { return history }
         return []
     }
-    func saveHistory(_ items: [String]) async {
-        _ = await request("saveHistory", ["items": items], as: Bool.self)
+    func addHistory(_ item: String) async {
+        _ = await request("addHistory", ["item": item], as: Bool.self)
+    }
+    func removeHistory(_ item: String) async {
+        _ = await request("removeHistory", ["item": item], as: Bool.self)
+    }
+    func clearHistory() async {
+        _ = await request("clearHistory", as: Bool.self)
     }
     func loadConfig() async -> LoadResult<SourceConfig> { await request("config", as: SourceConfig.self) }
     func search(keyword: String, onUpdate: @escaping @Sendable (SearchResponse) async -> Void) async -> LoadResult<SearchResponse> { await request("search", ["query": keyword], as: SearchResponse.self, onSearchUpdate: onUpdate) }
     func fetch(siteName: String, vodId: Int) async -> LoadResult<FetchResponse> { await request("fetch", ["site": siteName, "video_id": vodId], as: FetchResponse.self) }
-    func resolvePlaybackUrl(url: String) async -> LoadResult<String> { await request("resolve", ["url": url], as: String.self) }
     func coverFallbackURL(siteName: String, vodId: Int) async -> URL? {
         if case .success(let url) = await request("cover", ["site": siteName, "video_id": vodId], as: String.self) {
             return HTTPConfiguration.percentEncodedURL(from: url)

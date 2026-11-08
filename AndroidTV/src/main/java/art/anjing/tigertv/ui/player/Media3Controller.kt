@@ -15,6 +15,7 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import art.anjing.tigertv.core.USER_AGENT
+import art.anjing.tigertv.core.normalizeUrl
 import androidx.media3.exoplayer.ExoPlayer
 
 data class PlayerSnapshot(
@@ -56,9 +57,10 @@ class Media3Controller(context: Context) {
         this.onPosition = onPosition
         restoring = true
         listener = object : Player.Listener {
-            override fun onEvents(player: Player, events: Player.Events) { refresh() }
+            override fun onEvents(player: Player, events: Player.Events) { if (listener === this) refresh() }
 
             override fun onPlaybackStateChanged(state: Int) {
+                if (listener !== this) return
                 if ((state == Player.STATE_READY || state == Player.STATE_ENDED) && restoring) {
                     val duration = player.duration
                     if (duration != C.TIME_UNSET && positionMillis >= duration) player.seekTo(0)
@@ -71,24 +73,27 @@ class Media3Controller(context: Context) {
                 }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (listener !== this) return
                 if (isPlaying && !restoring && !didStart) {
                     didStart = true
                     onStarted()
                 } else if (!isPlaying) savePosition()
             }
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                if (listener !== this) return
                 if (reason == Player.DISCONTINUITY_REASON_SEEK) {
                     ended = false
                     savePosition()
                 }
             }
             override fun onPlayerError(error: PlaybackException) {
+                if (listener !== this) return
                 savePosition()
                 onError(error.message ?: "播放失败")
             }
         }.also(player::addListener)
         val metadata = MediaMetadata.Builder().setTitle(title).build()
-        player.setMediaItem(MediaItem.Builder().setUri(url).setMediaMetadata(metadata).build(), positionMillis.coerceAtLeast(0))
+        player.setMediaItem(MediaItem.Builder().setUri(normalizeUrl(url)).setMediaMetadata(metadata).build(), positionMillis.coerceAtLeast(0))
         player.prepare()
     }
 
@@ -146,7 +151,7 @@ class Media3Controller(context: Context) {
     }
     fun play() {
         if (closed) return
-        // Resolution can finish after ON_PAUSE; defer its playback intent until ON_RESUME.
+        // Loads requested after ON_PAUSE retain playback intent until ON_RESUME.
         if (inBackground) resumeOnForeground = true else player.play()
     }
     fun pause() {

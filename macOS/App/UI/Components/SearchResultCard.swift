@@ -80,7 +80,7 @@ struct SearchResultCard: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            Text(String(result.displayTitle.prefix(1)))
+            Text(String(result.vodName.prefix(1)))
                 .font(.system(size: 44, weight: .bold))
                 .foregroundStyle(.primary.opacity(0.25))
         }

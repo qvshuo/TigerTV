@@ -58,6 +58,7 @@ class PlayerRemoteTest {
     private lateinit var video: File
     private var exits = 0
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     @Before fun preparePlayer() {
         val context = instrumentation.targetContext
         video = File(context.cacheDir, "remote-control-test.mp4")
@@ -71,7 +72,13 @@ class PlayerRemoteTest {
         }
         val mediaUrl = video.toURI().toString()
         val response = """{"code":1,"list":[{"vod_id":1,"vod_name":"遥控器测试","vod_play_from":"主线${'$'}${'$'}${'$'}备用线路","vod_play_url":"第一集${'$'}$mediaUrl#第二集${'$'}$mediaUrl${'$'}${'$'}${'$'}第一集${'$'}$mediaUrl#第二集${'$'}$mediaUrl"}]}"""
-        val core = CoreService("cache", "source", storage, configureClient(HttpClient(MockEngine { respond(response) })))
+        val core = CoreService("cache", "source", storage, configureClient(HttpClient(MockEngine { request ->
+            if (request.url.host == "m.douban.com") respond("""{"subject_collection_items":[]}""")
+            else {
+                assertEquals("Ordinary playback must not probe through core", "fixture.test", request.url.host)
+                respond(response)
+            }
+        })))
         compose.runOnIdle {
             model = TigerTVViewModel(TigerTVRepository(core), context)
             store.put("player", model)
@@ -82,7 +89,7 @@ class PlayerRemoteTest {
         compose.runOnIdle { model.selectResult(model.works.single().sources.single()) }
         compose.waitUntil(10_000) { model.fetchResponse != null && !model.isFetching }
         compose.runOnIdle { model.selectEpisode(0) }
-        compose.waitUntil(10_000) { model.resolvedPlaybackUrl != null }
+        compose.waitUntil(10_000) { model.playbackUrl != null }
         compose.setContent {
             TigerTVTheme {
                 Surface(Modifier.fillMaxSize()) {
@@ -105,6 +112,9 @@ class PlayerRemoteTest {
         }
         compose.waitUntil(15_000) { model.works.single().playback.isNotEmpty() }
         compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(model.playbackUrl, findPlayerView(rootView)?.player?.currentMediaItem?.localConfiguration?.uri.toString())
+        }
     }
 
     @After fun cleanup() {
@@ -142,7 +152,7 @@ class PlayerRemoteTest {
             model.selectEpisode(1)
         }
         compose.waitUntil(10_000) {
-            model.resolvedPlaybackUrl != null && !model.isResolvingPlayback &&
+            model.playbackUrl != null &&
                 model.works.single().playback["🎬测试"]?.line == "1"
         }
         compose.runOnIdle { model.setPlaybackError("Fixture native playback failure") }
@@ -158,7 +168,7 @@ class PlayerRemoteTest {
             compose.onNodeWithText("重试").assertIsFocused()
         }
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { model.playbackErrorMessage == null && model.resolvedPlaybackUrl != null && !model.isResolvingPlayback }
+        compose.waitUntil(10_000) { model.playbackErrorMessage == null && model.playbackUrl != null }
         compose.waitUntil(10_000) {
             var ready = false
             compose.runOnIdle { ready = findPlayerView(rootView)?.player?.playbackState == androidx.media3.common.Player.STATE_READY }
@@ -257,7 +267,7 @@ class PlayerRemoteTest {
         remote(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNodeWithText("第一集").assertIsFocused()
         assertEquals(1, model.selectedPlaybackSourceIndex)
-        assertNull("Changing line must not start playback", model.resolvedPlaybackUrl)
+        assertNull("Changing line must not start playback", model.playbackUrl)
     }
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -279,7 +289,7 @@ class PlayerRemoteTest {
                 val player = findPlayerView(rootView)?.player
                 retainedItems = player?.mediaItemCount ?: -1
                 pausedAtNavigation = player?.playWhenReady == false
-                retainedUrl = model.resolvedPlaybackUrl != null
+                retainedUrl = model.playbackUrl != null
             }
         }
         compose.runOnIdle { navigation.addOnDestinationChangedListener(listener) }
@@ -294,7 +304,7 @@ class PlayerRemoteTest {
                 assertEquals("Exit cleared the video before navigation", 1, retainedItems)
                 assertTrue("Exit must save and pause first", pausedAtNavigation)
                 assertTrue("Playback state was cleared before the view disappeared", retainedUrl)
-                assertNull(model.resolvedPlaybackUrl)
+                assertNull(model.playbackUrl)
                 assertNull(findPlayerView(rootView))
                 assertTrue(model.works.single().playbackPositions["🎬测试"]!!.getValue("0").getValue("第一集") > 0)
             }
@@ -384,7 +394,7 @@ class PlayerRemoteTest {
         assertTrue("Cancelled seek changed the actual position: $before -> $after", after < before + 5_000)
         remote(KeyEvent.KEYCODE_DPAD_RIGHT)
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { model.selectedEpisodeIndex == 1 && !model.isResolvingPlayback }
+        compose.waitUntil(10_000) { model.selectedEpisodeIndex == 1 }
         assertEquals("主线", model.fetchResponse!!.playSources[model.selectedPlaybackSourceIndex].name)
         assertEquals("🎬测试", model.selectedResult!!.site)
         assertTrue(model.works.single().playbackPositions["🎬测试"]!!.getValue("0").getValue("第一集") >= 10_000)

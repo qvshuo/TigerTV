@@ -144,3 +144,15 @@ internal class QuanxCollector(
         return QuanxDomains(api, links, media, if (incomplete) listOf(site.name) else emptyList())
     }
 }
+
+internal fun extractM3u8(base: String, html: String): List<String> {
+    val raw = html.replace("\\/", "/")
+    val pattern = Regex("[\"']([^\"'\\s]+\\.m3u8[^\"'\\s]*)[\"']", RegexOption.IGNORE_CASE)
+    fun matches(text: String) = pattern.findAll(text).map { match ->
+        val link = match.groupValues[1].replace("&amp;", "&")
+        // Decode a wrapped URL once; escapes inside an ordinary signed URL must survive.
+        val decoded = if (Regex("^(https?%3a|%2f)", RegexOption.IGNORE_CASE).containsMatchIn(link)) percentDecode(link) else link
+        resolveUrl(base, decoded)
+    }.toList().distinct()
+    return matches(raw).ifEmpty { matches(percentDecode(raw)) }
+}

@@ -7,11 +7,11 @@ on:
       version:
         description: 'Release version (MAJOR.MINOR.PATCH)'
         required: true
-        default: '4.3.0'
+        default: '4.4.0'
       android_version_code:
         description: 'Increasing Android versionCode'
         required: true
-        default: '24'
+        default: '25'
 
 permissions:
   contents: read
@@ -25,8 +25,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 env:
-  RELEASE_VERSION: ${{ inputs.version || '4.3.0' }}
-  ANDROID_VERSION_CODE: ${{ inputs.android_version_code || '23' }}
+  RELEASE_VERSION: ${{ inputs.version || '4.4.0' }}
+  ANDROID_VERSION_CODE: ${{ inputs.android_version_code || '24' }}
   ANDROID_SIGNING_CERT_SHA256: 0d81ab7cb1a16d58d91a953fe62049eb77fc840cc544a297ae1854f54bc73b96
 
 jobs:
@@ -58,6 +58,8 @@ jobs:
           mkdir -p build
           swiftc -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -framework TigerTVCore scripts/check-native-bridge.swift -o build/check-native-bridge
           build/check-native-bridge
+          swiftc -swift-version 6 -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -framework TigerTVCore macOS/App/Data/Models.swift macOS/App/Data/HTTPConfiguration.swift macOS/App/Data/LoadResult.swift macOS/App/Data/TigerTVError.swift macOS/App/Data/SharedCoreRepository.swift macOS/App/Application/TigerTVViewModel.swift macOS/App/UI/Player/AVPlayerController.swift scripts/check-macos-state.swift -o build/check-macos-state
+          build/check-macos-state
           swift test --package-path macOS
       - name: Build native macOS app
         run: |

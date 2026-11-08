@@ -40,7 +40,7 @@ class NativeFacadeTest {
         }
         val facade = NativeFacade(CoreService("cache", storage = store))
         try {
-            val save = facade.begin("""{"version":1,"operation":"saveHistory","items":["逐玉🎬"]}""")
+            val save = facade.begin("""{"version":1,"operation":"addHistory","item":"逐玉🎬"}""")
             withTimeout(5000) { while (facade.takeResult(save) == null) delay(10) }
             val id = facade.begin("""{"version":1,"operation":"history"}""")
             val result = withTimeout(5000) {
