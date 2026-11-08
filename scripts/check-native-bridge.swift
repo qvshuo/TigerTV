@@ -25,7 +25,7 @@ struct BridgeSmoke {
         }
         let missingCategory = try await request(#"{"version":1,"operation":"hotSearches"}"#)
         guard missingCategory.contains("error") else { fatalError("Missing category was accepted") }
-        _ = try await request(#"{"version":1,"operation":"saveHistory","items":["逐玉🎬"]}"#)
+        _ = try await request(#"{"version":1,"operation":"addHistory","item":"逐玉🎬"}"#)
         let response = try await request(#"{"version":1,"operation":"history"}"#)
         guard response.contains("逐玉🎬") else { fatalError(response) }
         _ = try await request(#"{"version":1,"operation":"recordPlayback","work_id":"work","site":"🎬一","line":"0","episode":"第02集"}"#)

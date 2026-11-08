@@ -17,7 +17,6 @@ struct BrowseScreen: View {
     let isFetching: Bool
     let player: AVPlayer?
     let selectedEpisode: EpisodeLink?
-    let isResolvingPlayback: Bool
     let coverFallbacks: [String: URL]
     let onLoadCoverFallback: (SearchResult) async -> Void
     let onBack: () -> Void
@@ -58,7 +57,7 @@ struct BrowseScreen: View {
                     if let selectedResult {
                         if let player {
                             PlayerContainer(player: player)
-                        } else if isResolvingPlayback {
+                        } else if selectedEpisode != nil {
                             AppLoadingState(message: "正在准备播放…")
                         } else {
                             DetailScreen(

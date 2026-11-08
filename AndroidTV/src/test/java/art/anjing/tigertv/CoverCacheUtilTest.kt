@@ -42,6 +42,17 @@ class CoverDiskCachePrunerTest {
     }
 
     @Test
+    fun `journal backups and temporary journal are never pruned`() {
+        val dir = tempDir()
+        try {
+            val names = listOf("journal", "journal.bkp", "journal.tmp")
+            names.forEach { name -> File(dir, name).apply { writeText("index"); setLastModified(1) } }
+            assertEquals(0, CoverDiskCachePruner.prune(dir, nowMillis = 100_000, ttlMillis = 1))
+            names.forEach { name -> assertTrue(File(dir, name).exists()) }
+        } finally { dir.deleteRecursively() }
+    }
+
+    @Test
     fun `missing directory is a no-op`() {
         assertEquals(0, CoverDiskCachePruner.prune(File("/nonexistent/tigertv-prune-test")))
     }

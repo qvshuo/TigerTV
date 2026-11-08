@@ -91,6 +91,31 @@ class WorkDetailTest {
         assertEquals(2, aggregateWorks(listOf(a.copy(vodName = ""), b.copy(vodName = ""))).size)
     }
 
+    @Test fun emptyTitlesCannotCollideWithRealTitlesThatLookLikeSourceIdentities() {
+        val sources = wireJson.decodeFromString<List<SearchResult>>(contractFixtures.getValue("aggregation.sample.json"))
+        val works = aggregateWorks(sources)
+        assertEquals(3, works.size)
+        assertEquals(listOf(1, 1, 2), works.map { it.sources.size })
+        assertEquals(3, works.map { it.id }.toSet().size)
+        assertEquals(sources, works.flatMap { it.sources })
+    }
+
+    @Test fun unnamedEpisodesCanPersistAndResumeWithoutRenamingApiMetadata() = runTest {
+        val episode = parsePlaybackSources("${'$'}https://media.test/unnamed.mp4", "主线").single().episodes.single()
+        assertEquals("", episode.name)
+        val store = MemoryStorage()
+        val core = CoreService("cache", storage = store)
+        try {
+            core.recordPlayback("work", "A", "0", episode.name)
+            core.recordPlaybackPosition("work", "A", "0", episode.name, 1234)
+            val work = wireJson.parseToJsonElement(store.files.getValue("cache/last-played-sources.json"))
+                .jsonObject.getValue("byWork").jsonObject.getValue("work").jsonObject
+            assertEquals("", work.getValue("resources").jsonObject.getValue("A").jsonObject.text("episode"))
+            assertEquals("1234", work.getValue("positions").jsonObject.getValue("A").jsonObject
+                .getValue("0").jsonObject.getValue("").toString())
+        } finally { core.close() }
+    }
+
     @Test fun sourcePriorityIsLastPlayedThenFirstPosterThenConfigurationOrder() {
         val first = SearchResult("First", 1, "同一作品")
         val second = first.copy(site = "Second", vodId = 2, vodPic = "https://second.test/poster.jpg")

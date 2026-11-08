@@ -17,7 +17,6 @@ class TigerTVRepository(private val core: CoreService) {
     suspend fun loadConfig(): Result<SourceConfig> = result { core.loadConfig() }
     suspend fun search(keyword: String, onUpdate: suspend (SearchResponse) -> Unit = {}): Result<SearchResponse> = result { core.search(keyword.trim(), onUpdate) }
     suspend fun fetch(siteName: String, vodId: Int): Result<FetchResponse> = result { core.fetch(siteName, vodId) }
-    suspend fun resolvePlaybackUrl(url: String): Result<String> = result { core.resolvePlaybackUrl(url) }
     suspend fun resolveCoverFallback(siteName: String, vodId: Int): String? = withContext(Dispatchers.IO) { core.resolveCoverFallback(siteName, vodId) }
     suspend fun recordPlayback(workId: String, site: String, line: String, episode: String) = withContext(Dispatchers.IO) {
         core.recordPlayback(workId, site, line, episode)
@@ -29,6 +28,8 @@ class TigerTVRepository(private val core: CoreService) {
     fun hotSearchCategories(): List<HotSearchCategory> = core.hotSearchCategories()
     suspend fun hotSearches(category: String): List<art.anjing.tigertv.domain.HotSearchItem> = withContext(Dispatchers.IO) { core.hotSearches(category) }
     suspend fun loadHistory(): List<String> = withContext(Dispatchers.IO) { core.history() }
-    suspend fun saveHistory(items: List<String>) = withContext(Dispatchers.IO) { core.saveHistory(items) }
+    suspend fun addHistory(item: String) = withContext(Dispatchers.IO) { core.addHistory(item) }
+    suspend fun removeHistory(item: String) = withContext(Dispatchers.IO) { core.removeHistory(item) }
+    suspend fun clearHistory() = withContext(Dispatchers.IO) { core.clearHistory() }
     fun close() = core.close()
 }

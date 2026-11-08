@@ -82,9 +82,6 @@ class TigerTVViewModel(
     var isFetching by mutableStateOf(false)
         private set
 
-    var isResolvingPlayback by mutableStateOf(false)
-        private set
-
     var configErrorMessage by mutableStateOf<String?>(null)
         private set
 
@@ -97,10 +94,9 @@ class TigerTVViewModel(
     var playbackErrorMessage by mutableStateOf<String?>(null)
         private set
 
-    var resolvedPlaybackUrl by mutableStateOf<String?>(null)
-        private set
+    val playbackUrl: String? get() = episodes.getOrNull(selectedEpisodeIndex)?.url
 
-    /** Changes on every successful resolution, including retries of the same URL. */
+    /** Changes on every playback selection, including retries of the same URL. */
     var playbackRevision by mutableIntStateOf(0)
         private set
 
@@ -120,8 +116,9 @@ class TigerTVViewModel(
     var coverFallbacks by mutableStateOf<Map<String, String>>(emptyMap())
         private set
     // Flushes must survive disposal of the screen and its ViewModel scope.
-    private val playbackSaveScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private var sourceSaveJob: Job? = null
+    private val persistenceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var playbackSaveJob: Job? = null
+    private var startedPlaybackRevision = -1
     private val changedPlaybackWorks = mutableSetOf<String>()
     private var latestPlayedSite: String? = null
     data class PlaybackSession(val workId: String, val site: String, val line: String, val episode: String, val positionMillis: Long, val revision: Int)
@@ -137,10 +134,10 @@ class TigerTVViewModel(
 
     fun playbackDidStart(session: PlaybackSession) {
         val active = playbackSession ?: return
-        if (resolvedPlaybackUrl == null || session.copy(positionMillis = active.positionMillis) != active) return
-        val work = selectedWork ?: return
-        val bookmark = PlaybackBookmark(session.line, session.episode)
-        if (work.playback[session.site] == bookmark && work.lastPlayedSite == session.site && work.recentPlayedSite == session.site) return
+        // Resume positions can change while the identity of the playing session stays fixed.
+        if (session.copy(positionMillis = active.positionMillis) != active) return
+        if (startedPlaybackRevision == session.revision) return
+        startedPlaybackRevision = session.revision
         changedPlaybackWorks += session.workId
         latestPlayedSite = session.site
         works = works.map {
@@ -150,8 +147,8 @@ class TigerTVViewModel(
                 playback = if (it.id == session.workId) it.playback + (session.site to PlaybackBookmark(session.line, session.episode)) else it.playback
             )
         }
-        val previous = sourceSaveJob
-        sourceSaveJob = playbackSaveScope.launch {
+        val previous = playbackSaveJob
+        playbackSaveJob = persistenceScope.launch {
             previous?.join()
             repository.recordPlayback(session.workId, session.site, session.line, session.episode)
         }
@@ -168,8 +165,8 @@ class TigerTVViewModel(
                 work.copy(playbackPositions = sites + (session.site to (lines + (session.line to (episodes + (session.episode to positionMillis))))))
             }
         }
-        val previous = sourceSaveJob
-        sourceSaveJob = playbackSaveScope.launch {
+        val previous = playbackSaveJob
+        playbackSaveJob = persistenceScope.launch {
             previous?.join()
             repository.recordPlaybackPosition(session.workId, session.site, session.line, session.episode, positionMillis)
         }
@@ -184,7 +181,6 @@ class TigerTVViewModel(
 
     private var searchJob: Job? = null
     private var fetchJob: Job? = null
-    private var playbackJob: Job? = null
     private var hotSearchGeneration = 0
     private var hotWarmJob: Job? = null
 
@@ -253,13 +249,12 @@ class TigerTVViewModel(
         }
     }
 
-    private fun saveSearchHistory() {
+    private fun saveSearchHistory(update: suspend () -> Unit) {
         historyRevision++
-        val snapshot = searchHistory.toList()
         val previous = historySaveJob
-        historySaveJob = viewModelScope.launch {
+        historySaveJob = persistenceScope.launch {
             previous?.join()
-            repository.saveHistory(snapshot)
+            update()
         }
     }
 
@@ -333,12 +328,10 @@ class TigerTVViewModel(
         if (trimmed.isEmpty()) return false
         cancelSearch()
         fetchJob?.cancel()
-        playbackJob?.cancel()
         submittedKeyword = trimmed
         addHistory(trimmed)
         isSearching = true
         isFetching = false
-        isResolvingPlayback = false
         searchErrorMessage = null
         fetchErrorMessage = null
         playbackErrorMessage = null
@@ -348,16 +341,17 @@ class TigerTVViewModel(
         selectedResult = null
         fetchResponse = null
         selectedEpisodeIndex = -1
-        resolvedPlaybackUrl = null
 
         searchJob = viewModelScope.launch {
-            sourceSaveJob?.join()
+            playbackSaveJob?.join()
             ensureActive()
-            when (val result = repository.search(trimmed) { update ->
-                withContext(Dispatchers.Main) { ensureActive(); applySearchWorks(update.works) }
-            }) {
+            val requestContext = coroutineContext
+            val result = repository.search(trimmed) { update ->
+                withContext(Dispatchers.Main) { requestContext.ensureActive(); applySearchWorks(update.works) }
+            }
+            ensureActive()
+            when (result) {
                 is Result.Success -> {
-                    ensureActive()
                     applySearchWorks(result.data.works)
                     isSearching = false
                 }
@@ -424,21 +418,19 @@ class TigerTVViewModel(
         if (!forceRefresh && fetchResponse != null && selectedResult?.let { it.site == result.site && it.vodId == result.vodId } == true) return
         cancelCoverLoads()
         fetchJob?.cancel()
-        playbackJob?.cancel()
         selectedResult = result
         selectedPlaybackSourceIndex = 0
         fetchResponse = null
         selectedEpisodeIndex = -1
-        resolvedPlaybackUrl = null
         isFetching = true
-        isResolvingPlayback = false
         fetchErrorMessage = null
         playbackErrorMessage = null
 
         fetchJob = viewModelScope.launch {
-            when (val fetched = repository.fetch(result.site, result.vodId)) {
+            val fetched = repository.fetch(result.site, result.vodId)
+            ensureActive()
+            when (fetched) {
                 is Result.Success -> {
-                    ensureActive()
                     fetchResponse = fetched.data
                     val bookmark = playbackBookmark
                     if (bookmark != null) {
@@ -466,29 +458,10 @@ class TigerTVViewModel(
     }
 
     fun selectEpisode(index: Int) {
-        val episodes = episodes
-        if (index < 0 || index >= episodes.size) return
+        if (index !in episodes.indices) return
         selectedEpisodeIndex = index
-        playbackJob?.cancel()
-        resolvedPlaybackUrl = null
-        isResolvingPlayback = true
         playbackErrorMessage = null
-        val episode = episodes[index]
-
-        playbackJob = viewModelScope.launch {
-            when (val result = repository.resolvePlaybackUrl(episode.url)) {
-                is Result.Success -> {
-                    ensureActive()
-                    resolvedPlaybackUrl = result.data
-                    playbackRevision++
-                    isResolvingPlayback = false
-                }
-                is Result.Error -> {
-                    playbackErrorMessage = "播放地址解析失败，请重试"
-                    isResolvingPlayback = false
-                }
-            }
-        }
+        playbackRevision++
     }
 
     fun retryPlayback() {
@@ -498,19 +471,12 @@ class TigerTVViewModel(
     }
 
     fun clearPlayback() {
-        playbackJob?.cancel()
-        resolvedPlaybackUrl = null
         playbackErrorMessage = null
         selectedEpisodeIndex = -1
-        isResolvingPlayback = false
     }
 
     fun clearSearchError() {
         searchErrorMessage = null
-    }
-
-    fun clearFetchError() {
-        fetchErrorMessage = null
     }
 
     fun setPlaybackError(message: String) {
@@ -524,28 +490,28 @@ class TigerTVViewModel(
         while (searchHistory.size > MAX_HISTORY) {
             searchHistory.removeAt(searchHistory.size - 1)
         }
-        saveSearchHistory()
+        saveSearchHistory { repository.addHistory(item) }
     }
 
     fun removeHistory(item: String) {
         searchHistory.remove(item)
-        saveSearchHistory()
+        saveSearchHistory { repository.removeHistory(item) }
     }
 
     fun clearHistory() {
         searchHistory.clear()
-        saveSearchHistory()
+        saveSearchHistory { repository.clearHistory() }
     }
 
     override fun onCleared() {
         searchJob?.cancel()
         fetchJob?.cancel()
-        playbackJob?.cancel()
         prefetchJob?.cancel()
-        playbackSaveScope.launch {
-            sourceSaveJob?.join()
+        persistenceScope.launch {
+            playbackSaveJob?.join()
+            historySaveJob?.join()
             repository.close()
-            playbackSaveScope.cancel()
+            persistenceScope.cancel()
         }
     }
 

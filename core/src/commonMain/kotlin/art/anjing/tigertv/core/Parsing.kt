@@ -67,18 +67,6 @@ fun parseVodList(raw: String): List<JsonObject> {
     return list.map { it as? JsonObject ?: error("list 元素必须是对象") }
 }
 
-fun extractM3u8(base: String, html: String): List<String> {
-    val raw = html.replace("\\/", "/")
-    val pattern = Regex("[\"']([^\"'\\s]+\\.m3u8[^\"'\\s]*)[\"']", RegexOption.IGNORE_CASE)
-    fun matches(text: String) = pattern.findAll(text).map { match ->
-        val link = match.groupValues[1].replace("&amp;", "&")
-        // Decode a wrapped URL once; escapes inside an ordinary signed URL must survive.
-        val decoded = if (Regex("^(https?%3a|%2f)", RegexOption.IGNORE_CASE).containsMatchIn(link)) percentDecode(link) else link
-        resolveUrl(base, decoded)
-    }.toList().distinct()
-    return matches(raw).ifEmpty { matches(percentDecode(raw)) }
-}
-
 /** Preserve group positions, including empty groups, to align vod_play_from with vod_play_url. */
 fun parsePlaybackSources(raw: String, from: String): List<PlaybackSource> {
     val names = from.split("$$$")

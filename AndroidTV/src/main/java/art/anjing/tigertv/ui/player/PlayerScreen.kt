@@ -53,9 +53,9 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
     val activity = context as? Activity
     val controller = remember { Media3Controller(context) }
     val snapshot = controller.snapshot
-    val url = viewModel.resolvedPlaybackUrl
+    val url = viewModel.playbackUrl
     val playbackError = viewModel.playbackErrorMessage
-    val blocked = viewModel.isResolvingPlayback || playbackError != null || url == null
+    val blocked = playbackError != null || url == null
     var controls by remember { mutableStateOf(PlaybackControlsState()) }
     var focusArea by remember { mutableStateOf(PlayerFocusArea.Surface) }
     var focusRequest by remember { mutableStateOf(PlayerFocusArea.Surface to 0) }
@@ -307,8 +307,8 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
                 }, onSeekTo = { controller.seekTo(it); interact() }
             )
         }
-        if (viewModel.isResolvingPlayback || showBuffering) {
-            LoadingOverlay("正在准备播放…", Modifier.background(if (viewModel.isResolvingPlayback) Color.Black.copy(alpha = 0.75f) else Color.Transparent))
+        if (showBuffering) {
+            LoadingOverlay("正在准备播放…")
         }
         playbackError?.let { error ->
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))

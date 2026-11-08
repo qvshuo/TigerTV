@@ -1,0 +1,4 @@
+#EXTM3U
+#EXTINF:10,
+http://cdn.test/seg.ts
+#EXT-X-ENDLIST

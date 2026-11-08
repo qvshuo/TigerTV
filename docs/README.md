@@ -1,10 +1,10 @@
 # 开发与发布
 
-TigerTV 的业务实现集中在 Kotlin Multiplatform `core`。Android 直接调用，macOS 经 `nativeBridge` 的静态 framework 调用；CLI 使用 Kotlin/Native。三端共用搜索、聚合、播放解析、缓存和历史逻辑。
+TigerTV 的业务实现集中在 Kotlin Multiplatform `core`。Android 直接调用，macOS 经 `nativeBridge` 的静态 framework 调用；CLI 使用 Kotlin/Native。三端共用搜索、聚合、QX 扫描、缓存和历史逻辑。
 
 | 目录 | 职责 |
 |---|---|
-| `core/` | 配置、MacCMS、聚合、播放解析、缓存、历史 |
+| `core/` | 配置、MacCMS、聚合、QX 扫描、缓存、历史 |
 | `nativeBridge/` | Swift 异步 JSON 桥接 |
 | `cli/` | macOS arm64、Linux x86_64 / arm64 原生命令行 |
 | `macOS/` | SwiftUI、AVPlayer、Xcode 工程 |
@@ -17,6 +17,8 @@ TigerTV 的业务实现集中在 Kotlin Multiplatform `core`。Android 直接调
 接口和交互见[契约](contract.md)，实现限制见 [AGENTS.md](../AGENTS.md)。生产源配置位于 `skills/references/LunaTV-config.json`，由定时工作流同步上游。
 
 macOS 源码按职责组织在 `App/Application`（入口、页面协调、ViewModel）、`App/Data`（核心适配、模型与封面缓存）、`App/UI`（首页、结果、详情、播放器及共用组件）和 `App/Resources`。SwiftPM 的测试库只包含 `App/Data` 中不依赖原生桥接的代码；Xcode 构建完整应用。Android 页面位于 `ui/home`、`ui/results`、`ui/detail`、`ui/player`，平台数据适配与封面 URL 工具集中在 `data`。core 的热门接口模型与分类定义放在 `HotSearchModels.kt`，业务仍由 `CoreService` 统一实现。
+
+CoreService 负责业务入口与协调，Network 负责 HTTP 和网络约束，Parsing 负责 MacCMS 数据，QuanxCollector 独占 QX 网络扫描和 HTML/HLS 解析，Models 统一模型，Storage 负责平台持久化 I/O；缓存和历史仍由 CoreService 管理。普通播放直接交给原生播放器，不经过额外地址解析。历史增删在 core 内原子执行，避免多窗口旧快照覆盖；平台仅按播放会话去重回调，由 core 判定书签是否需要落盘。macOS 窗口关闭取消所属请求，退出与关闭会等待搜索历史和播放记录写入。
 
 图标用途与各平台尺寸见[品牌图标说明](../assets/branding/README.md)。
 
@@ -54,7 +56,11 @@ python3 scripts/check-cli-contract.py cli/build/bin/linuxArm64/releaseExecutable
 ./gradlew :nativeBridge:linkDebugFrameworkMacosArm64
 swiftc -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -framework TigerTVCore scripts/check-native-bridge.swift -o /tmp/check-native-bridge
 /tmp/check-native-bridge
+swiftc -swift-version 6 -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -framework TigerTVCore macOS/App/Data/Models.swift macOS/App/Data/HTTPConfiguration.swift macOS/App/Data/LoadResult.swift macOS/App/Data/TigerTVError.swift macOS/App/Data/SharedCoreRepository.swift macOS/App/Application/TigerTVViewModel.swift macOS/App/UI/Player/AVPlayerController.swift scripts/check-macos-state.swift -o /tmp/check-macos-state
+/tmp/check-macos-state
 ```
+
+`check-macos-state` 验证生产 ViewModel 的原始 URL 选集与重试、AVURLAsset 地址交接、迟到响应丢弃、原始播放会话进度隔离和释放。Core 测试覆盖 QX 的 HTML／重定向／全部 HLS 关系与取消，双端解码 `fetch-playback.sample.json`，Android 单测验证选集／重试不调用 Repository。设备测试继续覆盖真实媒体加载、暂停、跳转、返回、错误重试及释放；实体电视验收需在目标设备另行执行。
 
 `scripts/serve-playback-fixtures.py DIR` 仅暴露指定测试目录中的媒体与测试 API；`scripts/check-macos-playback.swift` 验证实际 AVPlayer 播放、暂停、跳转与释放，并经 AppKit 事件分发检查方向键跳转与连续按键时的播放状态。
 
@@ -67,7 +73,7 @@ swiftc -swift-version 6 -parse-as-library macOS/App/Data/HTTPConfiguration.swift
 
 ## 发布
 
-当前版本 4.3.0，Android 默认 versionCode 23，macOS build 16。本次 4.3.0 发布使用 versionCode 24；手动发布的 versionCode 必须大于仓库默认值。
+当前版本 4.4.0，Android 默认 versionCode 24，macOS build 17。本次 4.4.0 发布使用 versionCode 25；手动发布的 versionCode 必须大于仓库默认值。
 
 PR 执行检查；仅手动 `workflow_dispatch` 发布。Actions 使用 Xcode 27.2 版本别名，校验 Xcode 与 macOS SDK 27.2，不锁定构建号；托管镜像更新前允许使用该别名指向的 RC。产物为未签名 macOS ZIP、Android universal APK，以及 macOS arm64、Linux x86_64 / arm64 CLI tar.gz 和 SHA-256。
 

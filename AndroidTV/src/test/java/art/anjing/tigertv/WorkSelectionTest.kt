@@ -39,7 +39,6 @@ class WorkSelectionTest {
         coEvery { repository.search(any(), any()) } returns Result.Success(SearchResponse("逐玉", aggregateWorks(listOf(a, b))))
         coEvery { repository.fetch("A", 1) } returns Result.Success(detail(a))
         coEvery { repository.fetch("B", 99) } returns Result.Success(detail(b))
-        coEvery { repository.resolvePlaybackUrl(any()) } answers { Result.Success(firstArg()) }
         val context = mockk<Context>()
         every { context.applicationContext } returns context
         viewModel = TigerTVViewModel(repository, context)
@@ -100,7 +99,7 @@ class WorkSelectionTest {
         assertFalse(viewModel.isLoadingHotSearches)
         viewModel.selectHotSearchCategory("unknown")
         assertEquals("korean", viewModel.selectedHotCategory)
-        coVerify(exactly = 0) { repository.saveHistory(any()) }
+        coVerify(exactly = 0) { repository.addHistory(any()) }
     }
 
     @Test fun disposingViewModelWaitsForPendingProgressBeforeClosingCore() = runTest(dispatcher) {
@@ -201,6 +200,23 @@ class WorkSelectionTest {
         coVerify(exactly = 1) { repository.recordPlayback(work.id, "A", "0", first.name) }
     }
 
+    @Test fun replayingTheSameEpisodeStartsANewPersistenceSession() = runTest(dispatcher) {
+        viewModel.onKeywordChange("逐玉")
+        viewModel.search()
+        advanceUntilIdle()
+        viewModel.selectResult(a)
+        advanceUntilIdle()
+        viewModel.selectEpisode(0)
+        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
+        advanceUntilIdle()
+        viewModel.retryPlayback()
+        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
+        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
+        advanceUntilIdle()
+        // Core checks persistent state; a local bookmark cannot suppress another session's start.
+        coVerify(exactly = 2) { repository.recordPlayback(viewModel.works.single().id, "A", "0", first.name) }
+    }
+
     @Test fun lateSearchSnapshotsKeepLocalProgressAndStillMergeNewResources() = runTest(dispatcher) {
         val finish = CompletableDeferred<Unit>()
         val initial = aggregateWorks(listOf(a)).single()
@@ -266,11 +282,12 @@ class WorkSelectionTest {
 
     @Test fun historyWritesPreserveUserOrder() = runTest(dispatcher) {
         var persisted = listOf<String>()
-        coEvery { repository.saveHistory(any()) } coAnswers {
-            val items = firstArg<List<String>>()
-            if (items.isNotEmpty()) delay(100)
-            persisted = items
+        coEvery { repository.addHistory(any()) } coAnswers {
+            val item = firstArg<String>()
+            delay(100)
+            persisted = listOf(item)
         }
+        coEvery { repository.clearHistory() } coAnswers { persisted = emptyList() }
         runCurrent()
         viewModel.onKeywordChange("逐玉")
         viewModel.search()
@@ -416,17 +433,90 @@ class WorkSelectionTest {
         coVerify(exactly = 0) { repository.recordPlayback(unwatched.id, any(), any(), any()) }
     }
 
+    @Test fun rawPlaybackSelectionAndRetryNeverCallRepository() = runTest(dispatcher) {
+        val raw = listOf(
+            EpisodeLink("HLS", "https://media.test/中文/index.m3u8?sign=a%2Fb%2Bc%3D&literal=a+b"),
+            EpisodeLink("MP4", "https://media.test/video.mp4?sign=a%2Fb"),
+            EpisodeLink("HTML", "https://page.test/player?id=42&sign=a%2Fb%2Bc%3D")
+        )
+        coEvery { repository.fetch("A", 1) } returns Result.Success(detail(a).copy(
+            playSources = listOf(PlaybackSource("0", "原始地址", raw))))
+        viewModel.selectResult(a)
+        advanceUntilIdle()
+        clearMocks(repository, answers = false, recordedCalls = true)
+        raw.forEachIndexed { index, episode ->
+            viewModel.selectEpisode(index)
+            assertEquals(episode.url, viewModel.playbackUrl)
+            val revision = viewModel.playbackRevision
+            viewModel.setPlaybackError("unsupported page")
+            viewModel.retryPlayback()
+            assertEquals(episode.url, viewModel.playbackUrl)
+            assertEquals(index, viewModel.selectedEpisodeIndex)
+            assertEquals(a, viewModel.selectedResult)
+            assertEquals(0, viewModel.selectedPlaybackSourceIndex)
+            assertNull(viewModel.playbackErrorMessage)
+            assertEquals(revision + 1, viewModel.playbackRevision)
+        }
+        advanceUntilIdle()
+        confirmVerified(repository)
+    }
+
+    @Test fun cancelledSearchCannotPublishAnIncrementalSnapshotFromDetachedWork() = runTest(dispatcher) {
+        coEvery { repository.search("old", any()) } coAnswers {
+            val update = secondArg<suspend (SearchResponse) -> Unit>()
+            withContext(NonCancellable) {
+                delay(100)
+                update(SearchResponse("old", aggregateWorks(listOf(a.copy(vodName = "old")))))
+            }
+            Result.Success(SearchResponse("old", emptyList()))
+        }
+        viewModel.onKeywordChange("old")
+        viewModel.search()
+        runCurrent()
+        viewModel.onKeywordChange("new")
+        viewModel.search()
+        advanceUntilIdle()
+        assertEquals("逐玉", viewModel.works.single().title)
+        assertFalse(viewModel.isSearching)
+    }
+
+    @Test fun lateFailureCannotOverwriteCurrentDetailOrSearch() = runTest(dispatcher) {
+        coEvery { repository.fetch("A", 1) } coAnswers {
+            withContext(NonCancellable) { delay(100) }
+            Result.Error(IllegalStateException("old detail"))
+        }
+        viewModel.selectResult(a)
+        runCurrent()
+        viewModel.selectResult(b)
+        advanceUntilIdle()
+        assertEquals("B", viewModel.fetchResponse?.site)
+        assertNull(viewModel.fetchErrorMessage)
+        coEvery { repository.search("old", any()) } coAnswers {
+            withContext(NonCancellable) { delay(100) }
+            Result.Error(IllegalStateException("old search"))
+        }
+        viewModel.onKeywordChange("old")
+        viewModel.search()
+        runCurrent()
+        viewModel.onKeywordChange("new")
+        viewModel.search()
+        advanceUntilIdle()
+        assertFalse(viewModel.works.isEmpty())
+        assertNull(viewModel.searchErrorMessage)
+        assertFalse(viewModel.isSearching)
+    }
+
     @Test fun switchingLinesUsesOnlyThatLinesEpisodesAndClearsPlayback() = runTest(dispatcher) {
         viewModel.selectResult(a)
         advanceUntilIdle()
         assertEquals(listOf(first, second), viewModel.episodes)
         viewModel.selectEpisode(1)
         advanceUntilIdle()
-        assertEquals(second.url, viewModel.resolvedPlaybackUrl)
+        assertEquals(second.url, viewModel.playbackUrl)
         viewModel.selectPlaybackSource(1)
         assertEquals(listOf(backup), viewModel.episodes)
         assertEquals(-1, viewModel.selectedEpisodeIndex)
-        assertNull(viewModel.resolvedPlaybackUrl)
+        assertNull(viewModel.playbackUrl)
         viewModel.selectEpisode(1) // Last episode cannot spill into another line.
         assertEquals(-1, viewModel.selectedEpisodeIndex)
     }
@@ -464,23 +554,19 @@ class WorkSelectionTest {
         coVerify(exactly = 1) { repository.fetch("B", 99) }
     }
 
-    @Test fun switchingSitesCancelsPlaybackResolutionAndRetainsGroupedSources() = runTest(dispatcher) {
+    @Test fun switchingSitesClearsPlaybackAndRetainsGroupedSources() = runTest(dispatcher) {
         viewModel.onKeywordChange("逐玉")
         viewModel.search()
         advanceUntilIdle()
         viewModel.selectResult(a)
         advanceUntilIdle()
         assertEquals(listOf(a, b), viewModel.availableSources)
-        val delayed = CompletableDeferred<Result<String>>()
-        coEvery { repository.resolvePlaybackUrl(first.url) } coAnswers { delayed.await() }
         viewModel.selectEpisode(0)
         runCurrent()
         viewModel.selectResult(b)
         advanceUntilIdle()
-        delayed.complete(Result.Success(first.url))
         advanceUntilIdle()
-        assertNull(viewModel.resolvedPlaybackUrl)
-        assertFalse(viewModel.isResolvingPlayback)
+        assertNull(viewModel.playbackUrl)
         assertEquals(0, viewModel.selectedPlaybackSourceIndex)
         assertEquals(-1, viewModel.selectedEpisodeIndex)
         assertEquals(listOf(a, b), viewModel.availableSources)

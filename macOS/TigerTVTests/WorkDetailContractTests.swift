@@ -79,6 +79,14 @@ final class WorkDetailContractTests: XCTestCase {
         XCTAssertEqual(response.playSources.map { $0.episodes.count }, [2, 1])
     }
 
+    func testRawPlaybackFixturePreservesSignedAndPageURLs() throws {
+        let detail = try JSONDecoder().decode(FetchResponse.self, from: fixture("fetch-playback.sample.json"))
+        let episodes = try XCTUnwrap(detail.playSources.first?.episodes)
+        XCTAssertEqual(episodes.map(\.name), ["HLS", "MP4", "HTML", ""])
+        XCTAssertEqual(episodes[0].url, "https://media.example/中文/index.m3u8?sign=a%2Fb%2Bc%3D&literal=a+b")
+        XCTAssertEqual(episodes[2].url, "https://page.example/player?id=42&sign=a%2Fb%2Bc%3D")
+    }
+
     func testOldPayloadsAreRejected() throws {
         let search = Data(#"{"keyword":"逐玉","results":[]}"#.utf8)
         XCTAssertThrowsError(try JSONDecoder().decode(SearchResponse.self, from: search))

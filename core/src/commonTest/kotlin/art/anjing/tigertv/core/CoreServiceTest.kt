@@ -78,6 +78,123 @@ class CoreServiceTest {
         }
     }
 
+    @Test fun sharedServicesMergePersistentHistoryAndPlaybackWithoutOverwritingOtherWindows() = runTest {
+        val store = MemoryStorage()
+        val first = CoreService("cache1", storage = store, historyDirectory = "data")
+        val second = CoreService("cache2", storage = store, historyDirectory = "data")
+        try {
+            listOf(async(Dispatchers.Default) { first.addHistory("甲") }, async(Dispatchers.Default) { second.addHistory("乙") }).awaitAll()
+            assertEquals(setOf("甲", "乙"), first.history().toSet())
+            first.removeHistory("甲")
+            second.addHistory("丙")
+            assertEquals(listOf("丙", "乙"), first.history())
+            listOf(async(Dispatchers.Default) { first.recordPlayback("work", "A", "0", "一") },
+                async(Dispatchers.Default) { second.recordPlayback("work", "B", "2", "二") }).awaitAll()
+            listOf(async(Dispatchers.Default) { first.recordPlaybackPosition("work", "A", "0", "一", 1234) },
+                async(Dispatchers.Default) { second.recordPlaybackPosition("work", "B", "2", "二", 5678) }).awaitAll()
+            val work = wireJson.parseToJsonElement(store.files.getValue("data/last-played-sources.json"))
+                .jsonObject.getValue("byWork").jsonObject.getValue("work").jsonObject
+            assertEquals(setOf("A", "B"), work.getValue("resources").jsonObject.keys)
+            val positions = work.getValue("positions").jsonObject
+            assertEquals(1234L, positions.getValue("A").jsonObject.getValue("0").jsonObject.getValue("一").jsonPrimitive.long)
+            assertEquals(5678L, positions.getValue("B").jsonObject.getValue("2").jsonObject.getValue("二").jsonPrimitive.long)
+            second.clearHistory()
+            assertTrue(first.history().isEmpty())
+        } finally { first.close(); second.close() }
+    }
+
+    @Test fun historyMutationsRecoverFromCorruptStorageAndPropagateCancellation() = runTest {
+        val store = MemoryStorage().apply { files["cache/search-history.json"] = "invalid" }
+        val core = CoreService("cache", storage = store)
+        try {
+            core.addHistory("甲")
+            core.addHistory("乙")
+            core.addHistory("甲")
+            assertEquals(listOf("甲", "乙"), core.history())
+            core.removeHistory("乙")
+            assertEquals(listOf("甲"), core.history())
+            store.files["cache/search-history.json"] = "invalid"
+            core.clearHistory()
+            assertTrue(core.history().isEmpty())
+        } finally { core.close() }
+        val cancelled = CoreService("cache", storage = object : Storage {
+            override fun read(path: String): String? = throw CancellationException("cancelled read")
+            override fun writeAtomic(path: String, text: String) = error("must not write")
+        })
+        try { assertFailsWith<CancellationException> { cancelled.addHistory("甲") } }
+        finally { cancelled.close() }
+    }
+
+    @Test fun historyWriteFailuresAreLoggedAndCancellationPropagates() = runTest {
+        val files = mutableMapOf<String, String>()
+        val diagnostics = mutableListOf<String>()
+        var writeError: Exception? = IllegalStateException("disk unavailable")
+        val store = object : Storage {
+            override fun read(path: String) = files[path]
+            override fun writeAtomic(path: String, text: String) {
+                writeError?.let { throw it }
+                files[path] = text
+            }
+        }
+        val core = CoreService("cache", storage = store, logger = Logger { _, context, message -> diagnostics += "$context: $message" })
+        try {
+            core.addHistory("甲")
+            assertTrue(core.history().isEmpty())
+            assertTrue(diagnostics.single().contains("disk unavailable"))
+            writeError = null
+            core.addHistory("甲")
+            assertEquals(listOf("甲"), core.history())
+            writeError = CancellationException("cancelled write")
+            assertFailsWith<CancellationException> { core.removeHistory("甲") }
+            assertEquals(listOf("甲"), core.history())
+            assertEquals(1, diagnostics.size)
+        } finally { core.close() }
+    }
+
+    @Test fun fetchPreservesRawPlaybackAddressesWithoutProbingThem() = runTest {
+        val expected = wireJson.decodeFromString<art.anjing.tigertv.domain.FetchResponse>(contractFixtures.getValue("fetch-playback.sample.json"))
+        val episodes = expected.playSources.single().episodes
+        val item = buildJsonObject {
+            put("vod_id", 1)
+            put("vod_play_url", episodes.joinToString("#") { "${it.name}${'$'}${it.url}" })
+            put("vod_play_from", "原始地址")
+        }
+        var requests = 0
+        val core = CoreService("cache", "source", MemoryStorage().apply { files["source"] = config },
+            configureClient(HttpClient(testEngine { request ->
+                requests++
+                assertEquals("a.test", request.url.host)
+                respond("""{"code":1,"list":[$item]}""")
+            })))
+        try {
+            assertEquals(expected.playSources, core.fetch("🎬一", 1).playSources)
+            assertEquals(1, requests)
+        } finally { core.close() }
+    }
+
+    @Test fun cancellingSearchAndQuanxPropagatesWithoutPublishingResults() = runTest {
+        for (quanx in listOf(false, true)) {
+            val started = CompletableDeferred<Unit>()
+            var cancelled = false
+            var updates = 0
+            val core = CoreService("cache", "source", MemoryStorage().apply { files["source"] = config },
+                configureClient(HttpClient(testEngine {
+                    started.complete(Unit)
+                    try { awaitCancellation() } finally { cancelled = true }
+                })))
+            try {
+                val request = async {
+                    if (quanx) core.collectQuanxDomains("test") else core.search("test") { updates++ }
+                }
+                started.await()
+                request.cancelAndJoin()
+                assertTrue(cancelled)
+                assertTrue(request.isCancelled)
+                assertEquals(0, updates)
+            } finally { core.close() }
+        }
+    }
+
     @Test fun logRolloverKeepsExactlyTheLatestTwoThousandLines() {
         val store = MemoryStorage().apply { files["log"] = (0 until 5000).joinToString("\n", postfix = "\n") }
         FileLogger(store, "log").log("INFO", "test", "new entry")
@@ -93,10 +210,10 @@ class CoreServiceTest {
         val fetch = wireJson.decodeFromString<art.anjing.tigertv.domain.FetchResponse>(contractFixtures.getValue("fetch.sample.json"))
         assertEquals(1, search.works.first().sources.first().vodId)
         assertTrue(fetch.playSources.isNotEmpty())
-        for (fixture in listOf("playback-html-absolute.sample.html", "playback-html-relative.sample.html", "playback-html-escaped.sample.html", "playback-urlencoded.sample.html")) {
+        for (fixture in listOf("quanx-html-absolute.sample.html", "quanx-html-relative.sample.html", "quanx-html-escaped.sample.html", "quanx-urlencoded.sample.html")) {
             assertTrue(extractM3u8("https://page.example/player", contractFixtures.getValue(fixture)).first().startsWith("https://"))
         }
-        assertEquals("https://cdn.example.com/playlist/index.m3u8?sign=a%2Fb%2Bc%3D", extractM3u8("https://page.example/player", contractFixtures.getValue("playback-urlencoded.sample.html")).first())
+        assertEquals("https://cdn.example.com/playlist/index.m3u8?sign=a%2Fb%2Bc%3D", extractM3u8("https://page.example/player", contractFixtures.getValue("quanx-urlencoded.sample.html")).first())
     }
 
     @Test fun filteringAndUpstreamIntegerValidation() {
@@ -132,11 +249,6 @@ class CoreServiceTest {
         assertEquals(signed, extractM3u8("https://page.test/", "<video src=\"${signed.replace("&", "&amp;")}\">").single())
         val wrapped = "https%3A%2F%2Fcdn.test%2Fvideo.m3u8%3Fsign%3Da%252Fb%252Bc%253D%26part%3D1"
         assertEquals(signed, extractM3u8("https://page.test/", "'$wrapped'").single())
-        val core = CoreService("cache", storage = MemoryStorage(), client = configureClient(HttpClient(testEngine {
-            respond("<script>var url=\"$signed\";</script>")
-        })))
-        try { assertEquals(signed, core.resolvePlaybackUrl("https://page.test/player")) }
-        finally { core.close() }
     }
 
     @Test fun apiOperationsClearOldSearchAndFetchParameters() {
@@ -187,7 +299,7 @@ class CoreServiceTest {
         val core = CoreService("cache", storage = store, client = configureClient(HttpClient(testEngine { error("offline") })), clock = { 99 * CoreService.DAY })
         try {
             assertEquals(1, core.loadConfig().apiSite.size)
-            core.saveHistory((1..30).map { "剧$it" })
+            (1..30).forEach { core.addHistory("剧$it") }
             assertEquals(20, core.history().size)
         } finally { core.close() }
     }
@@ -243,7 +355,7 @@ class CoreServiceTest {
         val store = MemoryStorage()
         val core = CoreService("cache", storage = store, historyDirectory = "data")
         try {
-            core.saveHistory(listOf("逐玉🎬"))
+            core.addHistory("逐玉🎬")
             assertTrue("data/search-history.json" in store.files)
             assertFalse("cache/search-history.json" in store.files)
             assertEquals(listOf("逐玉🎬"), core.history())
@@ -266,6 +378,22 @@ class CoreServiceTest {
             val result = core.collectQuanxDomains("test")
             assertTrue(result.m3u8.containsAll(listOf("key.test", "audio.test", "segments.test")))
             assertTrue(requested.any { "child4" in it })
+        } finally { core.close() }
+    }
+
+    @Test fun quanxReadsRawManifestWithoutPlaylistExtension() = runTest {
+        val core = CoreService("cache", "source", MemoryStorage().apply { files["source"] = config },
+            configureClient(HttpClient(testEngine { request ->
+                respond(when {
+                    request.url.parameters["ac"] == "list" -> """{"code":1,"list":[{"vod_id":1}]}"""
+                    request.url.parameters["ac"] == "detail" -> """{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://media.test/raw"}]}"""
+                    else -> contractFixtures.getValue("quanx-extm3u-content.sample.txt")
+                })
+            })))
+        try {
+            val domains = core.collectQuanxDomains("test")
+            assertTrue(domains.incompleteSites.isEmpty())
+            assertTrue("cdn.test" in domains.m3u8)
         } finally { core.close() }
     }
 
@@ -300,10 +428,12 @@ class CoreServiceTest {
                 request.url.parameters["ac"] == "list" -> respond("""{"code":1,"list":[{"vod_id":1},{"vod_id":2}]}""")
                 request.url.parameters["ids"] == "1" -> respond("""{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://entry.test/start#二${'$'}https://never.test/two.m3u8"}]}""")
                 request.url.parameters["ids"] == "2" -> respond("""{"code":1,"list":[{"vod_id":2,"vod_play_url":"一${'$'}https://file.test/video.mp4"}]}""")
-                request.url.host == "entry.test" -> respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://final.test/path/master.m3u8"))
+                request.url.host == "entry.test" -> respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://page.test/player"))
+                request.url.host == "page.test" -> respond("""<video src="https://final.test/path/master.m3u8?sign=a%2Fb%2Bc%3D&amp;literal=a+b"></video>""")
                 request.url.encodedPath.endsWith("master.m3u8") -> respond("#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=1\nvideo.m3u8")
                 request.url.encodedPath.endsWith("audio.m3u8") -> respond("#EXTM3U\nhttps://audio-segments.test/a.aac")
-                request.url.encodedPath.endsWith("video.m3u8") -> respond("#EXTM3U\n#EXT-X-MAP:URI=\"https://init.test/init.mp4\"\nhttps://segments.test/1.ts")
+                request.url.encodedPath.endsWith("video.m3u8") -> respond("#EXTM3U\n#EXT-X-MAP:URI=\"https://init.test/init.mp4\"\n#EXT-X-KEY:URI=\"https://key.test/key\"\n#EXT-X-I-FRAME-STREAM-INF:URI=\"iframe.m3u8\"\n#EXT-X-RENDITION-REPORT:URI=\"report.m3u8\"\nhttps://segments.test/1.ts")
+                request.url.encodedPath.endsWith("iframe.m3u8") || request.url.encodedPath.endsWith("report.m3u8") -> respond("#EXTM3U\nhttps://extra-segments.test/1.ts")
                 request.url.host == "file.test" -> {
                     assertEquals(HttpMethod.Head, request.method)
                     respond("", headers = headersOf(HttpHeaders.ContentType, "video/mp4"))
@@ -314,7 +444,8 @@ class CoreServiceTest {
         try {
             val domains = core.collectQuanxDomains("test")
             assertTrue(domains.incompleteSites.isEmpty())
-            assertTrue(domains.m3u8.containsAll(listOf("entry.test", "final.test", "audio-segments.test", "init.test", "segments.test", "file.test")))
+            assertTrue(domains.m3u8.containsAll(listOf("entry.test", "page.test", "final.test", "audio-segments.test", "init.test", "key.test", "extra-segments.test", "segments.test", "file.test")))
+            assertTrue(requested.any { "master.m3u8?sign=a%2Fb%2Bc%3D&literal=a+b" in it })
             assertFalse(requested.any { "never.test" in it })
             assertTrue(requested.any { "https://final.test/path/audio.m3u8" in it })
         } finally { core.close() }

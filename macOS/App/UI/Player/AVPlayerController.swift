@@ -19,7 +19,10 @@ final class AVPlayerController: ObservableObject {
 
     func load(url: String, positionMillis: Int64, onStarted: @escaping () -> Void, onPosition: @escaping (Int64) -> Void) {
         close()
-        guard let url = HTTPConfiguration.percentEncodedURL(from: url) else { return }
+        guard let url = HTTPConfiguration.percentEncodedURL(from: url) else {
+            errorMessage = "播放失败，请重试"
+            return
+        }
         self.onPosition = onPosition
         restoring = true
         let asset = AVURLAsset(url: url, options: [AVURLAssetHTTPUserAgentKey: HTTPConfiguration.userAgent])
@@ -71,7 +74,7 @@ final class AVPlayerController: ObservableObject {
                 self.savePosition()
             }
         }
-        NotificationCenter.default.publisher(for: .AVPlayerItemTimeJumped, object: item)
+        NotificationCenter.default.publisher(for: AVPlayerItem.timeJumpedNotification, object: item)
             .receive(on: DispatchQueue.main)
             .sink { [weak self, weak item] _ in
                 MainActor.assumeIsolated {
@@ -80,7 +83,7 @@ final class AVPlayerController: ObservableObject {
                     self.savePosition()
                 }
             }.store(in: &observers)
-        NotificationCenter.default.publisher(for: .AVPlayerItemDidPlayToEndTime, object: item)
+        NotificationCenter.default.publisher(for: AVPlayerItem.didPlayToEndTimeNotification, object: item)
             .receive(on: DispatchQueue.main)
             .sink { [weak self, weak item] _ in
                 MainActor.assumeIsolated {
@@ -90,7 +93,7 @@ final class AVPlayerController: ObservableObject {
                     self.onPosition?(0)
                 }
             }.store(in: &observers)
-        NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime, object: item)
+        NotificationCenter.default.publisher(for: AVPlayerItem.failedToPlayToEndTimeNotification, object: item)
             .receive(on: DispatchQueue.main)
             .sink { [weak self, weak item] notification in
                 MainActor.assumeIsolated {

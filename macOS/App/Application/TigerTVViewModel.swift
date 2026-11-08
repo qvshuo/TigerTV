@@ -31,17 +31,14 @@ final class TigerTVViewModel: ObservableObject {
     @Published private(set) var selectedResult: SearchResult?
     @Published private(set) var fetchResponse: FetchResponse?
     @Published private(set) var selectedEpisode: EpisodeLink?
-    @Published private(set) var resolvedPlaybackUrl: String?
     @Published private(set) var playbackRevision = 0
 
     @Published private(set) var isSearching = false
     @Published private(set) var isFetching = false
-    @Published private(set) var isResolvingPlayback = false
 
     @Published private(set) var configErrorMessage: String?
     @Published private(set) var searchErrorMessage: String?
     @Published private(set) var fetchErrorMessage: String?
-    @Published private(set) var playbackErrorMessage: String?
 
     @Published private(set) var searchHistory: [String] = []
     @Published private(set) var hotSearches: [HotSearchItem] = []
@@ -54,7 +51,8 @@ final class TigerTVViewModel: ObservableObject {
     @Published private(set) var coverFallbacks: [String: URL] = [:]
     private var historySaveTask: Task<Void, Never>?
     private var historyRevision = 0
-    private var sourceSaveTask: Task<Void, Never>?
+    private var playbackSaveTask: Task<Void, Never>?
+    private var startedPlaybackRevision = -1
     private var changedPlaybackWorks = Set<String>()
     private var latestPlayedSite: String?
     var playbackSession: PlaybackSession? {
@@ -66,11 +64,10 @@ final class TigerTVViewModel: ObservableObject {
     }
 
     func playbackDidStart(_ session: PlaybackSession) {
-        guard let active = playbackSession, resolvedPlaybackUrl != nil, session.revision == active.revision,
+        guard let active = playbackSession, session.revision == active.revision,
               session.workId == active.workId, session.site == active.site, session.line == active.line,
-              session.episode == active.episode, let work = selectedWork else { return }
-        let bookmark = PlaybackBookmark(line: session.line, episode: session.episode)
-        guard work.playback[session.site] != bookmark || work.lastPlayedSite != session.site || work.recentPlayedSite != session.site else { return }
+              session.episode == active.episode, startedPlaybackRevision != session.revision else { return }
+        startedPlaybackRevision = session.revision
         changedPlaybackWorks.insert(session.workId)
         latestPlayedSite = session.site
         works = works.map {
@@ -82,8 +79,8 @@ final class TigerTVViewModel: ObservableObject {
             }
             return updated
         }
-        let previous = sourceSaveTask
-        sourceSaveTask = Task {
+        let previous = playbackSaveTask
+        playbackSaveTask = Task {
             await previous?.value
             await repository.recordPlayback(workId: session.workId, site: session.site, line: session.line, episode: session.episode)
         }
@@ -95,27 +92,29 @@ final class TigerTVViewModel: ObservableObject {
             changedPlaybackWorks.insert(session.workId)
             works[index].playbackPositions[session.site, default: [:]][session.line, default: [:]][session.episode] = positionMillis
         }
-        let previous = sourceSaveTask
-        sourceSaveTask = Task {
+        let previous = playbackSaveTask
+        playbackSaveTask = Task {
             await previous?.value
             await repository.recordPlaybackPosition(workId: session.workId, site: session.site, line: session.line,
                 episode: session.episode, positionMillis: positionMillis)
         }
     }
-    func flushPlaybackWrites() async { await sourceSaveTask?.value }
+    func flushPersistence() async {
+        await playbackSaveTask?.value
+        await historySaveTask?.value
+    }
 
     private var coverLoadsInFlight: Set<String> = []
 
     private var searchTask: Task<Void, Never>?
     private var fetchTask: Task<Void, Never>?
-    private var playbackTask: Task<Void, Never>?
+    private var configTask: Task<Void, Never>?
     private var hotSearchGeneration = 0
     private var hotWarmTask: Task<Void, Never>?
 
     // Discard results from cancelled or superseded operations.
     private var searchGeneration = 0
     private var fetchGeneration = 0
-    private var playbackGeneration = 0
 
     convenience init() {
         self.init(repository: SharedCoreRepository.shared)
@@ -123,8 +122,9 @@ final class TigerTVViewModel: ObservableObject {
 
     init(repository: any VideoRepository) {
         self.repository = repository
-        Task {
+        configTask = Task {
             await loadSearchHistory()
+            guard !Task.isCancelled else { return }
             await loadConfig()
         }
     }
@@ -172,21 +172,23 @@ final class TigerTVViewModel: ObservableObject {
     func loadConfig() async {
         configErrorMessage = nil
         let result = await repository.loadConfig()
+        guard !Task.isCancelled else { return }
         if case .failure = result {
             configErrorMessage = "资源列表加载失败，请重试"
         }
     }
 
     func retryLoadConfig() {
-        Task { await loadConfig() }
+        configTask?.cancel()
+        configTask = Task { await loadConfig() }
     }
 
     func loadCoverFallbackIfPossible(for result: SearchResult) async {
         guard result.vodPic.isEmpty, coverFallbacks[result.id] == nil else { return }
         guard !coverLoadsInFlight.contains(result.id) else { return }
-        coverLoadsInFlight.insert(result.id)
-        defer { coverLoadsInFlight.remove(result.id) }
         let generation = searchGeneration
+        coverLoadsInFlight.insert(result.id)
+        defer { if generation == searchGeneration { coverLoadsInFlight.remove(result.id) } }
         if let url = await repository.coverFallbackURL(siteName: result.site, vodId: result.vodId),
            generation == searchGeneration, !Task.isCancelled {
             coverFallbacks[result.id] = url
@@ -196,24 +198,22 @@ final class TigerTVViewModel: ObservableObject {
     func clearActiveError() {
         searchErrorMessage = nil
         fetchErrorMessage = nil
-        playbackErrorMessage = nil
     }
 
     func search() {
         let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        cancelAll(includeSearch: true)
+        cancelSearch()
+        fetchTask?.cancel()
 
         submittedKeyword = trimmed
         addHistory(trimmed)
 
         isSearching = true
         isFetching = false
-        isResolvingPlayback = false
         searchErrorMessage = nil
         fetchErrorMessage = nil
-        playbackErrorMessage = nil
         works = []
         changedPlaybackWorks.removeAll()
         latestPlayedSite = nil
@@ -221,12 +221,10 @@ final class TigerTVViewModel: ObservableObject {
         selectedResult = nil
         fetchResponse = nil
         selectedEpisode = nil
-        resolvedPlaybackUrl = nil
 
-        searchGeneration += 1
         let gen = searchGeneration
         searchTask = Task {
-            await sourceSaveTask?.value
+            await playbackSaveTask?.value
             guard gen == searchGeneration, !Task.isCancelled else { return }
             let result = await repository.search(keyword: trimmed) { response in
                 await self.applySearchUpdate(response, generation: gen)
@@ -273,17 +271,14 @@ final class TigerTVViewModel: ObservableObject {
     func selectResult(_ result: SearchResult, forceRefresh: Bool = false) {
         guard forceRefresh || selectedResult?.id != result.id else { return }
 
-        cancelAll()
+        fetchTask?.cancel()
 
         selectedResult = result
         selectedPlaybackSourceIndex = 0
         fetchResponse = nil
         selectedEpisode = nil
-        resolvedPlaybackUrl = nil
         isFetching = true
-        isResolvingPlayback = false
         fetchErrorMessage = nil
-        playbackErrorMessage = nil
 
         fetchGeneration += 1
         let gen = fetchGeneration
@@ -306,27 +301,9 @@ final class TigerTVViewModel: ObservableObject {
     }
 
     func selectEpisode(_ episode: EpisodeLink) {
-        cancelAll()
+        guard episodes.contains(episode) else { return }
         selectedEpisode = episode
-        resolvedPlaybackUrl = nil
-        isResolvingPlayback = true
-        playbackErrorMessage = nil
-
-        playbackGeneration += 1
-        let gen = playbackGeneration
-        playbackTask = Task {
-            let result = await repository.resolvePlaybackUrl(url: episode.url)
-            guard gen == playbackGeneration, !Task.isCancelled else { return }
-            switch result {
-            case .success(let url):
-                isResolvingPlayback = false
-                resolvedPlaybackUrl = url
-                playbackRevision += 1
-            case .failure:
-                isResolvingPlayback = false
-                playbackErrorMessage = "播放地址解析失败，请重试"
-            }
-        }
+        playbackRevision += 1
     }
 
     func retryPlayback() {
@@ -335,43 +312,39 @@ final class TigerTVViewModel: ObservableObject {
     }
 
     func clearPlayback() {
-        cancelAll()
         selectedEpisode = nil
-        resolvedPlaybackUrl = nil
-        playbackErrorMessage = nil
-        isResolvingPlayback = false
     }
 
     func clearFetch() {
-        cancelAll()
+        fetchTask?.cancel()
         selectedResult = nil
         fetchResponse = nil
         isFetching = false
     }
 
     func clearResults() {
-        cancelAll(includeSearch: true)
+        cancelSearch()
+        fetchTask?.cancel()
         works = []
+        coverFallbacks = [:]
         changedPlaybackWorks.removeAll()
         latestPlayedSite = nil
         submittedKeyword = ""
         selectedResult = nil
         fetchResponse = nil
         selectedEpisode = nil
-        resolvedPlaybackUrl = nil
         isSearching = false
         isFetching = false
-        isResolvingPlayback = false
     }
 
     func removeHistory(_ item: String) {
         searchHistory.removeAll { $0 == item }
-        saveHistory()
+        saveHistory { await $0.removeHistory(item) }
     }
 
     func clearHistory() {
         searchHistory.removeAll()
-        saveHistory()
+        saveHistory { await $0.clearHistory() }
     }
 
     private func addHistory(_ item: String) {
@@ -380,16 +353,15 @@ final class TigerTVViewModel: ObservableObject {
         if searchHistory.count > 20 {
             searchHistory = Array(searchHistory.prefix(20))
         }
-        saveHistory()
+        saveHistory { await $0.addHistory(item) }
     }
 
-    private func saveHistory() {
+    private func saveHistory(_ update: @escaping @Sendable (any VideoRepository) async -> Void) {
         historyRevision += 1
-        let snapshot = searchHistory
         let previous = historySaveTask
         historySaveTask = Task {
             await previous?.value
-            await repository.saveHistory(snapshot)
+            await update(repository)
         }
     }
 
@@ -397,12 +369,21 @@ final class TigerTVViewModel: ObservableObject {
         guard historyRevision == 0 else { return }
         let revision = historyRevision
         let saved = await repository.loadHistory()
-        if revision == historyRevision { searchHistory = saved }
+        if revision == historyRevision && !Task.isCancelled { searchHistory = saved }
     }
 
-    private func cancelAll(includeSearch: Bool = false) {
-        if includeSearch { searchTask?.cancel() }
+    func cancelRequests() {
+        cancelSearch()
         fetchTask?.cancel()
-        playbackTask?.cancel()
+        configTask?.cancel()
+        cancelHotSearchWarmup()
+        isSearching = false
+        isFetching = false
+    }
+
+    private func cancelSearch() {
+        searchTask?.cancel()
+        searchGeneration += 1
+        coverLoadsInFlight.removeAll()
     }
 }

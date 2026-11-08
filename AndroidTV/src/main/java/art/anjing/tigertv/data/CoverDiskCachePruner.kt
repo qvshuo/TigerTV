@@ -16,7 +16,7 @@ object CoverDiskCachePruner {
         val deadline = nowMillis - ttlMillis
         var removed = 0
         for (file in files) {
-            if (file.name == JOURNAL_FILE) continue
+            if (file.name.startsWith("journal")) continue
             if (file.isFile && file.lastModified() < deadline && file.delete()) {
                 removed++
             }
@@ -24,5 +24,4 @@ object CoverDiskCachePruner {
         return removed
     }
 
-    private const val JOURNAL_FILE = "journal"
 }

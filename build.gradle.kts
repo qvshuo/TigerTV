@@ -3,4 +3,4 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.android.kmp) apply false
 }
-allprojects { version = providers.gradleProperty("releaseVersion").orElse("4.3.0").get() }
+allprojects { version = providers.gradleProperty("releaseVersion").orElse("4.4.0").get() }

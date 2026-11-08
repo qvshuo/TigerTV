@@ -33,7 +33,6 @@ class NativeFacade internal constructor(private val service: CoreService) {
                             lock.withLock { if (id in jobs) progress[id] = snapshot }
                         })
                         "fetch" -> wireJson.encodeToJsonElement(service.fetch(payload.text("site"), payload["video_id"]!!.jsonPrimitive.int))
-                        "resolve" -> JsonPrimitive(service.resolvePlaybackUrl(payload.text("url")))
                         "cover" -> service.resolveCoverFallback(payload.text("site"), payload["video_id"]!!.jsonPrimitive.int)?.let(::JsonPrimitive) ?: JsonNull
                         "recordPlayback" -> {
                             service.recordPlayback(payload.text("work_id"), payload.text("site"), payload.text("line"), payload.text("episode"))
@@ -47,7 +46,9 @@ class NativeFacade internal constructor(private val service: CoreService) {
                         "hotSearchCategories" -> wireJson.encodeToJsonElement(service.hotSearchCategories())
                         "hotSearches" -> wireJson.encodeToJsonElement(service.hotSearches(payload.text("category")))
                         "history" -> wireJson.encodeToJsonElement(service.history())
-                        "saveHistory" -> { service.saveHistory(wireJson.decodeFromJsonElement(payload["items"]!!)); JsonPrimitive(true) }
+                        "addHistory" -> { service.addHistory(payload.text("item")); JsonPrimitive(true) }
+                        "removeHistory" -> { service.removeHistory(payload.text("item")); JsonPrimitive(true) }
+                        "clearHistory" -> { service.clearHistory(); JsonPrimitive(true) }
                         else -> error("Unknown operation")
                     }
                     buildJsonObject { put("version", 1); put("data", data) }.toString()

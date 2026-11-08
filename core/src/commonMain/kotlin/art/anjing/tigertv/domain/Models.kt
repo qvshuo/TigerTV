@@ -89,10 +89,11 @@ data class PlaybackSource(val id: String, val name: String, val episodes: List<E
 fun aggregateWorks(results: List<SearchResult>): List<VideoWork> = results.distinctBy { it.coverKey }.groupBy { result ->
     val title = result.vodName.filterNot { it.isWhitespace() }.lowercase()
     val year = result.vodYear.trim().takeUnless { it == "0" }.orEmpty()
-    // JSON tuple avoids delimiter collisions. Empty titles must never merge unrelated items.
-    kotlinx.serialization.json.JsonArray(listOf(title.ifEmpty { result.coverKey }, year).map {
-        kotlinx.serialization.json.JsonPrimitive(it)
-    }).toString()
+    // Empty titles use a separate namespace from real titles, including source-like titles.
+    val identity = if (title.isEmpty()) listOf(kotlinx.serialization.json.JsonNull,
+        kotlinx.serialization.json.JsonPrimitive(result.coverKey))
+    else listOf(kotlinx.serialization.json.JsonPrimitive(title), kotlinx.serialization.json.JsonPrimitive(year))
+    kotlinx.serialization.json.JsonArray(identity).toString()
 }.map { (id, sources) -> VideoWork(id, sources.first().vodName, sources, sources.first().coverKey) }
 
 @Serializable

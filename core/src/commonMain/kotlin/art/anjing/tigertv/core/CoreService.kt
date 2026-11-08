@@ -2,7 +2,6 @@ package art.anjing.tigertv.core
 
 import art.anjing.tigertv.domain.*
 import io.ktor.client.HttpClient
-import io.ktor.http.Url
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.*
 import kotlinx.serialization.json.*
@@ -25,7 +24,6 @@ class CoreService(
     private val network = Network(client)
     private val configMutex = Mutex()
     private val hotSearchLocks = HOT_SEARCH_COLLECTIONS.associate { it.id to Mutex() }
-    private val stateMutex = Mutex()
     private val logMutex = Mutex()
     private val coverSemaphore = Semaphore(4)
     private val searchCache = linkedMapOf<String, Pair<Long, SearchResponse>>()
@@ -171,7 +169,7 @@ class CoreService(
     }
 
     suspend fun recordPlayback(workId: String, site: String, line: String, episode: String) = stateMutex.withLock {
-        require(workId.isNotBlank() && site.isNotBlank() && line.isNotBlank() && episode.isNotBlank())
+        require(workId.isNotBlank() && site.isNotBlank() && line.isNotBlank())
         val saved = playedSources()
         val resources = saved.byWork[workId]?.resources.orEmpty() + (site to PlaybackBookmark(line, episode))
         val updated = saved.copy(recentSite = site,
@@ -181,7 +179,7 @@ class CoreService(
     }
 
     suspend fun recordPlaybackPosition(workId: String, site: String, line: String, episode: String, positionMillis: Long) = stateMutex.withLock {
-        require(workId.isNotBlank() && site.isNotBlank() && line.isNotBlank() && episode.isNotBlank() && positionMillis >= 0)
+        require(workId.isNotBlank() && site.isNotBlank() && line.isNotBlank() && positionMillis >= 0)
         val saved = playedSources()
         val work = saved.byWork[workId] ?: return@withLock
         val sitePositions = work.positions[site].orEmpty()
@@ -237,14 +235,6 @@ class CoreService(
         )
     }
 
-    suspend fun resolvePlaybackUrl(url: String): String {
-        val path = Url(normalizeUrl(url)).encodedPath.lowercase()
-        if (path.endsWith(".m3u8") || path.endsWith(".mp4")) return normalizeUrl(url)
-        val response = network.response(url, 10_000)
-        if (response.text.trimStart().startsWith("#EXTM3U", ignoreCase = true)) return response.url
-        return extractM3u8(response.url, response.text).firstOrNull() ?: error("无法解析播放地址")
-    }
-
     suspend fun resolveCoverFallback(siteName: String, vodId: Int): String? = coverSemaphore.withPermit {
         val key = coverCacheKey(siteName, vodId)
         stateMutex.withLock {
@@ -278,8 +268,15 @@ class CoreService(
         cacheRead { wireJson.decodeFromString<List<String>>(storage.read(historyPath) ?: "[]").take(20) }.orEmpty()
     }
 
-    suspend fun saveHistory(items: List<String>) = stateMutex.withLock {
-        cacheRead { storage.writeAtomic(historyPath, wireJson.encodeToString(items.distinct().take(20))) }
+    suspend fun addHistory(item: String) = updateHistory { (listOf(item) + it).distinct().take(20) }
+    suspend fun removeHistory(item: String) = updateHistory { it.filterNot { saved -> saved == item } }
+    suspend fun clearHistory() = updateHistory { emptyList() }
+
+    private suspend fun updateHistory(update: (List<String>) -> List<String>) = stateMutex.withLock {
+        val saved = cacheRead { wireJson.decodeFromString<List<String>>(storage.read(historyPath) ?: "[]") }.orEmpty()
+        try { storage.writeAtomic(historyPath, wireJson.encodeToString(update(saved))) }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { log("保存搜索历史", e) }
         Unit
     }
 
@@ -289,6 +286,8 @@ class CoreService(
     fun close() = client.close()
 
     companion object {
+        // Serialize persistent read-modify-write operations across in-process services/windows.
+        private val stateMutex = Mutex()
         const val DAY = 86_400_000L
         private const val MAX_CACHED_SEARCHES = 5
         private const val MAX_CACHED_RESULTS = 10_000

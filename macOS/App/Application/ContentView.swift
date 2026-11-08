@@ -3,7 +3,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var appDelegate: TigerTVAppDelegate
-    @State private var playbackOwner = UUID()
+    @State private var persistenceOwner = UUID()
     @StateObject private var viewModel = TigerTVViewModel()
 
     @State private var hasSearched = false
@@ -14,7 +14,7 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var activeErrorMessage: String? {
-        viewModel.playbackErrorMessage ?? controller.errorMessage
+        controller.errorMessage
     }
 
     var body: some View {
@@ -65,7 +65,6 @@ struct ContentView: View {
                     isFetching: viewModel.isFetching,
                     player: player,
                     selectedEpisode: viewModel.selectedEpisode,
-                    isResolvingPlayback: viewModel.isResolvingPlayback,
                     coverFallbacks: viewModel.coverFallbacks,
                     onLoadCoverFallback: viewModel.loadCoverFallbackIfPossible,
                     onBack: goBack,
@@ -105,25 +104,26 @@ struct ContentView: View {
             }
         )
         .onAppear {
-            playbackOwner = UUID()
-            appDelegate.playbackFlushers[playbackOwner] = {
+            persistenceOwner = UUID()
+            appDelegate.persistenceFlushers[persistenceOwner] = {
                 controller.close()
-                await viewModel.flushPlaybackWrites()
+                await viewModel.flushPersistence()
             }
         }
         .onDisappear {
+            viewModel.cancelRequests()
             controller.close()
-            let owner = playbackOwner
+            let owner = persistenceOwner
             Task {
-                await viewModel.flushPlaybackWrites()
-                appDelegate.playbackFlushers.removeValue(forKey: owner)
+                await viewModel.flushPersistence()
+                appDelegate.persistenceFlushers.removeValue(forKey: owner)
             }
         }
         .onChange(of: activeErrorMessage) { _, newValue in
             showError = newValue != nil
         }
         .onChange(of: viewModel.playbackRevision) { _, _ in
-            guard let url = viewModel.resolvedPlaybackUrl else { return }
+            guard let url = viewModel.selectedEpisode?.url else { return }
             controller.close()
             guard let session = viewModel.playbackSession else { return }
             controller.load(url: url, positionMillis: session.positionMillis,
@@ -156,7 +156,7 @@ struct ContentView: View {
     }
 
     private func goBack() {
-        if player != nil || viewModel.selectedEpisode != nil || viewModel.isResolvingPlayback {
+        if player != nil || viewModel.selectedEpisode != nil {
             viewModel.clearPlayback()
             controller.close()
             return

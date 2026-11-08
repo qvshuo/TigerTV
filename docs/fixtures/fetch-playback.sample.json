@@ -1,0 +1,39 @@
+{
+  "vod_id": 1,
+  "site": "🎬一",
+  "vod_name": "逐玉",
+  "vod_pic": "",
+  "vod_year": "2026",
+  "type_name": "国产剧",
+  "vod_remarks": "全24集",
+  "vod_content": "作品简介",
+  "vod_actor": "主演",
+  "vod_director": "导演",
+  "vod_area": "中国大陆",
+  "vod_lang": "国语",
+  "play_sources": [
+    {
+      "id": "0",
+      "name": "原始地址",
+      "episodes": [
+        {
+          "name": "HLS",
+          "url": "https://media.example/中文/index.m3u8?sign=a%2Fb%2Bc%3D&literal=a+b"
+        },
+        {
+          "name": "MP4",
+          "url": "https://media.example/video.mp4?sign=a%2Fb"
+        },
+        {
+          "name": "HTML",
+          "url": "https://page.example/player?id=42&sign=a%2Fb%2Bc%3D"
+        },
+        {
+          "name": "",
+          "url": "https://media.example/unnamed.mp4"
+        }
+      ]
+    }
+  ],
+  "download_sources": []
+}
