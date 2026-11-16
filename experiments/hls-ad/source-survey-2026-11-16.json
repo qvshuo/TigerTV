@@ -1,0 +1,257 @@
+[
+  {
+    "site": "🎬-爱奇艺-",
+    "search_seconds": 1.709,
+    "matches": 1,
+    "detail_seconds": 1.102,
+    "episodes": 30,
+    "url_kind": "hls",
+    "playlist_seconds": [
+      2.18
+    ],
+    "segments": 608,
+    "discontinuities": 2,
+    "key": false,
+    "sample_bytes": 262144,
+    "sample_seconds": 1.405,
+    "status": "hls_ok"
+  },
+  {
+    "site": "🎬豆瓣资源",
+    "status": "error",
+    "reason": "<urlopen error [SSL"
+  },
+  {
+    "site": "🎬茅台资源",
+    "search_seconds": 1.509,
+    "matches": 0,
+    "status": "no_match"
+  },
+  {
+    "site": "🎬卧龙资源",
+    "search_seconds": 0.946,
+    "status": "error",
+    "reason": "Expecting value"
+  },
+  {
+    "site": "🎬iKun资源",
+    "status": "error",
+    "reason": "<urlopen error [SSL"
+  },
+  {
+    "site": "🎬电影天堂",
+    "search_seconds": 0.418,
+    "matches": 1,
+    "detail_seconds": 0.33,
+    "episodes": 30,
+    "url_kind": "other",
+    "status": "error",
+    "reason": "HTTP Error 403"
+  },
+  {
+    "site": "🎬猫眼资源",
+    "search_seconds": 0.7,
+    "matches": 1,
+    "detail_seconds": 0.216,
+    "episodes": 30,
+    "url_kind": "hls",
+    "playlist_seconds": [
+      0.73,
+      1.094
+    ],
+    "segments": 1457,
+    "discontinuities": 7,
+    "key": true,
+    "sample_bytes": 141568,
+    "sample_seconds": 1.049,
+    "status": "hls_ok"
+  },
+  {
+    "site": "🎬量子资源",
+    "status": "error",
+    "reason": "<urlopen error [SSL"
+  },
+  {
+    "site": "🎬360 资源",
+    "search_seconds": 1.342,
+    "matches": 1,
+    "detail_seconds": 0.68,
+    "episodes": 31,
+    "url_kind": "hls",
+    "playlist_seconds": [
+      0.943,
+      1.397
+    ],
+    "segments": 1457,
+    "discontinuities": 5,
+    "key": true,
+    "sample_bytes": 262144,
+    "sample_seconds": 0.775,
+    "status": "hls_ok"
+  },
+  {
+    "site": "🎬极速资源",
+    "search_seconds": 2.079,
+    "matches": 1,
+    "detail_seconds": 8.136,
+    "episodes": 30,
+    "url_kind": "other",
+    "playlist_seconds": [
+      0.701
+    ],
+    "status": "non_hls"
+  },
+  {
+    "site": "🎬魔都资源",
+    "search_seconds": 4.956,
+    "matches": 1,
+    "detail_seconds": 1.456,
+    "episodes": 30,
+    "url_kind": "other",
+    "status": "error",
+    "reason": "<urlopen error [SSL"
+  },
+  {
+    "site": "🎬非凡资源",
+    "search_seconds": 0.803,
+    "matches": 1,
+    "detail_seconds": 0.555,
+    "episodes": 30,
+    "url_kind": "other",
+    "status": "error",
+    "reason": "HTTP Error 403"
+  },
+  {
+    "site": "🎬暴风资源",
+    "search_seconds": 1.643,
+    "matches": 1,
+    "detail_seconds": 1.001,
+    "episodes": 30,
+    "url_kind": "other",
+    "status": "error",
+    "reason": "<urlopen error [SSL"
+  },
+  {
+    "site": "🎬最大资源",
+    "search_seconds": 6.25,
+    "matches": 0,
+    "status": "no_match"
+  },
+  {
+    "site": "🎬无尽资源",
+    "status": "error",
+    "reason": "HTTP Error 403"
+  },
+  {
+    "site": "🎬新浪资源",
+    "search_seconds": 3.294,
+    "matches": 1,
+    "status": "error",
+    "reason": "The read operation timed out"
+  },
+  {
+    "site": "🎬旺旺资源",
+    "status": "error",
+    "reason": "<urlopen error [SSL"
+  },
+  {
+    "site": "🎬速播资源",
+    "search_seconds": 1.957,
+    "matches": 1,
+    "status": "error",
+    "reason": "The read operation timed out"
+  },
+  {
+    "site": "🎬金鹰点播",
+    "status": "error",
+    "reason": "<urlopen error _ssl.c:1129"
+  },
+  {
+    "site": "🎬飘零资源",
+    "search_seconds": 6.916,
+    "matches": 1,
+    "detail_seconds": 7.982,
+    "episodes": 30,
+    "url_kind": "other",
+    "status": "error",
+    "reason": "HTTP Error 403"
+  },
+  {
+    "site": "🎬U酷影视",
+    "search_seconds": 2.712,
+    "matches": 1,
+    "status": "error",
+    "reason": "The read operation timed out"
+  },
+  {
+    "site": "🎬光速资源",
+    "search_seconds": 4.206,
+    "matches": 1,
+    "detail_seconds": 2.336,
+    "episodes": 30,
+    "url_kind": "other",
+    "playlist_seconds": [
+      1.03
+    ],
+    "status": "non_hls"
+  },
+  {
+    "site": "🎬红牛资源",
+    "search_seconds": 0.82,
+    "matches": 1,
+    "detail_seconds": 0.743,
+    "episodes": 30,
+    "url_kind": "other",
+    "playlist_seconds": [
+      0.115
+    ],
+    "status": "non_hls"
+  },
+  {
+    "site": "🎬魔都动漫",
+    "search_seconds": 1.219,
+    "matches": 1,
+    "detail_seconds": 4.05,
+    "episodes": 30,
+    "url_kind": "hls",
+    "playlist_seconds": [
+      0.918,
+      1.188
+    ],
+    "segments": 981,
+    "discontinuities": 5,
+    "key": true,
+    "sample_bytes": 262144,
+    "sample_seconds": 1.821,
+    "status": "hls_ok"
+  },
+  {
+    "site": "🎬如意资源",
+    "search_seconds": 0.588,
+    "matches": 1,
+    "status": "error",
+    "reason": "<urlopen error [SSL"
+  },
+  {
+    "site": "🎬豪华资源",
+    "search_seconds": 9.016,
+    "matches": 1,
+    "detail_seconds": 2.433,
+    "episodes": 30,
+    "url_kind": "other",
+    "playlist_seconds": [
+      1.303
+    ],
+    "status": "non_hls"
+  },
+  {
+    "site": "🎬百度云zy",
+    "status": "error",
+    "reason": "HTTP Error 404"
+  },
+  {
+    "site": "🎬艾旦影视",
+    "status": "error",
+    "reason": "HTTP Error 404"
+  }
+]

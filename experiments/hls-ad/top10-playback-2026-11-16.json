@@ -1,0 +1,59 @@
+{
+  "live": [
+    {
+      "site": "🎬360 资源",
+      "success": true,
+      "seconds": 14.495
+    },
+    {
+      "site": "🎬魔都资源",
+      "success": true,
+      "seconds": 22.003
+    },
+    {
+      "site": "🎬魔都动漫",
+      "success": true,
+      "seconds": 14.426
+    },
+    {
+      "site": "🎬-爱奇艺-",
+      "success": true,
+      "seconds": 9.203
+    },
+    {
+      "site": "🎬暴风资源",
+      "success": true,
+      "seconds": 16.872
+    }
+  ],
+  "performance": [
+    {
+      "mode": "original",
+      "first_frame_ms": 2064,
+      "pss_samples_KiB": [
+        98212,
+        96739,
+        98109,
+        99643
+      ],
+      "sampled_max_pss_KiB": 99643
+    },
+    {
+      "mode": "filtered",
+      "first_frame_ms": 2564,
+      "pss_samples_KiB": [
+        100819,
+        97051,
+        99892,
+        100775
+      ],
+      "sampled_max_pss_KiB": 100819
+    }
+  ],
+  "filtered_process_cpu_percent_samples": [
+    8,
+    6
+  ],
+  "cpu_attribution": "whole emulator app, not isolated filter",
+  "cleanup_duplicate_bytes": 95886953
+}

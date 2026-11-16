@@ -17,7 +17,7 @@ class PlayerInputTest {
                 // DASH is deliberately not installed; source creation throws synchronously.
                 for (url in listOf("", "   ", "relative/video.mp4", "https://", "data:text/plain,video", "https://fixture.test/video.mpd")) {
                     var error: String? = null
-                    controller.load(url, 0, "fixture",
+                    controller.load(url, 0, "fixture", site = "fixture",
                         onStarted = { fail("Invalid input started playback") },
                         onPosition = { fail("Invalid input wrote progress") },
                         onError = { error = it })
@@ -27,7 +27,7 @@ class PlayerInputTest {
             } finally {
                 controller.close()
             }
-            controller.load("https://fixture.test/video.mp4", 0, "closed",
+            controller.load("https://fixture.test/video.mp4", 0, "closed", site = "fixture",
                 onStarted = { fail("Closed player started playback") },
                 onPosition = { fail("Closed player wrote progress") },
                 onError = { fail("Closed player accepted a load") })

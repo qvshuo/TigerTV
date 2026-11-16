@@ -34,13 +34,18 @@ data class PlayerSnapshot(
 @androidx.annotation.OptIn(UnstableApi::class)
 class Media3Controller(context: Context) {
     private val appContext = context.applicationContext
-    private val dataSource = DefaultDataSource.Factory(appContext, DefaultHttpDataSource.Factory().setUserAgent(USER_AGENT))
+    @Volatile private var hlsSession: HlsPlaybackSession? = null
+    private val upstream = DefaultDataSource.Factory(appContext, DefaultHttpDataSource.Factory().setUserAgent(USER_AGENT))
+    private val dataSource = androidx.media3.datasource.DataSource.Factory { HlsAdDataSource(upstream.createDataSource(), hlsSession) }
     val player = ExoPlayer.Builder(appContext)
         .setSeekBackIncrementMs(10_000)
         .setSeekForwardIncrementMs(10_000)
         .setMediaSourceFactory(DefaultMediaSourceFactory(dataSource))
         .build()
     private val mediaSession = MediaSession.Builder(appContext, player).setId(java.util.UUID.randomUUID().toString()).build()
+    /** Null until this session has a validated, filtered media playlist. */
+    val playbackTimeline: art.anjing.tigertv.core.MediaTimeline? get() = hlsSession?.timeline
+
     var snapshot by mutableStateOf(PlayerSnapshot())
         private set
     private var resumeOnForeground = false
@@ -54,11 +59,11 @@ class Media3Controller(context: Context) {
     private var ended = false
     private var closed = false
 
-    fun load(url: String, positionMillis: Long, title: String, onStarted: () -> Unit, onPosition: (Long) -> Unit, onError: (String) -> Unit) {
+    fun load(url: String, positionMillis: Long, title: String, site: String, onStarted: () -> Unit, onPosition: (Long) -> Unit, onError: (String) -> Unit) {
         if (closed) return
         unload()
         if (inBackground) {
-            pendingLoad = { load(url, positionMillis, title, onStarted, onPosition, onError) }
+            pendingLoad = { load(url, positionMillis, title, site, onStarted, onPosition, onError) }
             return
         }
         val uri = normalizeUrl(url).toUri()
@@ -71,6 +76,9 @@ class Media3Controller(context: Context) {
             onError("无效播放地址")
             return
         }
+        val mayFilter = mayFilterHls(site, uri)
+        val currentSession = HlsPlaybackSession(uri, site)
+        hlsSession = currentSession
         this.onPosition = onPosition
         restoring = true
         listener = object : Player.Listener {
@@ -80,7 +88,10 @@ class Media3Controller(context: Context) {
                 if (listener !== this) return
                 if ((state == Player.STATE_READY || state == Player.STATE_ENDED) && restoring) {
                     val duration = player.duration
-                    if (duration != C.TIME_UNSET && positionMillis >= duration) player.seekTo(0)
+                    if (mayFilter) {
+                        val effective = currentSession.timeline?.videoToEffective(positionMillis)?.timeMs ?: positionMillis
+                        player.seekTo(if (duration != C.TIME_UNSET && effective >= duration) 0 else effective)
+                    } else if (duration != C.TIME_UNSET && positionMillis >= duration) player.seekTo(0)
                     restoring = false
                 }
                 if (state == Player.STATE_ENDED && didStart) {
@@ -111,7 +122,7 @@ class Media3Controller(context: Context) {
         }.also(player::addListener)
         try {
             val metadata = MediaMetadata.Builder().setTitle(title).build()
-            player.setMediaItem(MediaItem.Builder().setUri(uri).setMediaMetadata(metadata).build(), positionMillis.coerceAtLeast(0))
+            player.setMediaItem(MediaItem.Builder().setUri(uri).setMediaMetadata(metadata).build(), if (mayFilter) 0 else positionMillis.coerceAtLeast(0))
             player.prepare()
         } catch (error: Exception) {
             unload()
@@ -169,7 +180,7 @@ class Media3Controller(context: Context) {
 
     fun savePosition() {
         if (closed || !didStart || restoring || ended) return
-        val position = player.currentPosition.coerceAtLeast(0)
+        val position = hlsSession?.timeline?.effectiveToVideo(player.currentPosition.coerceAtLeast(0)) ?: player.currentPosition.coerceAtLeast(0)
         if (position == lastSavedPosition) return
         lastSavedPosition = position
         onPosition?.invoke(position)
@@ -199,6 +210,7 @@ class Media3Controller(context: Context) {
         ended = false
         player.stop()
         player.clearMediaItems()
+        hlsSession = null
         snapshot = PlayerSnapshot(speed = player.playbackParameters.speed)
     }
     fun close() {

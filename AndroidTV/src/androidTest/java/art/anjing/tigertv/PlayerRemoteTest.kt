@@ -314,6 +314,48 @@ class PlayerRemoteTest {
         }
     }
 
+    @Test fun referenceCommentsUseTheActualPlayerClock() {
+        lateinit var controller: Media3Controller
+        var started = false
+        val timeline = MediaTimeline(emptyList(), listOf(ReferenceSpan(0, 120_000, 1_000, 121_000)))
+        val comments = listOf(31_000L to "测试弹幕：暂停", 61_000L to "测试弹幕：定位")
+        fun nearby(referenceMs: Long) = comments.filter { kotlin.math.abs(it.first - referenceMs) < 2_000 }.map { it.second }
+        compose.runOnIdle {
+            controller = Media3Controller(instrumentation.targetContext)
+            controller.load(video.toURI().toString(), 30_000, "时间轴测试", site = "fixture",
+                onStarted = { started = true }, onPosition = {}, onError = { error(it) })
+            controller.play()
+        }
+        try {
+            compose.waitUntil(10_000) { started && controller.snapshot.ready }
+            var paused = 0L
+            compose.runOnIdle { controller.pause(); paused = controller.player.currentPosition }
+            SystemClock.sleep(400)
+            compose.runOnIdle {
+                assertTrue(kotlin.math.abs(controller.player.currentPosition - paused) < 100)
+                assertEquals(paused + 1_000, timeline.effectiveToReference(paused))
+                assertTrue("测试弹幕：暂停" in nearby(timeline.effectiveToReference(paused)!!))
+                controller.seekTo(60_000)
+            }
+            SystemClock.sleep(500)
+            compose.runOnIdle {
+                val actual = controller.player.currentPosition
+                assertTrue(kotlin.math.abs(actual - 60_000) < 1_000)
+                assertEquals(actual + 1_000, timeline.effectiveToReference(actual))
+                assertTrue("测试弹幕：定位" in nearby(timeline.effectiveToReference(actual)!!))
+                assertNull(MediaTimeline(emptyList()).effectiveToReference(actual))
+                controller.setSpeed(1.5f)
+                controller.play()
+            }
+            SystemClock.sleep(500)
+            compose.runOnIdle {
+                val actual = controller.player.currentPosition
+                assertTrue(actual > 60_000)
+                assertEquals(actual + 1_000, timeline.effectiveToReference(actual))
+            }
+        } finally { compose.runOnIdle { controller.close() } }
+    }
+
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun findPlayerView(view: View): PlayerView? {
         if (view is PlayerView) return view
@@ -329,7 +371,7 @@ class PlayerRemoteTest {
         var starts = 0
         compose.runOnIdle {
             controller = Media3Controller(instrumentation.targetContext)
-            controller.load(video.toURI().toString(), 30_000, "原生播放器测试",
+            controller.load(video.toURI().toString(), 30_000, "原生播放器测试", site = "fixture",
                 onStarted = { starts++ }, onPosition = { positions += it }, onError = { error(it) })
             controller.play()
         }
@@ -342,7 +384,7 @@ class PlayerRemoteTest {
                 assertFalse(controller.player.playWhenReady)
                 assertTrue(positions.last() >= 30_000)
                 controller.onBackground()
-                controller.load(video.toURI().toString(), 30_000, "后台完成的加载",
+                controller.load(video.toURI().toString(), 30_000, "后台完成的加载", site = "fixture",
                     onStarted = { starts++ }, onPosition = { positions += it }, onError = { error(it) })
                 controller.play()
                 assertEquals("Background loads must wait for foreground", 0, controller.player.mediaItemCount)

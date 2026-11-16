@@ -38,7 +38,7 @@ tigertv logs [--full] [--clear]
 - 原始线路按 `$$$` 分组，剧集按 `#` 分项，首个 `$` 分名称和 URL；先对齐 from 名称，再过滤空分组。线路 ID 是原始零起始位置。集名可以为空，仍按 API 原值传递并保存播放记录，不因缺少集名拒绝有效地址。
 - 单源搜索/QuanX 失败记录后继续；所有源均失败时搜索报错，不冒充空结果；取消必须向上传播。API/config/HTML/HLS 文本响应上限 10 MiB，搜索与详情单次请求预算 20 秒，HTML/HLS 探测 10 秒；每站搜索总预算 60 秒。
 
-普通播放直接将 API 的 `EpisodeLink.url` 交给 AVPlayer／Media3；仅做必要的 URL 编码并设置统一 User-Agent。选集、切集和重试均不经 Core、Repository 或 NativeBridge 预先请求、探测或解析地址。原生播放器自行处理媒体传输，不能直接播放的 HTML 页面允许失败；重试仍加载同一原始地址并保留资源、线路和集。原始地址共享夹具见 `fixtures/fetch-playback.sample.json`。
+普通播放直接将 API 的 `EpisodeLink.url` 交给 AVPlayer／Media3；仅做必要的 URL 编码并设置统一 User-Agent。选集、切集和重试均不经 Core、Repository 或 NativeBridge 预先请求、探测或解析地址。原生播放器自行处理媒体传输，不能直接播放的 HTML 页面允许失败；重试仍加载同一原始地址并保留资源、线路和集。原始地址共享夹具见 `fixtures/fetch-playback.sample.json`。 Android TV 对暴风、爱奇艺、360、魔都资源与魔都动漫的已验证 HLS 素材，在 Media3 请求原始清单的同一次响应中执行保守过滤；未知来源、素材或不支持的标签原样播放；主清单保留原文，仅在单变体且无独立轨道时登记唯一子清单，在其当前响应中执行规则，分片仍直接由原生播放器获取。当前规则只覆盖特定广告素材，并非全站广告识别。过滤结果只属于当前播放会话，保存书签时将播放时间换回该清单的原始媒体时间，恢复时再按当前清单转换；原始媒体时间仍不等于弹幕参考时间。
 
 QX 独立支持直接 m3u8/mp4、无扩展名的原始 HLS 和 HTML 中绝对、相对、转义及编码链接，保留签名查询。相对地址以最终响应 URL 为基准；扫描夹具使用 `fixtures/quanx-*`。
 
