@@ -1,5 +1,6 @@
 package art.anjing.tigertv.ui.detail
 
+import art.anjing.tigertv.core.supportsHlsAdFiltering
 import androidx.activity.compose.BackHandler
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -193,7 +194,7 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                         ) {
                             sources.forEachIndexed { index, source ->
                                 key(source.coverKey) {
-                                    DetailChoice(source.site, source.coverKey == result?.coverKey,
+                                    DetailChoice(source.site, source.coverKey == result?.coverKey, adFiltering = supportsHlsAdFiltering(source.site),
                                         modifier = if (index == preferredSource) Modifier.focusRequester(sourceFocus) else Modifier) {
                                         if (source.coverKey != result?.coverKey) {
                                             restoreRetryFocus = false
@@ -332,12 +333,16 @@ private fun SectionTitle(title: String) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier = Modifier, maxLines: Int = 1, onClick: () -> Unit) {
+internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier = Modifier, maxLines: Int = 1, adFiltering: Boolean = false, onClick: () -> Unit) {
     SelectionChip(selected = selected, onClick = onClick,
         modifier = modifier.width(IntrinsicSize.Max).heightIn(min = UiMetrics.controlHeight)) {
-        Box(Modifier.heightIn(min = UiMetrics.controlHeight - 16.dp), contentAlignment = Alignment.Center) {
-            Text(title, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+        Row(Modifier.heightIn(min = UiMetrics.controlHeight - 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, modifier = Modifier.weight(1f, fill = false), textAlign = TextAlign.Center,
                 maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+            if (adFiltering) {
+                Icon(painterResource(art.anjing.tigertv.R.drawable.source_ad_off),
+                    contentDescription = "支持广告过滤", modifier = Modifier.size(20.dp))
+            }
         }
     }
 }

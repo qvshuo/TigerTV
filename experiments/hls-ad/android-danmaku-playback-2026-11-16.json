@@ -1,0 +1,88 @@
+{
+  "basis_main": "962b149ae4a009cbd567cddfe59ad4fadc083f95",
+  "device": "Android TV API34 arm64 emulator",
+  "ads_live": [
+    {
+      "site": "🎬360 资源",
+      "success": true,
+      "seconds": 13.587
+    },
+    {
+      "site": "🎬魔都资源",
+      "success": true,
+      "seconds": 26.861
+    },
+    {
+      "site": "🎬-爱奇艺-",
+      "success": true,
+      "seconds": 9.46
+    },
+    {
+      "site": "🎬暴风资源",
+      "success": true,
+      "seconds": 14.956
+    }
+  ],
+  "danmaku_live": [
+    {
+      "title": "嫁金钗",
+      "success": true,
+      "seconds": 92.647
+    },
+    {
+      "title": "逐玉",
+      "success": true,
+      "seconds": 95.554
+    }
+  ],
+  "steady": [
+    {
+      "work": "嫁金钗",
+      "pss_KiB": [
+        136344,
+        143942,
+        146400,
+        146299,
+        150005,
+        107201,
+        110967,
+        148675,
+        150711,
+        153661,
+        155903,
+        157245
+      ],
+      "decoder_dropped_frames_delta": 0,
+      "sample_interval_seconds": 5
+    },
+    {
+      "work": "逐玉",
+      "pss_KiB": [
+        174240,
+        171493,
+        175516,
+        176686,
+        177940,
+        179254,
+        180370,
+        181244,
+        182514,
+        183528,
+        184794,
+        169556
+      ],
+      "decoder_dropped_frames_delta": 0,
+      "sample_interval_seconds": 5
+    }
+  ],
+  "checks": [
+    "work=嫁金钗 loaded=嫁金钗(2026)【国产剧】from youku · 【youku】 第1集 嫁金钗 01 · 18939 条",
+    "work=嫁金钗 steadyPssKiB=[136344, 143942, 146400, 146299, 150005, 107201, 110967, 148675, 150711, 153661, 155903, 157245] steadyDroppedFrames=0",
+    "work=嫁金钗 scrollingComments=18939 pause=true seek=true speed=true offset=true rendered=true bufferingObserved=true",
+    "work=嫁金钗 disabledStopsDrawing=true episodeCleared=true apiFailureVideoContinues=true",
+    "work=逐玉 loaded=逐玉(2026)【国产剧】from tencent · 【qq】 逐玉 第1集 张凌赫田曦薇落难侯爷爱上杀猪娘子 · 42283 条",
+    "work=逐玉 steadyPssKiB=[174240, 171493, 175516, 176686, 177940, 179254, 180370, 181244, 182514, 183528, 184794, 169556] steadyDroppedFrames=0",
+    "work=逐玉 scrollingComments=42283 pause=true seek=true speed=true offset=true rendered=true bufferingObserved=true",
+    "work=逐玉 disabledStopsDrawing=true episodeCleared=true apiFailureVideoContinues=true"
+  ]
+}

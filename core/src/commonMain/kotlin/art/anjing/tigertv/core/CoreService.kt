@@ -22,6 +22,8 @@ class CoreService(
     historyDirectory: String = directory
 ) {
     private val network = Network(client)
+
+    fun danmakuClient(baseUrl: String): DanmakuClient = DanmakuClient(network, baseUrl)
     private val configMutex = Mutex()
     private val hotSearchLocks = HOT_SEARCH_COLLECTIONS.associate { it.id to Mutex() }
     private val logMutex = Mutex()

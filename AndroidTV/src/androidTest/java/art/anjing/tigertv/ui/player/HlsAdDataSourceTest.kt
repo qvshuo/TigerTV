@@ -85,4 +85,15 @@ class HlsAdDataSourceTest {
         assertNull(session.timeline)
     }
 
+    @Test fun moduAnimeRemainsUnfilteredEvenWithMatchingCandidate() {
+        val session = HlsPlaybackSession(uri, "🎬魔都动漫")
+        var invoked = false
+        assertEquals(playlist(), read(HlsAdDataSource(Fake(playlist().toByteArray(), uri), session) { _, text ->
+            invoked = true
+            filterHlsAds(text) { it.startsWith("/video/adjump/time/") }
+        }))
+        assertFalse(invoked)
+        assertNull(session.timeline)
+    }
+
 }

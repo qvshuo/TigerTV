@@ -2,6 +2,9 @@ package art.anjing.tigertv.core
 
 import kotlin.math.roundToLong
 
+/** Source capability only; individual manifests still require an exact known asset match. */
+fun supportsHlsAdFiltering(site: String): Boolean = site in setOf("🎬暴风资源", "🎬-爱奇艺-", "🎬360 资源", "🎬魔都资源")
+
 /** A known asset's URI fingerprints, not hashes of the downloaded media bytes. */
 internal data class KnownHlsAdGroup(
     val site: String,

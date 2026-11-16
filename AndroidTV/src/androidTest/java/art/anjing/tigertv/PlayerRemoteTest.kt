@@ -74,6 +74,9 @@ class PlayerRemoteTest {
         val response = """{"code":1,"list":[{"vod_id":1,"vod_name":"遥控器测试","vod_play_from":"主线${'$'}${'$'}${'$'}备用线路","vod_play_url":"第一集${'$'}$mediaUrl#第二集${'$'}$mediaUrl${'$'}${'$'}${'$'}第一集${'$'}$mediaUrl#第二集${'$'}$mediaUrl"}]}"""
         val core = CoreService("cache", "source", storage, configureClient(HttpClient(MockEngine { request ->
             if (request.url.host == "m.douban.com") respond("""{"subject_collection_items":[]}""")
+            else if (request.url.encodedPath == "/api/v2/search/anime") respond("""{"success":true,"animes":[{"animeId":101,"animeTitle":"遥控器测试(2026)【国产剧】第一来源的长标题用于检查缩放留白","source":"test"},{"animeId":102,"animeTitle":"遥控器测试(2026)【国产剧】第二来源","source":"other"}]}""")
+            else if (request.url.encodedPath.startsWith("/api/v2/bangumi/")) respond("""{"success":true,"bangumi":{"episodes":[{"episodeId":11,"episodeNumber":"1"},{"episodeId":12,"episodeNumber":"2"}]}}""")
+            else if (request.url.encodedPath.startsWith("/api/v2/comment/")) respond("""{"comments":[{"p":"300,1,16777215","m":"布局测试弹幕"}]}""")
             else {
                 assertEquals("Ordinary playback must not probe through core", "fixture.test", request.url.host)
                 respond(response)
@@ -129,6 +132,86 @@ class PlayerRemoteTest {
         compose.waitForIdle()
     }
 
+
+    @Test fun danmakuMenuAndPerEpisodePreference() {
+        compose.runOnIdle { findPlayerView(rootView)!!.player!!.pause() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("player-speed").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("player-speed").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        remote(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithTag("player-danmaku").assertIsFocused()
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithText("提前一秒").assertExists()
+        compose.onNodeWithText("延后一秒").assertExists()
+        compose.onNodeWithText("弹幕设置").assertExists()
+        compose.onNodeWithText("关闭弹幕").assertExists()
+        compose.onNodeWithTag("danmaku-action-3").assertIsFocused()
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag("player-danmaku").assertContentDescriptionEquals("弹幕已关闭")
+        compose.runOnIdle { model.selectEpisode(1) }
+        compose.waitUntil(10_000) { model.selectedEpisodeIndex == 1 }
+        compose.runOnIdle { findPlayerView(rootView)!!.player!!.pause() }
+        compose.onNodeWithTag("player-danmaku").assertContentDescriptionEquals("弹幕已开启")
+        compose.runOnIdle { model.selectEpisode(0) }
+        compose.runOnIdle { findPlayerView(rootView)!!.player!!.pause() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("弹幕已关闭").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("player-danmaku").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        repeat(3) { remote(KeyEvent.KEYCODE_DPAD_UP) }
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag("danmaku-options").assertExists()
+        compose.onNodeWithText("完成").assertDoesNotExist()
+        compose.onNodeWithText("提前一秒").assertDoesNotExist()
+        compose.onNodeWithTag("danmaku-server").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        Thread.sleep(500)
+        val descriptor = instrumentation.uiAutomation.executeShellCommand("dumpsys input_method")
+        val inputState = android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).bufferedReader().use { it.readText() }
+        assertTrue("Focusing a field must not open IME", inputState.contains("mInputShown=false"))
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        Thread.sleep(500)
+        val editingDescriptor = instrumentation.uiAutomation.executeShellCommand("dumpsys input_method")
+        val editingState = android.os.ParcelFileDescriptor.AutoCloseInputStream(editingDescriptor).bufferedReader().use { it.readText() }
+        assertTrue("Confirm must allow editing", editingState.contains("mInputShown=true"))
+        remote(KeyEvent.KEYCODE_BACK)
+        remote(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithTag("danmaku-options").assertDoesNotExist()
+    }
+
+    @Test fun danmakuSettingsKeepFocusedSourcesInsidePanel() {
+        compose.runOnIdle { findPlayerView(rootView)!!.player!!.pause() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("player-danmaku").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("player-danmaku").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        repeat(3) { remote(KeyEvent.KEYCODE_DPAD_UP) }
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        val panel = compose.onNodeWithTag("danmaku-options")
+        panel.performScrollToNode(hasTestTag("danmaku-server"))
+        compose.onNodeWithTag("danmaku-server").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag("danmaku-server").performTextReplacement("https://fixture.test")
+        compose.onNodeWithTag("danmaku-server").performImeAction()
+        panel.performScrollToNode(hasTestTag("danmaku-save"))
+        compose.onNodeWithTag("danmaku-save").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        assertEquals("https://fixture.test", instrumentation.targetContext.getSharedPreferences("danmaku", 0).getString("server", ""))
+        panel.performScrollToNode(hasTestTag("danmaku-search"))
+        compose.onNodeWithTag("danmaku-search").assertTextContains("匹配")
+        compose.onNodeWithTag("danmaku-search").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        compose.waitUntil(10_000) { compose.onNodeWithTag("danmaku-options").fetchSemanticsNode().config[SemanticsProperties.StateDescription] == "就绪" }
+        panel.performScrollToNode(hasTestTag("danmaku-title-101"))
+        compose.onNodeWithTag("danmaku-title-101").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        compose.waitForIdle()
+        val first = compose.onNodeWithTag("danmaku-title-101").fetchSemanticsNode().boundsInRoot
+        val second = compose.onNodeWithTag("danmaku-title-102").fetchSemanticsNode().boundsInRoot
+        val bounds = panel.fetchSemanticsNode().boundsInRoot
+        assertTrue(first.left >= bounds.left)
+        assertTrue(first.bottom <= second.top)
+        assertTrue(first.right <= bounds.right)
+        compose.onNodeWithTag("danmaku-loaded").assertDoesNotExist()
+        if (InstrumentationRegistry.getArguments().getString("capture_danmaku") == "true") {
+            val capture = instrumentation.uiAutomation.executeShellCommand("screencap -p /data/local/tmp/tigertv-polish-settings.png")
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(capture).use { it.readBytes() }
+            android.util.Log.i("TigerTVLayout", "settings-captured")
+        }
+    }
 
     @Test fun failureAfterPlaybackIsClearedFocusesRetryAndBackExits() {
         compose.runOnIdle { model.clearPlayback() }

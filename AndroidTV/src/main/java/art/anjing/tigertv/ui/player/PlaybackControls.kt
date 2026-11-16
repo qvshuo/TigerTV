@@ -32,21 +32,24 @@ import androidx.tv.material3.Surface
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import art.anjing.tigertv.R
 import art.anjing.tigertv.ui.components.ActionButton
 import art.anjing.tigertv.ui.components.UiMetrics
 import kotlin.math.abs
 
-enum class PlayerFocusArea { Surface, Timeline, Actions, Speed, SpeedButton }
+enum class PlayerFocusArea { Surface, Timeline, Actions, Speed, SpeedButton, Danmaku }
 
 @Composable
 fun PlaybackControls(
     title: String, resource: String, snapshot: PlayerSnapshot, controls: PlaybackControlsState,
     timelineFocus: FocusRequester, playFocus: FocusRequester, speedFocus: FocusRequester,
-    speedOptionFocus: FocusRequester, canPrevious: Boolean, canNext: Boolean,
+    speedOptionFocus: FocusRequester, danmakuFocus: FocusRequester, canPrevious: Boolean, canNext: Boolean,
     onFocus: (PlayerFocusArea) -> Unit, onPrevious: () -> Unit, onNext: () -> Unit,
     onTogglePlayback: () -> Unit, onSpeedMenu: () -> Unit, onSpeed: (Float) -> Unit,
-    onSeekTo: (Long) -> Unit
+    onSeekTo: (Long) -> Unit, danmakuOpen: Boolean, danmakuEnabled: Boolean,
+    onDanmakuMenu: () -> Unit, onDanmakuAction: (Int) -> Unit
 ) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Brush.verticalGradient(
         0f to Color.Black.copy(alpha = 0.55f),
@@ -54,7 +57,9 @@ fun PlaybackControls(
         0.52f to Color.Transparent,
         1f to Color.Black.copy(alpha = 0.8f)
     ))) {
-        val stacked = maxWidth < 640.dp
+        val density = LocalDensity.current
+        var danmakuWidth by remember { mutableStateOf(0.dp) }
+        val stacked = maxWidth < 900.dp
         val actionsHeight = if (stacked) 132.dp else 64.dp
         val speedMenuHeight = (maxHeight - actionsHeight - 112.dp).coerceAtLeast(132.dp)
         Column(Modifier.align(Alignment.TopStart).padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding)) {
@@ -66,8 +71,24 @@ fun PlaybackControls(
         }
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (controls.speedMenuOpen) {
+            if (danmakuOpen) {
+                val first = remember { FocusRequester() }
+                LaunchedEffect(Unit) { art.anjing.tigertv.ui.requestFocusSafely(first) }
                 Surface(modifier = Modifier.align(Alignment.End).padding(end = 16.dp).width(152.dp).heightIn(max = speedMenuHeight),
+                    shape = MaterialTheme.shapes.extraLarge, tonalElevation = 3.dp) {
+                    Column(Modifier.verticalScroll(rememberScrollState()).padding(12.dp).focusGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf("弹幕设置", "提前一秒", "延后一秒", if (danmakuEnabled) "关闭弹幕" else "开启弹幕").forEachIndexed { index, label ->
+                            ListItem(selected = false, onClick = { onDanmakuAction(index) },
+                                shape = ListItemDefaults.shape(shape = MaterialTheme.shapes.large), headlineContent = { Text(label) },
+                                modifier = Modifier.fillMaxWidth().testTag("danmaku-action-$index")
+                                    .then(if (index == 3) Modifier.focusRequester(first) else Modifier)
+                                    .focusProperties { left = FocusRequester.Cancel; right = FocusRequester.Cancel; if (index == 0) up = FocusRequester.Cancel; if (index == 3) down = danmakuFocus })
+                        }
+                    }
+                }
+            }
+            if (controls.speedMenuOpen) {
+                Surface(modifier = Modifier.align(Alignment.End).padding(end = 16.dp + danmakuWidth + 12.dp).width(152.dp).heightIn(max = speedMenuHeight),
                     shape = MaterialTheme.shapes.extraLarge, tonalElevation = 3.dp) {
                     val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
                     val focusedSpeed = speeds.minBy { abs(it - snapshot.speed) }
@@ -93,7 +114,8 @@ fun PlaybackControls(
                         }
                     }
                 }
-            } else {
+            }
+            if (!controls.speedMenuOpen && !danmakuOpen) {
                 val position = controls.seek?.targetMillis ?: snapshot.positionMillis
                 Box(Modifier.fillMaxWidth()) {
                     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 32.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -107,7 +129,7 @@ fun PlaybackControls(
                         Text(if (snapshot.durationMillis > 0) formatPlaybackTime(snapshot.durationMillis) else "时长未知",
                             color = Color.White.copy(alpha = 0.65f), style = timeStyle)
                     }
-                    PlaybackTimeline(snapshot, position, timelineFocus, playFocus, onFocus, onSeekTo, Modifier.matchParentSize())
+                    PlaybackTimeline(snapshot, position, timelineFocus, playFocus, danmakuFocus, onFocus, onSeekTo, Modifier.matchParentSize())
                 }
                 if (!snapshot.seekable) {
                     Text(if (!snapshot.ready && snapshot.durationMillis == 0L) "正在获取时长…" else "当前视频不支持快进快退",
@@ -147,13 +169,22 @@ fun PlaybackControls(
                         Icon(painterResource(R.drawable.player_skip_next), contentDescription = "下一集", modifier = Modifier.size(24.dp))
                     }
                 }
+                Row(Modifier.align(if (stacked) Alignment.BottomEnd else Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ActionButton(onClick = onSpeedMenu,
-                    modifier = Modifier.testTag("player-speed").align(if (stacked) Alignment.BottomEnd else Alignment.CenterEnd).focusRequester(speedFocus).then(actionModifier).semantics { contentDescription = "倍速 ${snapshot.speed}×" }.focusProperties {
-                        left = if (canNext) nextFocus else playFocus; right = FocusRequester.Cancel
+                    modifier = Modifier.testTag("player-speed").focusRequester(speedFocus).then(actionModifier).semantics { contentDescription = "倍速 ${snapshot.speed}×" }.focusProperties {
+                        left = if (canNext) nextFocus else playFocus; right = danmakuFocus
                     }, contentPadding = PaddingValues(horizontal = 20.dp)) {
                     Icon(painterResource(R.drawable.player_speed), contentDescription = null, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("倍速", style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                }
+                ActionButton(onClick = onDanmakuMenu, modifier = Modifier.testTag("player-danmaku").semantics { contentDescription = if (danmakuEnabled) "弹幕已开启" else "弹幕已关闭" }.onSizeChanged { danmakuWidth = with(density) { it.width.toDp() } }.focusRequester(danmakuFocus)
+                    .focusProperties { left = speedFocus; right = FocusRequester.Cancel; up = timelineFocus; down = FocusRequester.Cancel }
+                    .onFocusChanged { if (it.isFocused) onFocus(PlayerFocusArea.Danmaku) }, contentPadding = PaddingValues(horizontal = 20.dp)) {
+                    Icon(painterResource(if (danmakuEnabled) R.drawable.player_danmaku else R.drawable.player_danmaku_off), contentDescription = null, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("弹幕", style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                }
                 }
             }
         }
@@ -162,7 +193,7 @@ fun PlaybackControls(
 
 @Composable
 private fun PlaybackTimeline(
-    snapshot: PlayerSnapshot, position: Long, timelineFocus: FocusRequester, playFocus: FocusRequester,
+    snapshot: PlayerSnapshot, position: Long, timelineFocus: FocusRequester, playFocus: FocusRequester, danmakuFocus: FocusRequester,
     onFocus: (PlayerFocusArea) -> Unit, onSeekTo: (Long) -> Unit, modifier: Modifier = Modifier
 ) {
     var focused by remember { mutableStateOf(false) }

@@ -7,6 +7,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.TransferListener
+import art.anjing.tigertv.core.supportsHlsAdFiltering
 import art.anjing.tigertv.core.MediaTimeline
 import art.anjing.tigertv.core.HlsFilterResult
 import art.anjing.tigertv.core.filterBaofengAds
@@ -17,7 +18,7 @@ import art.anjing.tigertv.core.singleHlsVariant
 import java.io.ByteArrayOutputStream
 
 internal fun mayFilterHls(site: String, uri: Uri): Boolean =
-    site in setOf("🎬暴风资源", "🎬-爱奇艺-", "🎬360 资源", "🎬魔都资源", "🎬魔都动漫") && uri.path?.endsWith(".m3u8", ignoreCase = true) == true
+    supportsHlsAdFiltering(site) && uri.path?.endsWith(".m3u8", ignoreCase = true) == true
 
 /** Bound to one media item. A new playback session gets a new instance. */
 internal class HlsPlaybackSession(val uri: Uri, val site: String) {
@@ -102,6 +103,6 @@ private fun filterKnownSource(site: String, playlist: String): HlsFilterResult? 
     "🎬暴风资源" -> filterBaofengAds(site, playlist)
     "🎬-爱奇艺-" -> filterIqiyiAds(site, playlist)
     "🎬360 资源" -> filterThreeSixtyAds(site, playlist)
-    "🎬魔都资源", "🎬魔都动漫" -> filterModuAds(site, playlist)
+    "🎬魔都资源" -> filterModuAds(site, playlist)
     else -> null
 }
