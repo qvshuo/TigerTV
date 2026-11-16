@@ -1,0 +1,1078 @@
+[
+  {
+    "site": "🎬-爱奇艺-",
+    "api_search_ok": 3,
+    "api_attempts": 3,
+    "search_median_s": 1.38,
+    "detail_median_s": 1.062,
+    "hls_responses": 6,
+    "line_requests": 6,
+    "hls_fetch_median_s": 1.378,
+    "partial_sample_median_KiB_s": 145.728,
+    "quality_sample": {
+      "index": 0,
+      "review_exit": 0,
+      "start": 0.0,
+      "duration": 4.8,
+      "download_bytes": 775387,
+      "seconds": 2.072,
+      "method": "NONE",
+      "streams": [
+        {
+          "codec_type": "video",
+          "codec_name": "h264",
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "25/1"
+        },
+        {
+          "codec_type": "audio",
+          "codec_name": "aac",
+          "r_frame_rate": "0/0",
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "source_index": 0
+    },
+    "captures": [
+      {
+        "capture": "4c78e73d-0-0",
+        "original_segments": 608,
+        "kept_segments": 603,
+        "removed_segments": 5,
+        "removed_intervals": [
+          {
+            "start_ms": 1473600,
+            "end_ms": 1491167
+          }
+        ],
+        "removed_ms": 17567
+      },
+      {
+        "capture": "4c78e73d-0-1",
+        "original_segments": 627,
+        "kept_segments": 622,
+        "removed_segments": 5,
+        "removed_intervals": [
+          {
+            "start_ms": 1771200,
+            "end_ms": 1788767
+          }
+        ],
+        "removed_ms": 17567
+      },
+      {
+        "capture": "ce796aff-0-0",
+        "original_segments": 603,
+        "kept_segments": 598,
+        "removed_segments": 5,
+        "removed_intervals": [
+          {
+            "start_ms": 1161600,
+            "end_ms": 1179167
+          }
+        ],
+        "removed_ms": 17567
+      },
+      {
+        "capture": "ce796aff-0-1",
+        "original_segments": 591,
+        "kept_segments": 586,
+        "removed_segments": 5,
+        "removed_intervals": [
+          {
+            "start_ms": 1584000,
+            "end_ms": 1601567
+          }
+        ],
+        "removed_ms": 17567
+      },
+      {
+        "capture": "d26cefb9-0-0",
+        "original_segments": 544,
+        "kept_segments": 539,
+        "removed_segments": 5,
+        "removed_intervals": [
+          {
+            "start_ms": 758400,
+            "end_ms": 775967
+          }
+        ],
+        "removed_ms": 17567
+      },
+      {
+        "capture": "d26cefb9-0-1",
+        "original_segments": 559,
+        "kept_segments": 554,
+        "removed_segments": 5,
+        "removed_intervals": [
+          {
+            "start_ms": 1032000,
+            "end_ms": 1049567
+          }
+        ],
+        "removed_ms": 17567
+      }
+    ],
+    "removed_groups": 6,
+    "removed_ms": 105402
+  },
+  {
+    "site": "🎬魔都资源",
+    "api_search_ok": 4,
+    "api_attempts": 6,
+    "search_median_s": 4.31,
+    "detail_median_s": 5.056,
+    "hls_responses": 8,
+    "line_requests": 8,
+    "hls_fetch_median_s": 2.013,
+    "partial_sample_median_KiB_s": 174.571,
+    "quality_sample": {
+      "index": 0,
+      "review_exit": 0,
+      "start": 0.0,
+      "duration": 3.0,
+      "download_bytes": 507224,
+      "seconds": 1.822,
+      "method": "NONE",
+      "streams": [
+        {
+          "codec_type": "video",
+          "codec_name": "h264",
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "25/1"
+        },
+        {
+          "codec_type": "audio",
+          "codec_name": "aac",
+          "r_frame_rate": "0/0",
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "source_index": 10
+    },
+    "captures": [
+      {
+        "capture": "4c78e73d-0-0",
+        "original_segments": 981,
+        "kept_segments": 963,
+        "removed_segments": 18,
+        "removed_intervals": [
+          {
+            "start_ms": 352360,
+            "end_ms": 370000
+          },
+          {
+            "start_ms": 1432000,
+            "end_ms": 1449640
+          },
+          {
+            "start_ms": 2925400,
+            "end_ms": 2943040
+          }
+        ],
+        "removed_ms": 52920
+      },
+      {
+        "capture": "4c78e73d-0-1",
+        "original_segments": 1013,
+        "kept_segments": 995,
+        "removed_segments": 18,
+        "removed_intervals": [
+          {
+            "start_ms": 65160,
+            "end_ms": 82800
+          },
+          {
+            "start_ms": 1901920,
+            "end_ms": 1919560
+          },
+          {
+            "start_ms": 3020160,
+            "end_ms": 3037800
+          }
+        ],
+        "removed_ms": 52920
+      },
+      {
+        "capture": "ce796aff-0-0",
+        "original_segments": 1479,
+        "kept_segments": 1434,
+        "removed_segments": 45,
+        "removed_intervals": [
+          {
+            "start_ms": 175760,
+            "end_ms": 193328
+          },
+          {
+            "start_ms": 866448,
+            "end_ms": 884016
+          },
+          {
+            "start_ms": 1683736,
+            "end_ms": 1701304
+          },
+          {
+            "start_ms": 2502344,
+            "end_ms": 2519912
+          },
+          {
+            "start_ms": 2938392,
+            "end_ms": 2955960
+          }
+        ],
+        "removed_ms": 87840
+      },
+      {
+        "capture": "ce796aff-0-1",
+        "original_segments": 1451,
+        "kept_segments": 1406,
+        "removed_segments": 45,
+        "removed_intervals": [
+          {
+            "start_ms": 175760,
+            "end_ms": 193328
+          },
+          {
+            "start_ms": 867248,
+            "end_ms": 884816
+          },
+          {
+            "start_ms": 1683616,
+            "end_ms": 1701184
+          },
+          {
+            "start_ms": 2501504,
+            "end_ms": 2519072
+          },
+          {
+            "start_ms": 2882752,
+            "end_ms": 2900320
+          }
+        ],
+        "removed_ms": 87840
+      },
+      {
+        "capture": "d26cefb9-0-0",
+        "original_segments": 746,
+        "kept_segments": 719,
+        "removed_segments": 27,
+        "removed_intervals": [
+          {
+            "start_ms": 313200,
+            "end_ms": 330768
+          },
+          {
+            "start_ms": 1543968,
+            "end_ms": 1561536
+          },
+          {
+            "start_ms": 2621096,
+            "end_ms": 2638664
+          }
+        ],
+        "removed_ms": 52704
+      },
+      {
+        "capture": "d26cefb9-0-1",
+        "original_segments": 765,
+        "kept_segments": 738,
+        "removed_segments": 27,
+        "removed_intervals": [
+          {
+            "start_ms": 313200,
+            "end_ms": 330768
+          },
+          {
+            "start_ms": 1543968,
+            "end_ms": 1561536
+          },
+          {
+            "start_ms": 2691376,
+            "end_ms": 2708944
+          }
+        ],
+        "removed_ms": 52704
+      }
+    ],
+    "removed_groups": 22,
+    "removed_ms": 386928
+  },
+  {
+    "site": "🎬暴风资源",
+    "api_search_ok": 3,
+    "api_attempts": 3,
+    "search_median_s": 5.942,
+    "detail_median_s": 1.486,
+    "hls_responses": 6,
+    "line_requests": 6,
+    "hls_fetch_median_s": 1.163,
+    "partial_sample_median_KiB_s": 148.931,
+    "quality_sample": {
+      "index": 0,
+      "review_exit": 0,
+      "start": 0.0,
+      "duration": 3.0,
+      "download_bytes": 699548,
+      "seconds": 3.795,
+      "method": "NONE",
+      "streams": [
+        {
+          "codec_type": "video",
+          "codec_name": "h264",
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "25/1"
+        },
+        {
+          "codec_type": "audio",
+          "codec_name": "aac",
+          "r_frame_rate": "0/0",
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "source_index": 12
+    },
+    "captures": [
+      {
+        "capture": "4c78e73d-0-0",
+        "original_segments": 981,
+        "kept_segments": 963,
+        "removed_segments": 18,
+        "removed_intervals": [
+          {
+            "start_ms": 300880,
+            "end_ms": 326640
+          },
+          {
+            "start_ms": 2428640,
+            "end_ms": 2454400
+          }
+        ],
+        "removed_ms": 51520
+      },
+      {
+        "capture": "4c78e73d-0-1",
+        "original_segments": 1090,
+        "kept_segments": 1072,
+        "removed_segments": 18,
+        "removed_intervals": [
+          {
+            "start_ms": 302200,
+            "end_ms": 327960
+          },
+          {
+            "start_ms": 2427280,
+            "end_ms": 2453040
+          }
+        ],
+        "removed_ms": 51520
+      },
+      {
+        "capture": "ce796aff-0-0",
+        "original_segments": 2859,
+        "kept_segments": 2841,
+        "removed_segments": 18,
+        "removed_intervals": [
+          {
+            "start_ms": 300840,
+            "end_ms": 326600
+          },
+          {
+            "start_ms": 2425840,
+            "end_ms": 2451600
+          }
+        ],
+        "removed_ms": 51520
+      },
+      {
+        "capture": "ce796aff-0-1",
+        "original_segments": 2809,
+        "kept_segments": 2791,
+        "removed_segments": 18,
+        "removed_intervals": [
+          {
+            "start_ms": 300400,
+            "end_ms": 326160
+          },
+          {
+            "start_ms": 2426200,
+            "end_ms": 2451960
+          }
+        ],
+        "removed_ms": 51520
+      },
+      {
+        "capture": "d26cefb9-0-0",
+        "original_segments": 2604,
+        "kept_segments": 2586,
+        "removed_segments": 18,
+        "removed_intervals": [
+          {
+            "start_ms": 300320,
+            "end_ms": 326080
+          },
+          {
+            "start_ms": 2426360,
+            "end_ms": 2452120
+          }
+        ],
+        "removed_ms": 51520
+      },
+      {
+        "capture": "d26cefb9-0-1",
+        "original_segments": 2674,
+        "kept_segments": 2656,
+        "removed_segments": 18,
+        "removed_intervals": [
+          {
+            "start_ms": 300240,
+            "end_ms": 326000
+          },
+          {
+            "start_ms": 2426400,
+            "end_ms": 2452160
+          }
+        ],
+        "removed_ms": 51520
+      }
+    ],
+    "removed_groups": 12,
+    "removed_ms": 309120
+  },
+  {
+    "site": "🎬新浪资源",
+    "api_search_ok": 4,
+    "api_attempts": 6,
+    "search_median_s": 3.294,
+    "detail_median_s": 2.362,
+    "hls_responses": 8,
+    "line_requests": 16,
+    "hls_fetch_median_s": 1.235,
+    "partial_sample_median_KiB_s": 143.834,
+    "quality_sample": {
+      "index": 0,
+      "review_exit": 0,
+      "start": 0.0,
+      "duration": 10.416667,
+      "download_bytes": 1454192,
+      "seconds": 2.546,
+      "method": "AES-128",
+      "streams": [
+        {
+          "codec_type": "video",
+          "codec_name": "h264",
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "24/1"
+        },
+        {
+          "codec_type": "audio",
+          "codec_name": "aac",
+          "r_frame_rate": "0/0",
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "source_index": 15
+    },
+    "captures": [
+      {
+        "capture": "4c78e73d-1-0",
+        "original_segments": 690,
+        "kept_segments": 690,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      },
+      {
+        "capture": "4c78e73d-1-1",
+        "original_segments": 653,
+        "kept_segments": 653,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      },
+      {
+        "capture": "ce796aff-1-0",
+        "original_segments": 701,
+        "kept_segments": 701,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      },
+      {
+        "capture": "ce796aff-1-1",
+        "original_segments": 670,
+        "kept_segments": 670,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      },
+      {
+        "capture": "d26cefb9-1-0",
+        "original_segments": 536,
+        "kept_segments": 536,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      },
+      {
+        "capture": "d26cefb9-1-1",
+        "original_segments": 546,
+        "kept_segments": 546,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      }
+    ],
+    "removed_groups": 0,
+    "removed_ms": 0
+  },
+  {
+    "site": "🎬红牛资源",
+    "api_search_ok": 3,
+    "api_attempts": 3,
+    "search_median_s": 0.971,
+    "detail_median_s": 0.79,
+    "hls_responses": 6,
+    "line_requests": 12,
+    "hls_fetch_median_s": 0.142,
+    "partial_sample_median_KiB_s": 149.381,
+    "quality_sample": {
+      "index": 0,
+      "review_exit": 0,
+      "start": 0.0,
+      "duration": 10.416667,
+      "download_bytes": 1454192,
+      "seconds": 1.956,
+      "method": "AES-128",
+      "streams": [
+        {
+          "codec_type": "video",
+          "codec_name": "h264",
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "24/1"
+        },
+        {
+          "codec_type": "audio",
+          "codec_name": "aac",
+          "r_frame_rate": "0/0",
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "source_index": 22
+    },
+    "captures": [
+      {
+        "capture": "4c78e73d-1-0",
+        "original_segments": 690,
+        "kept_segments": 690,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      },
+      {
+        "capture": "4c78e73d-1-1",
+        "original_segments": 653,
+        "kept_segments": 653,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      },
+      {
+        "capture": "ce796aff-1-0",
+        "original_segments": 701,
+        "kept_segments": 701,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      },
+      {
+        "capture": "ce796aff-1-1",
+        "original_segments": 670,
+        "kept_segments": 670,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      },
+      {
+        "capture": "d26cefb9-1-0",
+        "original_segments": 536,
+        "kept_segments": 536,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      },
+      {
+        "capture": "d26cefb9-1-1",
+        "original_segments": 546,
+        "kept_segments": 546,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      }
+    ],
+    "removed_groups": 0,
+    "removed_ms": 0
+  },
+  {
+    "site": "🎬魔都动漫",
+    "api_search_ok": 3,
+    "api_attempts": 3,
+    "search_median_s": 4.1,
+    "detail_median_s": 3.839,
+    "hls_responses": 6,
+    "line_requests": 6,
+    "hls_fetch_median_s": 1.867,
+    "partial_sample_median_KiB_s": 178.027,
+    "quality_sample": {
+      "index": 0,
+      "review_exit": 0,
+      "start": 0.0,
+      "duration": 3.0,
+      "download_bytes": 507224,
+      "seconds": 1.559,
+      "method": "NONE",
+      "streams": [
+        {
+          "codec_type": "video",
+          "codec_name": "h264",
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "25/1"
+        },
+        {
+          "codec_type": "audio",
+          "codec_name": "aac",
+          "r_frame_rate": "0/0",
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "source_index": 23
+    },
+    "captures": [
+      {
+        "capture": "4c78e73d-0-0",
+        "original_segments": 981,
+        "kept_segments": 963,
+        "removed_segments": 18,
+        "removed_intervals": [
+          {
+            "start_ms": 352360,
+            "end_ms": 370000
+          },
+          {
+            "start_ms": 1432000,
+            "end_ms": 1449640
+          },
+          {
+            "start_ms": 2925400,
+            "end_ms": 2943040
+          }
+        ],
+        "removed_ms": 52920
+      },
+      {
+        "capture": "4c78e73d-0-1",
+        "original_segments": 1013,
+        "kept_segments": 995,
+        "removed_segments": 18,
+        "removed_intervals": [
+          {
+            "start_ms": 65160,
+            "end_ms": 82800
+          },
+          {
+            "start_ms": 1901920,
+            "end_ms": 1919560
+          },
+          {
+            "start_ms": 3020160,
+            "end_ms": 3037800
+          }
+        ],
+        "removed_ms": 52920
+      },
+      {
+        "capture": "ce796aff-0-0",
+        "original_segments": 1479,
+        "kept_segments": 1434,
+        "removed_segments": 45,
+        "removed_intervals": [
+          {
+            "start_ms": 175760,
+            "end_ms": 193328
+          },
+          {
+            "start_ms": 866448,
+            "end_ms": 884016
+          },
+          {
+            "start_ms": 1683736,
+            "end_ms": 1701304
+          },
+          {
+            "start_ms": 2502344,
+            "end_ms": 2519912
+          },
+          {
+            "start_ms": 2938392,
+            "end_ms": 2955960
+          }
+        ],
+        "removed_ms": 87840
+      },
+      {
+        "capture": "ce796aff-0-1",
+        "original_segments": 1451,
+        "kept_segments": 1406,
+        "removed_segments": 45,
+        "removed_intervals": [
+          {
+            "start_ms": 175760,
+            "end_ms": 193328
+          },
+          {
+            "start_ms": 867248,
+            "end_ms": 884816
+          },
+          {
+            "start_ms": 1683616,
+            "end_ms": 1701184
+          },
+          {
+            "start_ms": 2501504,
+            "end_ms": 2519072
+          },
+          {
+            "start_ms": 2882752,
+            "end_ms": 2900320
+          }
+        ],
+        "removed_ms": 87840
+      },
+      {
+        "capture": "d26cefb9-0-0",
+        "original_segments": 746,
+        "kept_segments": 719,
+        "removed_segments": 27,
+        "removed_intervals": [
+          {
+            "start_ms": 313200,
+            "end_ms": 330768
+          },
+          {
+            "start_ms": 1543968,
+            "end_ms": 1561536
+          },
+          {
+            "start_ms": 2621096,
+            "end_ms": 2638664
+          }
+        ],
+        "removed_ms": 52704
+      },
+      {
+        "capture": "d26cefb9-0-1",
+        "original_segments": 765,
+        "kept_segments": 738,
+        "removed_segments": 27,
+        "removed_intervals": [
+          {
+            "start_ms": 313200,
+            "end_ms": 330768
+          },
+          {
+            "start_ms": 1543968,
+            "end_ms": 1561536
+          },
+          {
+            "start_ms": 2691376,
+            "end_ms": 2708944
+          }
+        ],
+        "removed_ms": 52704
+      }
+    ],
+    "removed_groups": 22,
+    "removed_ms": 386928
+  },
+  {
+    "site": "🎬如意资源",
+    "api_search_ok": 0,
+    "api_attempts": 6,
+    "search_median_s": 0.633,
+    "detail_median_s": null,
+    "hls_responses": 0,
+    "line_requests": 0,
+    "hls_fetch_median_s": null,
+    "partial_sample_median_KiB_s": null,
+    "quality_sample": null,
+    "captures": [],
+    "removed_groups": 0,
+    "removed_ms": 0
+  },
+  {
+    "site": "🎬猫眼资源",
+    "api_search_ok": 6,
+    "api_attempts": 6,
+    "search_median_s": 0.539,
+    "detail_median_s": 0.424,
+    "hls_responses": 0,
+    "line_requests": 12,
+    "hls_fetch_median_s": null,
+    "partial_sample_median_KiB_s": null,
+    "quality_sample": null,
+    "captures": [],
+    "removed_groups": 0,
+    "removed_ms": 0
+  },
+  {
+    "site": "🎬360 资源",
+    "api_search_ok": 3,
+    "api_attempts": 3,
+    "search_median_s": 1.603,
+    "detail_median_s": 1.133,
+    "hls_responses": 6,
+    "line_requests": 6,
+    "hls_fetch_median_s": 1.796,
+    "partial_sample_median_KiB_s": 175.356,
+    "quality_sample": {
+      "index": 0,
+      "review_exit": 0,
+      "start": 0.0,
+      "duration": 2.0,
+      "download_bytes": 305696,
+      "seconds": 1.763,
+      "method": "AES-128",
+      "streams": [
+        {
+          "codec_type": "video",
+          "codec_name": "h264",
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "25/1"
+        },
+        {
+          "codec_type": "audio",
+          "codec_name": "aac",
+          "r_frame_rate": "0/0",
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "source_index": 8
+    },
+    "captures": [
+      {
+        "capture": "4c78e73d-0-0",
+        "original_segments": 1457,
+        "kept_segments": 1445,
+        "removed_segments": 12,
+        "removed_intervals": [
+          {
+            "start_ms": 851320,
+            "end_ms": 868887
+          },
+          {
+            "start_ms": 1654727,
+            "end_ms": 1672294
+          },
+          {
+            "start_ms": 2925254,
+            "end_ms": 2942821
+          }
+        ],
+        "removed_ms": 52701
+      },
+      {
+        "capture": "4c78e73d-0-1",
+        "original_segments": 1504,
+        "kept_segments": 1492,
+        "removed_segments": 12,
+        "removed_intervals": [
+          {
+            "start_ms": 1369440,
+            "end_ms": 1387007
+          },
+          {
+            "start_ms": 2872607,
+            "end_ms": 2890174
+          },
+          {
+            "start_ms": 3020014,
+            "end_ms": 3037581
+          }
+        ],
+        "removed_ms": 52701
+      },
+      {
+        "capture": "ce796aff-0-0",
+        "original_segments": 1446,
+        "kept_segments": 1434,
+        "removed_segments": 12,
+        "removed_intervals": [
+          {
+            "start_ms": 552480,
+            "end_ms": 570047
+          },
+          {
+            "start_ms": 2179247,
+            "end_ms": 2196814
+          },
+          {
+            "start_ms": 2903294,
+            "end_ms": 2920861
+          }
+        ],
+        "removed_ms": 52701
+      },
+      {
+        "capture": "ce796aff-0-1",
+        "original_segments": 1418,
+        "kept_segments": 1406,
+        "removed_segments": 12,
+        "removed_intervals": [
+          {
+            "start_ms": 819960,
+            "end_ms": 837527
+          },
+          {
+            "start_ms": 2582967,
+            "end_ms": 2600534
+          },
+          {
+            "start_ms": 2847654,
+            "end_ms": 2865221
+          }
+        ],
+        "removed_ms": 52701
+      },
+      {
+        "capture": "d26cefb9-0-0",
+        "original_segments": 1305,
+        "kept_segments": 1293,
+        "removed_segments": 12,
+        "removed_intervals": [
+          {
+            "start_ms": 274240,
+            "end_ms": 291807
+          },
+          {
+            "start_ms": 2346247,
+            "end_ms": 2363814
+          },
+          {
+            "start_ms": 2621094,
+            "end_ms": 2638661
+          }
+        ],
+        "removed_ms": 52701
+      },
+      {
+        "capture": "d26cefb9-0-1",
+        "original_segments": 1340,
+        "kept_segments": 1328,
+        "removed_segments": 12,
+        "removed_intervals": [
+          {
+            "start_ms": 1178280,
+            "end_ms": 1195847
+          },
+          {
+            "start_ms": 1484167,
+            "end_ms": 1501734
+          },
+          {
+            "start_ms": 2691374,
+            "end_ms": 2708941
+          }
+        ],
+        "removed_ms": 52701
+      }
+    ],
+    "removed_groups": 18,
+    "removed_ms": 316206
+  },
+  {
+    "site": "🎬极速资源",
+    "api_search_ok": 3,
+    "api_attempts": 6,
+    "search_median_s": 3.756,
+    "detail_median_s": 4.225,
+    "hls_responses": 6,
+    "line_requests": 12,
+    "hls_fetch_median_s": 1.016,
+    "partial_sample_median_KiB_s": 163.69,
+    "quality_sample": {
+      "index": 0,
+      "review_exit": 0,
+      "start": 0.0,
+      "duration": 6.083333,
+      "download_bytes": 611200,
+      "seconds": 2.151,
+      "method": "AES-128",
+      "streams": [
+        {
+          "codec_type": "video",
+          "codec_name": "h264",
+          "width": 1920,
+          "height": 808,
+          "r_frame_rate": "24/1"
+        },
+        {
+          "codec_type": "audio",
+          "codec_name": "aac",
+          "r_frame_rate": "0/0",
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "source_index": 9
+    },
+    "captures": [
+      {
+        "capture": "ce796aff-1-0",
+        "original_segments": 284,
+        "kept_segments": 284,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      },
+      {
+        "capture": "ce796aff-1-1",
+        "original_segments": 711,
+        "kept_segments": 711,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      },
+      {
+        "capture": "d26cefb9-1-0",
+        "original_segments": 554,
+        "kept_segments": 554,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      },
+      {
+        "capture": "d26cefb9-1-1",
+        "original_segments": 577,
+        "kept_segments": 577,
+        "removed_segments": 0,
+        "removed_intervals": [],
+        "removed_ms": 0
+      }
+    ],
+    "removed_groups": 0,
+    "removed_ms": 0
+  }
+]

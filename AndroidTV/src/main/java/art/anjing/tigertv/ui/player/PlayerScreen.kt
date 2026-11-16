@@ -167,7 +167,7 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
         val session = viewModel.playbackSession
         if (url != null && session != null) {
             val title = listOfNotNull(viewModel.fetchResponse?.vodName, session.episode).joinToString(" · ")
-            controller.load(url, session.positionMillis, title,
+            controller.load(url, session.positionMillis, title, session.site,
                 onStarted = { viewModel.playbackDidStart(session) },
                 onPosition = { viewModel.savePlaybackPosition(session, it) },
                 onError = viewModel::setPlaybackError)
