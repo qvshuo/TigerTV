@@ -17,9 +17,9 @@ class DanmakuProgressiveTest {
             respond(when {
                 p.contains("search") -> """{"success":true,"animes":[{"animeId":2,"animeTitle":"示例","source":"tencent"},{"animeId":1,"animeTitle":"示例","source":"iqiyi"},{"animeId":3,"animeTitle":"示例","source":"360"}]}"""
                 p.contains("bangumi") -> """{"success":true,"bangumi":{"episodes":[{"episodeId":${p.substringAfterLast('/').toInt()*10},"episodeNumber":"1"}]}}"""
-                p.endsWith("20") -> { gate.await(); comments(4_500) }
-                p.endsWith("30") -> comments(5_000)
-                else -> comments(1_500)
+                p.endsWith("20") -> { gate.await(); comments(9) }
+                p.endsWith("30") -> comments(10)
+                else -> comments(3)
             })
         }))
         try {
@@ -35,15 +35,15 @@ class DanmakuProgressiveTest {
         } finally {http.close()}
     }
     @Test fun manualChoiceCancelsPendingReplacementAndOnlyPersistsValidData() = runBlocking {
-        val gate=CompletableDeferred<Unit>();val writes=mutableListOf<Long>()
+        val gate=CompletableDeferred<Unit>();val manualGate=CompletableDeferred<Unit>();val writes=mutableListOf<Long>()
         val http=configureClient(HttpClient(MockEngine { r ->
             val p=r.url.encodedPath
             respond(when {
                 p.contains("search") -> """{"success":true,"animes":[{"animeId":1,"animeTitle":"示例"},{"animeId":2,"animeTitle":"示例"}]}"""
                 p.contains("bangumi") -> """{"success":true,"bangumi":{"episodes":[{"episodeId":${p.substringAfterLast('/').toInt()*10},"episodeNumber":"1"}]}}"""
-                p.endsWith("20") -> { gate.await(); comments(5_000) }
-                p.endsWith("30") -> comments(0)
-                else -> comments(1_500)
+                p.endsWith("20") -> { gate.await(); comments(10) }
+                p.endsWith("30") -> { manualGate.await(); comments(0) }
+                else -> comments(3)
             })
         }))
         try {
@@ -55,8 +55,15 @@ class DanmakuProgressiveTest {
             gate.complete(Unit);delay(50)
             assertEquals(1L,state.selectedTitle?.id);assertEquals(listOf(1L),writes)
             state.select(DanmakuTitle(3,"示例",""))
+            state.toggleEnabled()
+            assertFalse(state.enabled);assertTrue(state.busy)
+            manualGate.complete(Unit)
             withTimeout(5_000){while(state.busy)delay(10)}
             assertEquals(listOf(1L),writes)
+            assertFalse(state.hasComments)
+            state.select(state.titles.first{it.id==1L})
+            withTimeout(5_000){while(state.busy)delay(10)}
+            assertFalse(state.enabled);assertTrue(state.hasComments)
             state.close()
         } finally {http.close()}
     }
@@ -68,7 +75,7 @@ class DanmakuProgressiveTest {
             else respond(when {
                 p.contains("search") -> """{"success":true,"animes":[{"animeId":1,"animeTitle":"示例"},{"animeId":2,"animeTitle":"示例"},{"animeId":3,"animeTitle":"示例"}]}"""
                 p.contains("bangumi") -> """{"success":true,"bangumi":{"episodes":[{"episodeId":10,"episodeNumber":"1"}]}}"""
-                else -> comments(1_500)
+                else -> comments(3)
             })
         }))
         try {
@@ -97,4 +104,63 @@ class DanmakuProgressiveTest {
             assertEquals(5L,state.selectedTitle?.id);state.close()
         } finally {http.close()}
     }
+    @Test fun closingStopsComparisonButKeepsTrackForReopening() = runBlocking {
+        val secondStarted=CompletableDeferred<Unit>();val cancelled=CompletableDeferred<Unit>()
+        val never=CompletableDeferred<Unit>();val calls=mutableListOf<String>()
+        val http=configureClient(HttpClient(MockEngine { r ->
+            val path=r.url.encodedPath;calls+=path
+            respond(when {
+                path.contains("search") -> """{"success":true,"animes":[{"animeId":1,"animeTitle":"示例"},{"animeId":2,"animeTitle":"示例"},{"animeId":3,"animeTitle":"示例"}]}"""
+                path.contains("bangumi") -> """{"success":true,"bangumi":{"episodes":[{"episodeId":${path.substringAfterLast('/').toInt()*10},"episodeNumber":"1"}]}}"""
+                path.endsWith("20") -> { secondStarted.complete(Unit);try { never.await();comments(8) } finally { cancelled.complete(Unit) } }
+                else -> comments(3)
+            })
+        }))
+        try {
+            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,1)
+            state.configure("https://example.test");state.search("示例")
+            withTimeout(5_000){secondStarted.await()}
+            val loaded=state.track;assertNotNull(loaded)
+            state.toggleEnabled()
+            withTimeout(5_000){cancelled.await()}
+            assertFalse(state.enabled);assertFalse(state.busy)
+            assertSame(loaded,state.track);assertEquals(1L,state.selectedTitle?.id)
+            assertFalse(calls.any{it.endsWith("bangumi/3")})
+            val before=calls.size
+            state.toggleEnabled();delay(50)
+            assertTrue(state.enabled);assertSame(loaded,state.track);assertEquals(before,calls.size)
+            state.close()
+        } finally {http.close()}
+    }
+    @Test fun closingBeforeFirstResultAllowsFreshMatchingOnReopen() = runBlocking {
+        val started=CompletableDeferred<Unit>();val cancelled=CompletableDeferred<Unit>()
+        val never=CompletableDeferred<Unit>();var searches=0
+        val http=configureClient(HttpClient(MockEngine { r ->
+            val path=r.url.encodedPath
+            respond(when {
+                path.contains("search") -> {
+                    searches++
+                    if(searches==1){started.complete(Unit);try{never.await()}finally{cancelled.complete(Unit)}}
+                    """{"success":true,"animes":[{"animeId":1,"animeTitle":"示例"}]}"""
+                }
+                path.contains("bangumi") -> """{"success":true,"bangumi":{"episodes":[{"episodeId":10,"episodeNumber":"1"}]}}"""
+                else -> comments(1)
+            })
+        }))
+        try {
+            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,1)
+            state.configure("https://example.test");state.search("示例")
+            withTimeout(5_000){started.await()}
+            state.toggleEnabled()
+            withTimeout(5_000){cancelled.await()}
+            assertNull(state.track);assertFalse(state.busy)
+            state.toggleEnabled()
+            // PlayerScreen starts matching when enabled with no loaded track.
+            state.search("示例")
+            withTimeout(5_000){while(state.busy)delay(10)}
+            assertEquals(2,searches);assertEquals(1L,state.selectedTitle?.id);assertNotNull(state.track)
+            state.close()
+        } finally {http.close()}
+    }
+
 }

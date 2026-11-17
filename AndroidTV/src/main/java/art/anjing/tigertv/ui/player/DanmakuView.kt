@@ -1,11 +1,5 @@
 package art.anjing.tigertv.ui.player
 
-import android.app.Activity
-import android.content.ContextWrapper
-import android.os.Handler
-import android.os.Looper
-import android.view.Window
-import android.view.FrameMetrics
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -29,32 +23,6 @@ internal class DanmakuView(context: Context) : View(context) {
     private val lastInLane = arrayOfNulls<Item>(4)
     private val wake = Runnable { invalidate() }
     internal var drawCount = 0L; private set
-    internal var admittedCount = 0L; private set
-    internal var skippedCount = 0L; private set
-    internal var laneCount = 0; private set
-    internal var estimatedCapacityPerMinute = 0f; private set
-    private var meanWidth = 0f
-    private var measuredCount = 0L
-    private var frameCostMs = 16.7f
-    private var lateFrames = 0
-    internal var paced = false; private set
-    private var observedWindow: Window? = null
-    private val frameMetrics = Window.OnFrameMetricsAvailableListener { _, metrics, _ ->
-        if (player?.isPlaying == true && drawnCount > 0 && !paced) {
-            val duration = metrics.getMetric(FrameMetrics.TOTAL_DURATION) / 1_000_000f
-            frameCostMs += (duration - frameCostMs) * 0.2f
-            lateFrames = if (frameCostMs > 22f) lateFrames + 1 else 0
-            if (lateFrames >= 3) { paced = true; android.util.Log.d("TigerTVDanmaku", "render pacing=yield_refresh") }
-        }
-    }
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        var owner = context
-        while (owner is ContextWrapper && owner !is Activity) owner = owner.baseContext
-        observedWindow = (owner as? Activity)?.window
-        observedWindow?.addOnFrameMetricsAvailableListener(frameMetrics, Handler(Looper.getMainLooper()))
-    }
-
     private val active = mutableListOf<Item>()
     private var comments: List<DanmakuComment> = emptyList()
     private var track: DanmakuTrack? = null
@@ -92,7 +60,6 @@ internal class DanmakuView(context: Context) : View(context) {
     private fun reset() {
         active.clear(); lastInLane.fill(null); drawnCount = 0
         lastTime = Long.MIN_VALUE; cursor = 0; removeCallbacks(wake)
-        frameCostMs = 16.7f; lateFrames = 0; paced = false
     }
     private fun lowerBound(time: Long): Int {
         var lo = 0; var hi = comments.size
@@ -120,12 +87,11 @@ internal class DanmakuView(context: Context) : View(context) {
         val top = (height - contentHeight) / 2
         val laneHeight = paint.textSize * 1.5f
         val lanes = (contentHeight * 0.25f / laneHeight).toInt().coerceIn(1, 4)
-        laneCount = lanes
         val gap = paint.textSize
         active.removeAll { now - it.comment.timeMs >= LIFETIME }
         while (cursor < comments.size && comments[cursor].timeMs <= now) {
             val comment = comments[cursor++]
-            if (active.size >= 12) { skippedCount++; continue }
+            if (active.size >= 12) continue
             val text = comment.text.take(100)
             val textWidth = widths.get(text) ?: paint.measureText(text).also { widths.put(text, it) }
             val lane = (0 until lanes).firstOrNull { lane ->
@@ -138,12 +104,10 @@ internal class DanmakuView(context: Context) : View(context) {
                     previousRight < contentWidth - gap && newLeftAtPreviousEnd >= gap
                 }
             }
-            if (lane == null) { skippedCount++; continue }
+            if (lane == null) continue
             val item = Item(comment, text, textWidth, lane)
-            active.add(item); lastInLane[lane] = item; admittedCount++
-            measuredCount++; meanWidth += (textWidth - meanWidth) / measuredCount
+            active.add(item); lastInLane[lane] = item
         }
-        estimatedCapacityPerMinute = if (meanWidth > 0) lanes * 60f * (contentWidth + meanWidth) / (LIFETIME / 1000f * (meanWidth + gap)) else 0f
         drawnCount = active.size
         val checkpoint = canvas.save()
         canvas.clipRect(left, top, left + contentWidth, top + contentHeight * 0.25f)
@@ -157,21 +121,15 @@ internal class DanmakuView(context: Context) : View(context) {
         }
         canvas.restoreToCount(checkpoint)
         lastTime = now
-        if (!media.isPlaying || active.isEmpty()) {
-            frameCostMs = 16.7f; lateFrames = 0; paced = false
-        }
         if (media.isPlaying && visibility == VISIBLE) {
-            if (active.isNotEmpty()) {
-                // Back off to roughly 30 Hz when sustained frame delivery exceeds the budget.
-                if (paced) postOnAnimationDelayed(wake, 32) else postInvalidateOnAnimation()
-            }
+            if (active.isNotEmpty()) postInvalidateOnAnimation()
             else if (cursor < comments.size) {
                 val delay = ((comments[cursor].timeMs - now).coerceAtLeast(1) / media.playbackParameters.speed).toLong().coerceAtLeast(1)
                 postDelayed(wake, delay)
             }
         }
     }
-    fun release() { observedWindow?.removeOnFrameMetricsAvailableListener(frameMetrics); observedWindow = null; removeCallbacks(wake); player?.removeListener(listener); player = null; active.clear(); lastInLane.fill(null); comments = emptyList(); track = null; widths.evictAll() }
+    fun release() { removeCallbacks(wake); player?.removeListener(listener); player = null; active.clear(); lastInLane.fill(null); comments = emptyList(); track = null; widths.evictAll() }
     override fun onDetachedFromWindow() { release(); super.onDetachedFromWindow() }
     private companion object { const val LIFETIME = 8_000L }
 }

@@ -1,35 +1,11 @@
-# 开发弹幕服务
+# danmu_api 接口
 
-当前状态：此前由代理部署的测试容器和镜像已清理；用户随后手动重新部署了服务，鉴权、搜索、选集及真实弹幕接口已通过复测。实际地址和凭据在应用中配置，不写入仓库。下文旧容器信息是历史部署记录。
+复用 [huangxd-/danmu_api](https://github.com/huangxd-/danmu_api)，服务由用户配置和维护，不内置私有Token或部署信息。Android使用说明见 [弹幕开发说明](android-danmaku.md)。
 
-用户授权的开发机：通过环境配置指定。容器 `tigertv-danmu-api`，仅绑定开发机 LAN 地址 指定的 LAN 地址及端口 `9321`，使用 `unless-stopped` 重启策略，不挂载 Docker socket。该部署供局域网开发使用。
+- `GET /api/v2/search/anime?keyword=...`：作品和弹幕来源；source不是影视首播平台。
+- `GET /api/v2/bangumi/{animeId}`：按seasonId和episodeNumber读取对应剧集；animeId与episodeId不可混用或跨服务实例复用。
+- `GET /api/v2/comment/{episodeId}?format=json&duration=true`：保留地址中的Token路径。videoDuration单位为秒，评论p包含秒时间、模式和颜色；客户端只绘制mode 1。
 
-接口基址：通过 `TIGERTV_DANMU_URL` 指定。当前采用上游默认开发 TOKEN，接口可直接使用无前缀路径；未配置为公开互联网服务。
+服务端已应用的偏移、去重和过滤不在客户端重复执行。DANMU_LIMIT以千条为单位对完整结果采样，0表示不限量；它不是轨道密度控制，来源调查时不启用全量限制。
 
-上游：`https://github.com/huangxd-/danmu_api`。部署镜像 `logvar/danmu-api:latest`，本次拉取摘要：`sha256:4c93a0d8146ada6d17e47790aadacb6eabebe3f2ee8b2872fbc4df80c848dbb4`。
-
-已验证：搜索《嫁金钗》返回优酷和 360 结果；优酷条目返回 30 集，第 1 集 episodeId 为 10032。这些标识来自运行中的接口，不应硬编码为客户端匹配规则。
-
-主要接口：
-
-- `GET /api/v2/search/anime?keyword=...`
-- `GET /api/v2/bangumi/{animeId}`
-- `GET /api/v2/comment/{episodeId}?format=json&duration=true`
-
-容器管理：`ssh "$TIGERTV_DEV_HOST" docker logs --tail 100 tigertv-danmu-api`。不要把服务日志中的上游视频 URL 或签名参数直接提交到仓库。
-
-实际弹幕验证：`GET /api/v2/comment/10032?format=json&duration=true` 返回 18,905 条弹幕及 2888.2 秒参考视频时长。共享 `DanmakuClient` 的可选真实接口测试也返回 2 个作品结果、30 集、18,905 条弹幕、2,888,200 毫秒参考时长。客户端不自动将该时长与资源站的去广告时长等同。
-
-复现 Kotlin 实网验证：
-
-```bash
-TIGERTV_DANMU_URL="http://<开发机地址>:9321" ./gradlew :core:jvmTest --tests '*DanmakuLiveTest' --rerun-tasks
-```
-
-无该环境变量时实网测试不发请求；普通解析测试无需服务。后续 Android 接入使用明确的作品/剧集选择与经确认的参考时间映射，避免仅凭标题自动认定版本一致。
-
-## Android TV 使用
-
-弹幕入口位于倍速右侧。快捷菜单依次为弹幕设置、提前一秒、延后一秒、关闭/开启弹幕。设置弹窗居中，输入框只聚焦不会打开键盘，按确认进入编辑，完成输入后关闭键盘；用资源/选集芯片选择，遥控器返回关闭弹窗。配置服务后自动搜索当前作品、匹配当前集数，仍可手动改选。服务地址和作品选择保存；弹幕默认开启，开关按作品/资源站/线路/集数保存，偏移限当前会话。
-
-真实联合测试为 `LiveDanmakuPlaybackTest`，显式传入 `media_url`、`next_media_url`、`media_site`、`work_title`、`danmu_url`、`danmu_title_id`、`danmu_episode_id` 才运行；无真实媒体和服务参数时跳过。测试中的目录元数据是注入的真实作品名称/地址；HLS、第二集媒体与弹幕数据均实际联网获取。URL只通过临时私有脚本传参，不应写进仓库或公开日志。
+可选Kotlin实网检查通过环境变量`TIGERTV_DANMU_URL`提供带Token的完整服务基址，运行`:core:jvmTest --tests '*DanmakuLiveTest' --rerun-tasks`；未设置时不请求服务。不要将令牌、原始媒体URL或私有接口日志提交仓库。

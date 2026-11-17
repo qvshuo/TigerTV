@@ -57,6 +57,7 @@ class PlayerRemoteTest {
     private lateinit var model: TigerTVViewModel
     private lateinit var video: File
     private var exits = 0
+    private val danmakuRequests = java.util.concurrent.atomic.AtomicInteger()
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     @Before fun preparePlayer() {
@@ -74,6 +75,10 @@ class PlayerRemoteTest {
         val mediaUrl = video.toURI().toString()
         val response = """{"code":1,"list":[{"vod_id":1,"vod_name":"遥控器测试","vod_play_from":"主线${'$'}${'$'}${'$'}备用线路","vod_play_url":"第一集${'$'}$mediaUrl#第二集${'$'}$mediaUrl${'$'}${'$'}${'$'}第一集${'$'}$mediaUrl#第二集${'$'}$mediaUrl"}]}"""
         val core = CoreService("cache", "source", storage, configureClient(HttpClient(MockEngine { request ->
+            if (request.url.encodedPath.startsWith("/api/v2/")) {
+                assertEquals("Only the saved API address may be used", "fixture.test", request.url.host)
+                danmakuRequests.incrementAndGet()
+            }
             if (request.url.host == "m.douban.com") respond("""{"subject_collection_items":[]}""")
             else if (request.url.encodedPath == "/api/v2/search/anime") respond("""{"success":true,"animes":[{"animeId":101,"animeTitle":"遥控器测试(2026)【国产剧】第一来源的长标题用于检查缩放留白","source":"test"},{"animeId":102,"animeTitle":"遥控器测试(2026)【国产剧】第二来源","source":"other"}]}""")
             else if (request.url.encodedPath.startsWith("/api/v2/bangumi/")) respond("""{"success":true,"bangumi":{"episodes":[{"episodeId":11,"episodeNumber":"1"},{"episodeId":12,"episodeNumber":"2"}]}}""")
@@ -234,6 +239,18 @@ class PlayerRemoteTest {
             android.os.ParcelFileDescriptor.AutoCloseInputStream(capture).use { it.readBytes() }
             android.util.Log.i("TigerTVLayout", "settings-captured")
         }
+        remote(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithTag("danmaku-options").assertDoesNotExist()
+        val requestsBeforeToggle = danmakuRequests.get()
+        compose.onNodeWithTag("player-danmaku").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag("danmaku-action-0").assertIsFocused()
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag("player-danmaku").assertContentDescriptionEquals("弹幕已关闭")
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag("player-danmaku").assertContentDescriptionEquals("弹幕已开启")
+        assertEquals("Reopening a loaded track must not request another source", requestsBeforeToggle, danmakuRequests.get())
     }
 
     @Test fun failureAfterPlaybackIsClearedFocusesRetryAndBackExits() {

@@ -9,7 +9,7 @@ fun danmakuProbePriority(source: String): Int = when (source.lowercase()) {
     else -> 4
 }
 
-/** Conservative provisional policy; count is never evidence of title/episode identity. */
+/** Compare counts only after title/episode matching; duration guards against different cuts. */
 fun shouldUpgradeDanmaku(current: DanmakuTrack, next: DanmakuTrack,
     currentCount: Int = current.comments.count { it.mode == 1 },
     nextCount: Int = next.comments.count { it.mode == 1 },
@@ -17,5 +17,5 @@ fun shouldUpgradeDanmaku(current: DanmakuTrack, next: DanmakuTrack,
     val oldDuration = current.referenceDurationMs ?: return false
     val newDuration = next.referenceDurationMs ?: return false
     if (oldDuration <= 0 || newDuration <= 0 || kotlin.math.abs(oldDuration - newDuration) > maxOf(30_000L, oldDuration / 50)) return false
-    return nextCount - currentCount >= 1_000 && nextCount.toLong() >= currentCount.toLong() * 2
+    return nextCount.toLong() >= currentCount.toLong() * 2
 }

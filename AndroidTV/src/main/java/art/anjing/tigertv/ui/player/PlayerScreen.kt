@@ -88,7 +88,7 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
     DisposableEffect(danmakuState) { onDispose { danmakuState.close() } }
     LaunchedEffect(danmakuState, danmakuState.enabled, configuredServer) {
         danmakuState.configure(configuredServer)
-        if (danmakuState.enabled && danmakuState.track == null && !danmakuState.busy && configuredServer.isNotBlank())
+        if (danmakuState.enabled && !danmakuState.hasComments && !danmakuState.busy && configuredServer.isNotBlank())
             danmakuState.search(viewModel.fetchResponse?.vodName.orEmpty())
     }
     val surfaceFocus = remember { FocusRequester() }
@@ -332,14 +332,14 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
                 resource = listOfNotNull(viewModel.selectedResult?.site, line?.name).joinToString(" · "),
                 snapshot = snapshot, controls = controls, timelineFocus = timelineFocus, playFocus = playFocus,
                 speedFocus = speedFocus, speedOptionFocus = speedOptionFocus, danmakuFocus = danmakuFocus,
-                danmakuOpen = danmakuQuick, danmakuEnabled = danmakuState.enabled, danmakuLoaded = danmakuState.track?.comments?.any { it.mode == 1 } == true, danmakuOffsetMs = danmakuState.offsetMs,
+                danmakuOpen = danmakuQuick, danmakuEnabled = danmakuState.enabled, danmakuLoaded = danmakuState.hasComments, danmakuOffsetMs = danmakuState.offsetMs,
                 onDanmakuMenu = { controls = controls.copy(speedMenuOpen = false); danmakuQuick = !danmakuQuick; interact() },
                 onDanmakuAction = { action ->
                     when (action) {
                         4 -> danmakuMenu = true
                         1 -> danmakuState.offsetMs += 1_000
                         2 -> danmakuState.offsetMs -= 1_000
-                        0 -> { danmakuState.enabled = !danmakuState.enabled; preferences.edit().putBoolean("enabled:$identity", danmakuState.enabled).apply() }
+                        0 -> { danmakuState.toggleEnabled(); preferences.edit().putBoolean("enabled:$identity", danmakuState.enabled).apply() }
                     }
                     danmakuQuick = false; interact(); requestFocus(PlayerFocusArea.Danmaku)
                 },

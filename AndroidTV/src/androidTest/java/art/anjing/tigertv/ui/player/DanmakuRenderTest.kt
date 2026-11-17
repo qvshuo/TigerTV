@@ -38,7 +38,6 @@ class DanmakuRenderTest {
             assertTrue("A distant future comment must not cause a frame loop",main{view.drawCount}-before<=6)
             main{media.player.seekTo(59_000);media.player.setPlaybackSpeed(2f);media.player.play()}
             compose.waitUntil(4_000){main{view.drawnCount>0}}
-            assertTrue(main{view.estimatedCapacityPerMinute}>0)
             main{media.player.pause()}
             Thread.sleep(250)
             val frozen=main{view.lastClockMs}

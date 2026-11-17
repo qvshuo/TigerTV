@@ -241,12 +241,6 @@
       "reason": "沉浸版，不能与正片第2期比较；正片第1期是前采，选第2期"
     }
   ],
-  "provisional_policy": {
-    "ratio": 2,
-    "minimum_additional_mode1": 1000,
-    "max_duration_difference": "max(30 seconds, current duration * 2%)",
-    "scope": "one independently comparable work; not a statistically established threshold"
-  },
   "reproducedWithMaintainedTool": [
     {
       "work": "嫁金钗",

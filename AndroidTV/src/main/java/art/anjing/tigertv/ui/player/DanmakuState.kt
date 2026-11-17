@@ -12,16 +12,18 @@ internal class DanmakuState(
     private val preferredTitle: (String) -> Long? = { null },
     private val workYear: String = "",
 ) {
-    var enabled by mutableStateOf(initialEnabled)
+    var enabled by mutableStateOf(initialEnabled); private set
     var offsetMs by mutableLongStateOf(0)
     var titles by mutableStateOf<List<DanmakuTitle>>(emptyList()); private set
     var episodes by mutableStateOf<List<DanmakuEpisode>>(emptyList()); private set
     var selectedTitle by mutableStateOf<DanmakuTitle?>(null); private set
     var selectedEpisode by mutableStateOf<DanmakuEpisode?>(null); private set
     var track by mutableStateOf<DanmakuTrack?>(null); private set
+    val hasComments: Boolean get() = track?.comments?.any { it.mode == 1 } == true
     var busy by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null); private set
     private var job: Job? = null
+    private var automaticRequest = false
     private var base by mutableStateOf("")
     val isConfigured: Boolean get() = base.isNotBlank()
     private var query = ""
@@ -32,9 +34,17 @@ internal class DanmakuState(
         val count = track.comments.count { it.mode == 1 }
     }
 
-    private fun request(message: String, block: suspend () -> Unit) {
-        val ticket = ++generation
-        job?.cancel(); busy = true; error = null
+    private fun cancelRequest() {
+        ++generation; job?.cancel(); job = null; automaticRequest = false; busy = false
+    }
+    fun toggleEnabled() {
+        enabled = !enabled
+        if (!enabled && automaticRequest) cancelRequest()
+    }
+    private fun request(message: String, automatic: Boolean = false, block: suspend () -> Unit) {
+        cancelRequest()
+        val ticket = generation
+        automaticRequest = automatic; busy = true; error = null
         job = scope.launch {
             try { block() }
             catch (e: CancellationException) { throw e }
@@ -42,7 +52,7 @@ internal class DanmakuState(
                 if (ticket == generation && track == null) error = message
                 android.util.Log.w("TigerTVDanmaku", "request failed: ${e.javaClass.simpleName}")
             }
-            finally { if (ticket == generation) busy = false }
+            finally { if (ticket == generation) { busy = false; automaticRequest = false } }
         }
     }
     private suspend fun comments(id: Long): DanmakuTrack = tracks[id] ?: withContext(Dispatchers.IO) { client(base).comments(id) }.also {
@@ -52,7 +62,7 @@ internal class DanmakuState(
     fun configure(url: String) {
         val normalized = url.trim().trimEnd('/')
         if (base == normalized) return
-        ++generation; job?.cancel(); busy = false; error = null
+        cancelRequest(); error = null
         base = normalized; tracks.clear(); manualTitle = null
         selectedTitle = null; selectedEpisode = null; episodes = emptyList(); titles = emptyList(); track = null
     }
@@ -63,7 +73,7 @@ internal class DanmakuState(
         if (!isConfigured) { error = "请先保存弹幕 API 地址"; return }
         query = keyword.trim(); manualTitle = null
         selectedTitle = null; selectedEpisode = null; episodes = emptyList(); titles = emptyList(); track = null
-        request("弹幕匹配失败，请手动选择") {
+        request("弹幕匹配失败，请手动选择", automatic = true) {
             withTimeoutOrNull(60_000) overall@ {
                 var requests = 0
                 suspend fun load(candidate: DanmakuTitle): Loaded? = withTimeoutOrNull(20_000) {
@@ -129,5 +139,5 @@ internal class DanmakuState(
             rememberIfValid(track!!)
         }
     }
-    fun close() { ++generation; job?.cancel() }
+    fun close() { cancelRequest() }
 }
