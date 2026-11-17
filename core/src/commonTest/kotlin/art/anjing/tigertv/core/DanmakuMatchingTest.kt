@@ -12,7 +12,7 @@ class DanmakuMatchingTest {
     }
     @Test fun ordinalsAreSemanticAndSpecialsStayManual() {
         for ((label,n) in listOf("第02集" to 2,"第二十一集" to 21,"S02E03" to 3,"Episode 4" to 4,"05" to 5)) assertEquals(n, regularDanmakuEpisode(label), label)
-        for (label in listOf("番外1", "第2期加更", "SP01", "预告第1集", "2.5", "正片", "第1集花絮")) assertNull(regularDanmakuEpisode(label), label)
+        for (label in listOf("番外1", "第2期加更", "SP01", "预告第1集", "2.5", "正片", "第1集花絮", "第3期上", "抢鲜版第3期", "第1期前采")) assertNull(regularDanmakuEpisode(label), label)
     }
     @Test fun duplicateOrUnknownMultiSeasonNumbersAreNotGuessed() {
         val first = DanmakuEpisode(1,"正片","2",1,"one")
@@ -22,5 +22,7 @@ class DanmakuMatchingTest {
         assertNull(matchingDanmakuEpisode(listOf(first, first.copy(id=3)),2,1))
         assertNull(matchingDanmakuEpisode(listOf(first),null,1))
         assertNull(matchingDanmakuEpisode(listOf(first.copy(title="Special 2")),2,1))
+        assertNull(matchingDanmakuEpisode(listOf(first.copy(title="第3集")),2,1))
+        assertNull(matchingDanmakuEpisode(listOf(first.copy(title="第2期上")),2,1))
     }
 }

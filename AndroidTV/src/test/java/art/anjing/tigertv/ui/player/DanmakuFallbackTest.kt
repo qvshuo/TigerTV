@@ -22,7 +22,7 @@ class DanmakuFallbackTest {
         }))
         try {
             val state = DanmakuState(this,{ DanmakuClient(Network(http),it) },true,2,{_,id->remembered+=id},{1}, workYear = "2026")
-            state.search("https://example.test/token", "示例")
+            state.configure("https://example.test/token"); state.search("示例")
             withTimeout(5_000) { while(state.busy) delay(10) }
             assertEquals(3L,state.selectedTitle?.id)
             assertTrue(remembered.isEmpty())
@@ -48,24 +48,24 @@ class DanmakuFallbackTest {
         }))
         try {
             val state = DanmakuState(this, { DanmakuClient(Network(http), it) }, true, 1, { _, id -> writes += id }, { 9 })
-            state.search("https://example.test/first", "示例")
+            state.configure("https://example.test/first"); state.search("示例")
             withTimeout(5_000) { while (state.busy) delay(10) }
             assertEquals(9L, state.selectedTitle?.id)
             assertTrue(writes.isEmpty())
             val nextEpisode = DanmakuState(this, { DanmakuClient(Network(http), it) }, true, 2, preferredTitle = { 9 })
-            nextEpisode.search("https://example.test/first", "示例")
+            nextEpisode.configure("https://example.test/first"); nextEpisode.search("示例")
             withTimeout(5_000) { while (nextEpisode.busy) delay(10) }
             assertEquals(9L, nextEpisode.selectedTitle?.id)
             assertEquals(92L, nextEpisode.selectedEpisode?.id)
             nextEpisode.close()
             assertFalse(calls.any { it.contains("search") })
-            state.search("https://example.test/first", "示例", useSaved = false)
+            state.configure("https://example.test/first"); state.search("示例", useSaved = false)
             withTimeout(5_000) { while (state.busy) delay(10) }
             assertEquals(10L, state.selectedTitle?.id)
             assertTrue(writes.isEmpty())
             state.configure("https://example.test/second")
             assertNull(state.track); assertNull(state.selectedTitle)
-            state.search("https://example.test/second", "示例")
+            state.configure("https://example.test/second"); state.search("示例")
             withTimeout(5_000) { while (state.busy) delay(10) }
             assertEquals(3, calls.count { it.contains("comment") })
             state.close()
@@ -83,7 +83,7 @@ class DanmakuFallbackTest {
         }))
         try {
             val state = DanmakuState(this, { DanmakuClient(Network(http), it) }, true, 1)
-            state.search("https://example.test", "示例")
+            state.configure("https://example.test"); state.search("示例")
             withTimeout(5_000) { while (state.busy) delay(10) }
             assertEquals(2L, state.selectedTitle?.id)
             assertNull(state.error)

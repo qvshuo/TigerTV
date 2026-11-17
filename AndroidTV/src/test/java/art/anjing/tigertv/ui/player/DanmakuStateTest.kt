@@ -18,7 +18,7 @@ class DanmakuStateTest {
         }))
         try {
             val state = DanmakuState(this, { DanmakuClient(Network(http), it) }, false, 2)
-            state.search("https://example.test", "示例")
+            state.configure("https://example.test"); state.search("示例")
             withTimeout(5_000) { while (state.track == null) delay(10) }
             assertEquals(12L, state.selectedEpisode?.id)
             assertFalse(state.enabled)

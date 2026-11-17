@@ -202,9 +202,19 @@ class PlayerRemoteTest {
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag("danmaku-server").performTextReplacement("https://fixture.test")
         compose.onNodeWithTag("danmaku-server").performImeAction()
+        panel.performScrollToNode(hasTestTag("danmaku-search"))
+        compose.onNodeWithTag("danmaku-search").assertIsNotEnabled()
         panel.performScrollToNode(hasTestTag("danmaku-save"))
         compose.onNodeWithTag("danmaku-save").performSemanticsAction(SemanticsActions.OnClick) { it() }
         assertEquals("https://fixture.test", instrumentation.targetContext.getSharedPreferences("danmaku", 0).getString("server", ""))
+        compose.waitUntil(10_000) { compose.onNodeWithTag("danmaku-options").fetchSemanticsNode().config[SemanticsProperties.StateDescription] == "就绪" }
+        panel.performScrollToNode(hasTestTag("danmaku-title-101"))
+        compose.onNodeWithTag("danmaku-title-101").assertIsSelected()
+        panel.performScrollToNode(hasTestTag("danmaku-server"))
+        compose.onNodeWithTag("danmaku-server").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag("danmaku-server").performTextReplacement("https://unsaved.invalid")
+        compose.onNodeWithTag("danmaku-server").performImeAction()
         panel.performScrollToNode(hasTestTag("danmaku-search"))
         compose.onNodeWithTag("danmaku-search").assertTextContains("匹配")
         compose.onNodeWithTag("danmaku-search").performSemanticsAction(SemanticsActions.OnClick) { it() }

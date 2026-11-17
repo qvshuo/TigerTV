@@ -4,7 +4,7 @@ import androidx.compose.runtime.*
 import art.anjing.tigertv.core.*
 import kotlinx.coroutines.*
 
-/** One cancellable request per playback session; manual choices alone update preferences. */
+/** One cancellable sequential search per playback session; only successful manual choices persist. */
 internal class DanmakuState(
     private val scope: CoroutineScope, private val client: (String) -> DanmakuClient,
     initialEnabled: Boolean = true, private val episodeNumber: Int? = null,
@@ -22,11 +22,15 @@ internal class DanmakuState(
     var busy by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null); private set
     private var job: Job? = null
-    private var base = ""
+    private var base by mutableStateOf("")
+    val isConfigured: Boolean get() = base.isNotBlank()
     private var query = ""
     private var generation = 0
-    private val counts = mutableMapOf<Long, Int>()
+    private var manualTitle: DanmakuTitle? = null
     private val tracks = linkedMapOf<Long, DanmakuTrack>()
+    private data class Loaded(val title: DanmakuTitle, val episodes: List<DanmakuEpisode>, val episode: DanmakuEpisode, val track: DanmakuTrack) {
+        val count = track.comments.count { it.mode == 1 }
+    }
 
     private fun request(message: String, block: suspend () -> Unit) {
         val ticket = ++generation
@@ -34,7 +38,10 @@ internal class DanmakuState(
         job = scope.launch {
             try { block() }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { error = message; android.util.Log.w("TigerTVDanmaku", "request failed: ${e.javaClass.simpleName}") }
+            catch (e: Exception) {
+                if (ticket == generation && track == null) error = message
+                android.util.Log.w("TigerTVDanmaku", "request failed: ${e.javaClass.simpleName}")
+            }
             finally { if (ticket == generation) busy = false }
         }
     }
@@ -46,63 +53,81 @@ internal class DanmakuState(
         val normalized = url.trim().trimEnd('/')
         if (base == normalized) return
         ++generation; job?.cancel(); busy = false; error = null
-        base = normalized; tracks.clear(); counts.clear()
+        base = normalized; tracks.clear(); manualTitle = null
         selectedTitle = null; selectedEpisode = null; episodes = emptyList(); titles = emptyList(); track = null
     }
-    fun search(url: String, keyword: String, useSaved: Boolean = true) {
-        configure(url)
-        query = keyword.trim()
+    private fun show(data: Loaded) {
+        selectedTitle = data.title; episodes = data.episodes; selectedEpisode = data.episode; track = data.track
+    }
+    fun search(keyword: String, useSaved: Boolean = true) {
+        if (!isConfigured) { error = "请先保存弹幕 API 地址"; return }
+        query = keyword.trim(); manualTitle = null
         selectedTitle = null; selectedEpisode = null; episodes = emptyList(); titles = emptyList(); track = null
         request("弹幕匹配失败，请手动选择") {
-            val completed = withTimeoutOrNull(30_000) overall@ {
-                suspend fun tryTitle(candidate: DanmakuTitle): Boolean = withTimeoutOrNull(8_000) candidate@ {
+            withTimeoutOrNull(60_000) overall@ {
+                var requests = 0
+                suspend fun load(candidate: DanmakuTitle): Loaded? = withTimeoutOrNull(20_000) {
                     try {
+                        if (requests >= 12) return@withTimeoutOrNull null
+                        requests++
                         val list = withContext(Dispatchers.IO) { client(base).episodes(candidate.id) }
-                        val episode = matchingDanmakuEpisode(list, episodeNumber, danmakuSeason(query)) ?: return@candidate false
-                        val data = comments(episode.id)
-                        counts[candidate.id] = data.comments.size
-                        if (data.comments.none { it.mode == 1 }) return@candidate false
-                        selectedTitle = candidate; episodes = list; selectedEpisode = episode; track = data
-                        true
+                        val episode = matchingDanmakuEpisode(list, episodeNumber, danmakuSeason(query)) ?: return@withTimeoutOrNull null
+                        if (episode.id !in tracks) { if (requests >= 12) return@withTimeoutOrNull null; requests++ }
+                        Loaded(candidate, list, episode, comments(episode.id)).takeIf { it.count > 0 }
                     } catch (e: CancellationException) { throw e }
-                    catch (_: Exception) { false }
-                } == true
-
-                val saved = (if (useSaved) preferredTitle(base) else null)?.takeIf { it > 0 }
-                val savedItem = saved?.let { DanmakuTitle(it, query, "") }
-                // A saved choice works even when the search endpoint is temporarily unavailable.
-                if (savedItem != null && tryTitle(savedItem)) {
-                    titles = listOf(savedItem)
-                    return@overall true
+                    catch (e: Exception) {
+                        // Network exposes rejected requests as an HTTP status message.
+                        if (e.message == "HTTP 429") requests = 12
+                        null
+                    }
                 }
+                val saved = (if (useSaved) preferredTitle(base) else null)?.takeIf { it > 0 }
+                if (saved != null) {
+                    val item = DanmakuTitle(saved, query, "")
+                    val data = load(item)
+                    if (data != null) { titles = listOf(item); show(data); return@overall }
+                }
+                if (requests >= 12) return@overall
+                requests++
                 titles = withContext(Dispatchers.IO) { client(base).search(query) }
                 val matchQuery = if (workYear.matches(Regex("[0-9]{4}"))) "$query($workYear)" else query
                 val candidates = titles.filter { it.id != saved && reasonableDanmakuTitle(matchQuery, it.title) }
-                    .sortedByDescending { counts[it.id] ?: 0 }.take(if (saved == null) 3 else 2)
-                for (candidate in candidates) if (tryTitle(candidate)) return@overall true
-                false
+                    .distinctBy { it.id }.sortedBy { danmakuProbePriority(it.source) }
+                var current: Loaded? = null
+                for (candidate in candidates) {
+                    if (requests >= 12) break
+                    val next = load(candidate) ?: continue
+                    val previous = current
+                    if (previous == null || shouldUpgradeDanmaku(previous.track, next.track, previous.count, next.count)) {
+                        current = next; show(next)
+                    }
+                }
             }
-            if (completed != true) error = if (titles.isEmpty()) "没有找到弹幕作品" else "未找到当前集的有效弹幕，请手动选择"
+            if (track == null) error = if (titles.isEmpty()) "没有找到弹幕作品" else "未找到当前集的有效弹幕，请手动选择"
         }
     }
+    private fun rememberIfValid(data: DanmakuTrack) {
+        if (data.comments.none { it.mode == 1 }) { error = "这一集没有滚动弹幕"; return }
+        manualTitle?.let { rememberTitle(base, it.id) }
+        manualTitle = null
+    }
     fun select(title: DanmakuTitle) {
-        rememberTitle(base, title.id)
+        manualTitle = title
         selectedTitle = title; selectedEpisode = null; episodes = emptyList(); track = null
         request("弹幕选集加载失败，请重试") {
             episodes = withContext(Dispatchers.IO) { client(base).episodes(title.id) }
             val episode = matchingDanmakuEpisode(episodes, episodeNumber, danmakuSeason(query))
             if (episode == null) { error = "请选择对应剧集"; return@request }
             selectedEpisode = episode; track = comments(episode.id)
-            counts[title.id] = track!!.comments.size
-            if (track!!.comments.isEmpty()) error = "这一集没有弹幕"
+            rememberIfValid(track!!)
         }
     }
     fun select(episode: DanmakuEpisode) {
         selectedEpisode = episode; track = null
         request("弹幕加载失败，请重新选择集数") {
             track = comments(episode.id)
-            if (track!!.comments.isEmpty()) error = "这一集没有弹幕"
+            rememberIfValid(track!!)
         }
     }
-    fun close() { job?.cancel() }
+    fun close() { ++generation; job?.cancel() }
 }

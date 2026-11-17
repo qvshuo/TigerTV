@@ -13,12 +13,15 @@ private fun chineseNumber(value: String): Int? {
 private val seasonPattern = Regex("第([0-9零〇一二两三四五六七八九十百]+)季|(?:season\\s*|s)([0-9]+)(?=e[0-9]|\\b)", RegexOption.IGNORE_CASE)
 fun danmakuSeason(title: String): Int? = seasonPattern.find(title)?.let { chineseNumber(it.groupValues[1].ifEmpty { it.groupValues[2] }) }
 
-private val specialEpisodePattern = Regex("特别|番外|加更|预告|花絮|特辑|特典|先导|彩蛋|trailer|preview|ova|oad|extra|sp\\b|special", RegexOption.IGNORE_CASE)
+private val specialEpisodePattern = Regex("特别|番外|加更|预告|花絮|特辑|特典|先导|前采|抢鲜|抢先|沉浸|彩蛋|trailer|preview|ova|oad|extra|sp\\b|special", RegexOption.IGNORE_CASE)
+
+private val splitEpisodePattern = Regex("[集期话]\\s*[（(]?\\s*[上下]")
 
 /** Specials have no automatic ordinal. Never substitute their array position. */
 fun regularDanmakuEpisode(label: String): Int? {
     val text = label.trim()
     if (specialEpisodePattern.containsMatchIn(text)) return null
+    if (splitEpisodePattern.containsMatchIn(text)) return null
     text.toIntOrNull()?.let { return it.takeIf { n -> n > 0 } }
     val match = Regex("第\\s*([0-9零〇一二两三四五六七八九十百]+)\\s*[集期话]|(?:s\\d+)?(?:episode|ep|e)\\s*(\\d+)", RegexOption.IGNORE_CASE).find(text) ?: return null
     return chineseNumber(match.groupValues[1].ifEmpty { match.groupValues[2] })
@@ -37,6 +40,7 @@ fun matchingDanmakuEpisode(episodes: List<DanmakuEpisode>, number: Int?, season:
     if (episodes.map { it.seasonId }.filter { it.isNotBlank() }.distinct().size > 1 && episodes.any { it.season == null }) return null
     return episodes.filter { regularDanmakuEpisode(it.number) == number &&
         (it.season == null || it.season == (season ?: 1)) &&
-        !specialEpisodePattern.containsMatchIn(it.title)
+        !specialEpisodePattern.containsMatchIn(it.title) && !splitEpisodePattern.containsMatchIn(it.title) &&
+        (regularDanmakuEpisode(it.title)?.let { titleNumber -> titleNumber == number } != false)
     }.singleOrNull()
 }

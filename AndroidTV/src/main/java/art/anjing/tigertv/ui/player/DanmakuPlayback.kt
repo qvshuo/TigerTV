@@ -81,11 +81,11 @@ internal fun DanmakuPlayback(
                             label = { Text("作品名称") }, modifier = Modifier.weight(1f).then(editOnConfirm("query")).testTag("danmaku-query"))
                         ActionButton(onClick = {
                             editing = null; keyboard?.hide()
-                            state.search(server, keyword, useSaved = false)
-                        }, enabled = server.isNotBlank() && keyword.isNotBlank(), modifier = Modifier.testTag("danmaku-search")) { Text("匹配") }
+                            state.search(keyword, useSaved = false)
+                        }, enabled = state.isConfigured && keyword.isNotBlank(), modifier = Modifier.testTag("danmaku-search")) { Text("匹配") }
                     }
                 }
-                if (state.busy) item { Text("正在加载弹幕…") }
+                if (state.busy) item { Text(if (state.track == null) "正在加载弹幕…" else "正在比较弹幕…") }
                 state.error?.let { error -> item { Text(error, color = MaterialTheme.colorScheme.error) } }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -120,6 +120,7 @@ internal fun DanmakuPlayback(
                         ActionButton(onClick = {
                             state.configure(server)
                             preferences.edit().putString("server", server.trim()).apply()
+                            state.search(title)
                             editing = null; keyboard?.hide(); focus.clearFocus()
                         }, enabled = server.isNotBlank(), modifier = Modifier.testTag("danmaku-save")) { Text("保存") }
                     }

@@ -33,7 +33,9 @@ class DanmakuPerformanceTest {
     }
     @Test fun realAutomaticMatchingAndOnOffComparison() {
         val args=InstrumentationRegistry.getArguments()
-        val url=args.getString("media_url"); val server=args.getString("danmu_url")
+        val url=args.getString("media_url")
+        val cached = args.getString("cached_comments")?.let { java.io.File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null), it).readText() }
+        val server=if(cached!=null) "https://fixture.test" else args.getString("danmu_url")
         Assume.assumeNotNull(url,server)
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         context.getSharedPreferences("danmaku",0).edit().clear().putString("server",server).apply()
@@ -44,17 +46,27 @@ class DanmakuPerformanceTest {
         val storage=object:Storage{override fun read(path:String)=files[path];override fun writeAtomic(path:String,text:String){files[path]=text}}
         val catalog="""{"code":1,"list":[{"vod_id":1,"vod_name":"$work","vod_play_from":"HLS","vod_play_url":"第1集${'$'}$url"}]}"""
         val core=CoreService("perf","source",storage,configureClient(HttpClient(MockEngine{r->
-            when(r.url.host){"fixture.test"->respond(catalog);"m.douban.com"->respond("""{"subject_collection_items":[]}""");else->respond(network.get(r.url.toString()))}
+            when {
+                cached != null && r.url.encodedPath.contains("/search/anime") -> respond("""{"success":true,"animes":[{"animeId":1,"animeTitle":"$work"}]}""")
+                cached != null && r.url.encodedPath.contains("/bangumi/") -> respond("""{"success":true,"bangumi":{"episodes":[{"episodeId":1,"episodeNumber":"1"}]}}""")
+                cached != null && r.url.encodedPath.contains("/comment/") -> respond(cached)
+                r.url.host == "fixture.test" -> respond(catalog);r.url.host == "m.douban.com" -> respond("""{"subject_collection_items":[]}""");else->respond(network.get(r.url.toString()))}
         })))
         val store=ViewModelStore();lateinit var model:TigerTVViewModel;lateinit var root:View
         var window: Window? = null
+        lateinit var measuredOverlay: DanmakuView
+        val activeCounts=java.util.Collections.synchronizedList(mutableListOf<Int>())
+        var lostMetrics=0L
         val frames=java.util.Collections.synchronizedList(mutableListOf<Double>())
-        val windowListener=Window.OnFrameMetricsAvailableListener { _, metrics, _ ->
-            val ns=metrics.getMetric(FrameMetrics.TOTAL_DURATION);if(ns>0) frames.add(ns/1_000_000.0)
+        val windowListener=Window.OnFrameMetricsAvailableListener { _, metrics, lost ->
+            lostMetrics += lost
+            val ns=metrics.getMetric(FrameMetrics.TOTAL_DURATION);if(ns>0) { frames.add(ns/1_000_000.0); activeCounts.add(measuredOverlay.drawnCount) }
         }
         fun <T> main(block:()->T):T{var x:T?=null;InstrumentationRegistry.getInstrumentation().runOnMainSync{x=block()};@Suppress("UNCHECKED_CAST") return x as T}
         fun player()=find(root,PlayerView::class.java)!!.player!! as ExoPlayer
         fun overlay()=find(root,DanmakuView::class.java)!!
+        // Optional counters keep the same probe usable with the original renderer baseline.
+        fun counter(name:String):Double=main{runCatching{overlay().javaClass.getDeclaredField(name).apply{isAccessible=true}.get(overlay()) as? Number}.getOrNull()?.toDouble()?:0.0}
         try {
             main {model=TigerTVViewModel(TigerTVRepository(core),context);store.put("model",model);model.onKeywordChange(work);model.search()}
             compose.waitUntil(15_000){model.works.isNotEmpty()&&!model.isSearching}
@@ -62,8 +74,15 @@ class DanmakuPerformanceTest {
             compose.waitUntil(15_000){model.fetchResponse!=null&&!model.isFetching}
             main{model.selectEpisode(0)}
             compose.setContent{TigerTVTheme{root=LocalView.current;PlayerScreen(model){}}}
-            compose.waitUntil(60_000){main{player().isPlaying&&overlay().commentCount>1_000}}
+            compose.waitUntil(60_000){main{overlay().commentCount>1_000}}
             assertTrue(main{overlay().commentCount}>1_000)
+            args.getString("auto_expect_count")?.toInt()?.let { minimum ->
+                val before=main{player().currentPosition};val samePlayer=main{player()};val item=main{player().currentMediaItem}
+                android.util.Log.i("TigerTVDanmakuPerf","firstCount=${main{overlay().commentCount}}")
+                compose.waitUntil(65_000){main{overlay().commentCount>=minimum}}
+                main{assertSame(samePlayer,player());assertEquals(item,player().currentMediaItem);assertTrue(player().currentPosition>=before)}
+                android.util.Log.i("TigerTVDanmakuPerf","progressiveCount=${main{overlay().commentCount}} mediaUnchanged=true")
+            }
             args.getString("manual_title_id")?.toLong()?.let { id ->
                 main { player().pause() }
                 InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_UP)
@@ -76,7 +95,8 @@ class DanmakuPerformanceTest {
                 compose.waitUntil(45_000) { main { overlay().commentCount >= 20_000 } }
                 InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
             }
-            main{window=(root.context as Activity).window;window!!.addOnFrameMetricsAvailableListener(windowListener,Handler(Looper.getMainLooper()))}
+            compose.waitUntil(30_000){main{player().isPlaying}}
+            main{measuredOverlay=overlay();window=(root.context as Activity).window;window!!.addOnFrameMetricsAvailableListener(windowListener,Handler(Looper.getMainLooper()))}
             main { player().seekTo(120_000); player().play() }
             compose.waitUntil(25_000) { main { player().isPlaying && overlay().drawnCount > 0 } }
             main { player().pause() }
@@ -108,8 +128,10 @@ class DanmakuPerformanceTest {
                 compose.waitUntil(5_000) { main { (overlay().visibility == View.VISIBLE) == enabled } }
                 main{player().seekTo(120_000);player().setPlaybackSpeed(1f);player().play()}
                 compose.waitUntil(25_000){main{player().isPlaying&&player().currentPosition>120_500}}
-                frames.clear()
+                frames.clear();activeCounts.clear()
+                val lostBefore=main{lostMetrics};val paintsBefore=counter("drawCount")
                 val startCpu=Process.getElapsedCpuTime();val start=SystemClock.elapsedRealtime()
+                val admitted=counter("admittedCount");val skipped=counter("skippedCount")
                 val startPss=Debug.getPss();val dropped=main{player().videoDecoderCounters!!.droppedBufferCount}
                 val responses=mutableListOf<Long>()
                 repeat(4){
@@ -120,9 +142,11 @@ class DanmakuPerformanceTest {
                     main{assertNull(player().playerError);assertTrue(overlay().drawnCount<=12)}
                 }
                 val cpu=100.0*(Process.getElapsedCpuTime()-startCpu)/(SystemClock.elapsedRealtime()-start)
+                val seconds=(SystemClock.elapsedRealtime()-start)/1000.0
                 val sample=synchronized(frames){frames.sorted()}
+                val density=synchronized(activeCounts){activeCounts.toList()}
                 val p95=if(sample.isEmpty())0.0 else sample[((sample.size-1)*0.95).toInt()]
-                android.util.Log.i("TigerTVDanmakuPerf","enabled=$enabled comments=${main{overlay().commentCount}} cpuPercent=$cpu pssStartKiB=$startPss pssEndKiB=${Debug.getPss()} uiFrames=${sample.size} uiP95Ms=$p95 dropped=${main{player().videoDecoderCounters!!.droppedBufferCount}-dropped} remoteMaxMs=${responses.max()}")
+                android.util.Log.i("TigerTVDanmakuPerf","enabled=$enabled comments=${main{overlay().commentCount}} cpuPercent=$cpu pssStartKiB=$startPss pssEndKiB=${Debug.getPss()} uiFrames=${sample.size} uiFps=${(sample.size+main{lostMetrics}-lostBefore)/seconds} metricDrops=${main{lostMetrics}-lostBefore} canvasFps=${(counter("drawCount")-paintsBefore)/seconds} activeMean=${density.average().takeIf{it.isFinite()}?:0.0} activeMax=${density.maxOrNull()?:0} uiP95Ms=$p95 dropped=${main{player().videoDecoderCounters!!.droppedBufferCount}-dropped} remoteMaxMs=${responses.max()} admitted=${counter("admittedCount")-admitted} skipped=${counter("skippedCount")-skipped} lanes=${counter("laneCount")} capacityPerMinute=${counter("estimatedCapacityPerMinute")}")
             }
         } finally {
             main{window?.removeOnFrameMetricsAvailableListener(windowListener);store.clear()}

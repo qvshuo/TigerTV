@@ -1,5 +1,7 @@
 # Android TV 弹幕自动匹配与交互验证
 
+此页记录 `6176ce5` 前一阶段；当前顺序优选、暂定阈值与60 FPS目标验证见 [后续记录](danmaku-progressive-60fps.md)。
+
 2026-11-17，基于最新 main `2791ff2`。仅修改 Android TV 和必要 Core 纯逻辑；四源去广告、Media3 和 MediaTimeline 保持原有职责，无新增依赖、服务或数据库。
 
 ## 自动匹配与记忆

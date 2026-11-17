@@ -89,7 +89,7 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
     LaunchedEffect(danmakuState, danmakuState.enabled, configuredServer) {
         danmakuState.configure(configuredServer)
         if (danmakuState.enabled && danmakuState.track == null && !danmakuState.busy && configuredServer.isNotBlank())
-            danmakuState.search(configuredServer, viewModel.fetchResponse?.vodName.orEmpty())
+            danmakuState.search(viewModel.fetchResponse?.vodName.orEmpty())
     }
     val surfaceFocus = remember { FocusRequester() }
     val timelineFocus = remember { FocusRequester() }
