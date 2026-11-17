@@ -1,0 +1,110 @@
+{
+  "date": "2026-11-17",
+  "base_commit": "2791ff2",
+  "device": "Android TV API 34 arm64 emulator, 1920x1080, 2048MiB, swiftshader with Vulkan disabled",
+  "sample": "逐玉 第1集 / 暴风资源 / real Tencent danmu_api comments",
+  "method": "three 20-second blocks at the same 120-second scene; real Media3; process CPU (100%=one CPU core), PSS, Window FrameMetrics, decoder counters, key dispatch/main-thread acknowledgement; no Compose idle wait during sampling",
+  "before": [
+    {
+      "enabled": false,
+      "comments": 42284,
+      "cpuPercent": 7.779109247054124,
+      "pssStartKiB": 174535,
+      "pssEndKiB": 144164,
+      "uiFrames": 0,
+      "uiP95Ms": 0.0,
+      "dropped": 0,
+      "remoteMaxMs": 8
+    },
+    {
+      "enabled": true,
+      "comments": 42284,
+      "cpuPercent": 64.82970325975735,
+      "pssStartKiB": 148305,
+      "pssEndKiB": 154919,
+      "uiFrames": 846,
+      "uiP95Ms": 89.414177,
+      "dropped": 0,
+      "remoteMaxMs": 121
+    },
+    {
+      "enabled": false,
+      "comments": 42284,
+      "cpuPercent": 6.600429377402766,
+      "pssStartKiB": 157811,
+      "pssEndKiB": 161543,
+      "uiFrames": 1,
+      "uiP95Ms": 16.89729,
+      "dropped": 0,
+      "remoteMaxMs": 10
+    }
+  ],
+  "after": [
+    {
+      "enabled": false,
+      "comments": 42284,
+      "cpuPercent": 7.017631486938714,
+      "pssStartKiB": 191567,
+      "pssEndKiB": 186935,
+      "uiFrames": 0,
+      "uiP95Ms": 0.0,
+      "dropped": 0,
+      "remoteMaxMs": 8
+    },
+    {
+      "enabled": true,
+      "comments": 42284,
+      "cpuPercent": 24.65603190428714,
+      "pssStartKiB": 198696,
+      "pssEndKiB": 148468,
+      "uiFrames": 427,
+      "uiP95Ms": 33.719647,
+      "dropped": 0,
+      "remoteMaxMs": 21
+    },
+    {
+      "enabled": false,
+      "comments": 42284,
+      "cpuPercent": 7.406482545073166,
+      "pssStartKiB": 152320,
+      "pssEndKiB": 115515,
+      "uiFrames": 1,
+      "uiP95Ms": 16.997655,
+      "dropped": 0,
+      "remoteMaxMs": 10
+    }
+  ],
+  "limitations": [
+    "Single software graphics emulator run, not physical TV measurements",
+    "FrameMetrics excludes SurfaceView decoder frames; off blocks have insufficient UI frame samples",
+    "Remote timing is dispatch and main-thread acknowledgement, not optical latency",
+    "Short comparison does not establish absence of long-term leaks"
+  ],
+  "validation": {
+    "core_jvm_tests": 75,
+    "android_unit_tests": 44,
+    "remote_ui_tests": 2,
+    "real_joint_playback_passed": true,
+    "pause_seek_1_5x_2x_passed": true,
+    "buffer_freeze_observed": true,
+    "manual_offset_once_passed": true,
+    "episode_clear_passed": true,
+    "disabled_stops_drawing_passed": true,
+    "api_failure_video_continues_passed": true,
+    "steady_60s_dropped_frames": 0,
+    "steady_60s_pss_KiB": [
+      150544,
+      170413,
+      191841,
+      196317,
+      105628,
+      205187,
+      104620,
+      158046,
+      205411,
+      199610,
+      78048,
+      111203
+    ]
+  }
+}

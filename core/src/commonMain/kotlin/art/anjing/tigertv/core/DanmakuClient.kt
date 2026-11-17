@@ -5,7 +5,7 @@ import kotlinx.serialization.json.*
 import kotlin.math.roundToLong
 
 data class DanmakuTitle(val id: Long, val title: String, val source: String)
-data class DanmakuEpisode(val id: Long, val title: String, val number: String)
+data class DanmakuEpisode(val id: Long, val title: String, val number: String, val season: Int? = null, val seasonId: String = "")
 data class DanmakuComment(val timeMs: Long, val text: String, val mode: Int, val color: Int)
 data class DanmakuTrack(val referenceDurationMs: Long?, val comments: List<DanmakuComment>)
 
@@ -26,10 +26,15 @@ class DanmakuClient(private val network: Network, baseUrl: String) {
         require(titleId > 0)
         val root = Json.parseToJsonElement(network.get("$base/api/v2/bangumi/$titleId")).jsonObject
         check(root["success"]?.jsonPrimitive?.booleanOrNull == true) { "Danmaku episodes failed" }
-        return root["bangumi"]?.jsonObject?.get("episodes")?.jsonArray.orEmpty().mapNotNull { value ->
+        val bangumi = root["bangumi"]?.jsonObject
+        val seasons = bangumi?.get("seasons")?.jsonArray.orEmpty().associate { value ->
+            val s = value.jsonObject
+            s["id"]?.jsonPrimitive?.contentOrNull.orEmpty() to danmakuSeason(s["name"]?.jsonPrimitive?.contentOrNull.orEmpty())
+        }
+        return bangumi?.get("episodes")?.jsonArray.orEmpty().mapNotNull { value ->
             val item = value.jsonObject
             val id = item["episodeId"]?.jsonPrimitive?.longOrNull ?: return@mapNotNull null
-            DanmakuEpisode(id, item["episodeTitle"]?.jsonPrimitive?.contentOrNull.orEmpty(), item["episodeNumber"]?.jsonPrimitive?.contentOrNull.orEmpty())
+            DanmakuEpisode(id, item["episodeTitle"]?.jsonPrimitive?.contentOrNull.orEmpty(), item["episodeNumber"]?.jsonPrimitive?.contentOrNull.orEmpty(), seasons[item["seasonId"]?.jsonPrimitive?.contentOrNull], item["seasonId"]?.jsonPrimitive?.contentOrNull.orEmpty())
         }
     }
     suspend fun comments(episodeId: Long): DanmakuTrack {

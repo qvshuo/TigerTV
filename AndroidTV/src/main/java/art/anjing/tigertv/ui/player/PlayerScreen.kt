@@ -67,19 +67,29 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
     var danmakuQuick by remember { mutableStateOf(false) }
     val danmakuScope = rememberCoroutineScope()
     val preferences = remember { context.applicationContext.getSharedPreferences("danmaku", 0) }
+    var configuredServer by remember { mutableStateOf(preferences.getString("server", "").orEmpty()) }
+    DisposableEffect(preferences) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "server") configuredServer = preferences.getString("server", "").orEmpty()
+        }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     val session = viewModel.playbackSession
     val identity = listOf(session?.workId.orEmpty(), session?.site.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty())
         .joinToString("") { "${it.length}:$it" }
     val danmakuState = remember(identity, viewModel.playbackRevision) {
         DanmakuState(danmakuScope, viewModel::danmakuClient, preferences.getBoolean("enabled:$identity", true),
-            Regex("[0-9]+").find(session?.episode.orEmpty())?.value?.toIntOrNull() ?: (viewModel.selectedEpisodeIndex + 1),
-            { preferences.edit().putLong("title:${session?.workId}", it).apply() })
+            art.anjing.tigertv.core.regularDanmakuEpisode(session?.episode.orEmpty()),
+            { server, id -> preferences.edit().putLong(danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.site.orEmpty()), id).apply() },
+            { server -> preferences.getLong(danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.site.orEmpty()), -1).takeIf { it > 0 } },
+            workYear = viewModel.fetchResponse?.vodYear.orEmpty())
     }
     DisposableEffect(danmakuState) { onDispose { danmakuState.close() } }
-    LaunchedEffect(danmakuState, danmakuState.enabled) {
-        val server = preferences.getString("server", "").orEmpty()
-        if (danmakuState.enabled && danmakuState.track == null && server.isNotBlank())
-            danmakuState.search(server, viewModel.fetchResponse?.vodName.orEmpty(), preferences.getLong("title:${session?.workId}", -1))
+    LaunchedEffect(danmakuState, danmakuState.enabled, configuredServer) {
+        danmakuState.configure(configuredServer)
+        if (danmakuState.enabled && danmakuState.track == null && !danmakuState.busy && configuredServer.isNotBlank())
+            danmakuState.search(configuredServer, viewModel.fetchResponse?.vodName.orEmpty())
     }
     val surfaceFocus = remember { FocusRequester() }
     val timelineFocus = remember { FocusRequester() }
@@ -322,14 +332,14 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
                 resource = listOfNotNull(viewModel.selectedResult?.site, line?.name).joinToString(" · "),
                 snapshot = snapshot, controls = controls, timelineFocus = timelineFocus, playFocus = playFocus,
                 speedFocus = speedFocus, speedOptionFocus = speedOptionFocus, danmakuFocus = danmakuFocus,
-                danmakuOpen = danmakuQuick, danmakuEnabled = danmakuState.enabled,
+                danmakuOpen = danmakuQuick, danmakuEnabled = danmakuState.enabled, danmakuLoaded = danmakuState.track?.comments?.any { it.mode == 1 } == true, danmakuOffsetMs = danmakuState.offsetMs,
                 onDanmakuMenu = { controls = controls.copy(speedMenuOpen = false); danmakuQuick = !danmakuQuick; interact() },
                 onDanmakuAction = { action ->
                     when (action) {
-                        0 -> danmakuMenu = true
+                        4 -> danmakuMenu = true
                         1 -> danmakuState.offsetMs += 1_000
                         2 -> danmakuState.offsetMs -= 1_000
-                        3 -> { danmakuState.enabled = !danmakuState.enabled; preferences.edit().putBoolean("enabled:$identity", danmakuState.enabled).apply() }
+                        0 -> { danmakuState.enabled = !danmakuState.enabled; preferences.edit().putBoolean("enabled:$identity", danmakuState.enabled).apply() }
                     }
                     danmakuQuick = false; interact(); requestFocus(PlayerFocusArea.Danmaku)
                 },

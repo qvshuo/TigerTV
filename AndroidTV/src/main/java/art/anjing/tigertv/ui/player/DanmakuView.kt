@@ -105,7 +105,8 @@ internal class DanmakuView(context: Context) : View(context) {
         }
         canvas.restoreToCount(checkpoint)
         lastTime = now
-        if (media.isPlaying && visibility == VISIBLE && comments.isNotEmpty()) postInvalidateOnAnimation()
+        // Limit text repaints to about 30 fps; position still comes from the media clock.
+        if (media.isPlaying && visibility == VISIBLE && comments.isNotEmpty()) postInvalidateDelayed(32)
     }
     fun release() { player?.removeListener(listener); player = null; active.clear(); comments = emptyList(); track = null }
     override fun onDetachedFromWindow() { release(); super.onDetachedFromWindow() }

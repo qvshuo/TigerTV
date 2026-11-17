@@ -9,6 +9,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import kotlinx.coroutines.launch
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import android.view.KeyEvent
 import androidx.compose.ui.platform.LocalFocusManager
@@ -36,6 +39,8 @@ import art.anjing.tigertv.ui.components.ActionButton
 internal fun DanmakuPlayback(
     controller: Media3Controller, state: DanmakuState, title: String, menuOpen: Boolean, onClose: () -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
+    val currentEpisodeFocus = remember { FocusRequester() }
     val context = LocalContext.current
     val preferences = remember { context.applicationContext.getSharedPreferences("danmaku", 0) }
     var server by remember { mutableStateOf(preferences.getString("server", DEFAULT_DANMAKU_SERVER).orEmpty().ifBlank { DEFAULT_DANMAKU_SERVER }) }
@@ -68,18 +73,7 @@ internal fun DanmakuPlayback(
             colors = SurfaceDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)) {
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = dialogHeight).testTag("danmaku-options")
                 .semantics { stateDescription = if (state.busy) "加载中" else "就绪" }, contentPadding = PaddingValues(40.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                item { Text("弹幕设置", style = MaterialTheme.typography.headlineSmall) }
-                item {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(readOnly = editing != "server", value = server, onValueChange = { server = it },
-                            singleLine = true, colors = fieldColors, keyboardOptions = keyboardOptions.copy(showKeyboardOnFocus = false), keyboardActions = keyboardActions,
-                            label = { Text("弹幕 API 地址") }, modifier = Modifier.weight(1f).then(editOnConfirm("server")).testTag("danmaku-server"))
-                        ActionButton(onClick = {
-                            preferences.edit().putString("server", server.trim()).apply()
-                            editing = null; keyboard?.hide(); focus.clearFocus()
-                        }, enabled = server.isNotBlank(), modifier = Modifier.testTag("danmaku-save")) { Text("保存") }
-                    }
-                }
+                item { Text("选择弹幕", style = MaterialTheme.typography.headlineSmall) }
                 item {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         OutlinedTextField(readOnly = editing != "query", value = keyword, onValueChange = { keyword = it },
@@ -87,7 +81,7 @@ internal fun DanmakuPlayback(
                             label = { Text("作品名称") }, modifier = Modifier.weight(1f).then(editOnConfirm("query")).testTag("danmaku-query"))
                         ActionButton(onClick = {
                             editing = null; keyboard?.hide()
-                            state.search(server, keyword)
+                            state.search(server, keyword, useSaved = false)
                         }, enabled = server.isNotBlank() && keyword.isNotBlank(), modifier = Modifier.testTag("danmaku-search")) { Text("匹配") }
                     }
                 }
@@ -99,22 +93,38 @@ internal fun DanmakuPlayback(
                     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         state.titles.forEach { result ->
                             SelectionChip(selected = state.selectedTitle == result, onClick = { state.select(result) },
-                                modifier = Modifier.fillMaxWidth().testTag("danmaku-title-${result.id}")) { Text("${result.title} · ${result.source}", modifier = Modifier.fillMaxWidth(), maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                                modifier = Modifier.fillMaxWidth().testTag("danmaku-title-${result.id}")) { Text(listOf(result.title, result.source).filter { it.isNotBlank() }.joinToString(" · "), modifier = Modifier.fillMaxWidth(), maxLines = 2, overflow = TextOverflow.Ellipsis) }
                         }
                     }
                     }
                 }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text("剧集", style = MaterialTheme.typography.titleMedium)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("剧集", style = MaterialTheme.typography.titleMedium)
+                        ActionButton(onClick = { scope.launch { art.anjing.tigertv.ui.requestFocusSafely(currentEpisodeFocus) } }, enabled = state.selectedEpisode != null, height = 44.dp) { Text("当前集") }
+                    }
                     FlowRow(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         state.episodes.forEach { episode ->
                             SelectionChip(selected = state.selectedEpisode == episode, onClick = { state.select(episode) },
-                                modifier = Modifier.testTag("danmaku-episode-${episode.id}")) { Text("第 ${episode.number} 集") }
+                                modifier = Modifier.then(if (state.selectedEpisode == episode) Modifier.focusRequester(currentEpisodeFocus) else Modifier).testTag("danmaku-episode-${episode.id}")) { Text("第 ${episode.number} 集") }
                         }
                     }
                     }
                 }
+                item {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(readOnly = editing != "server", value = server, onValueChange = { server = it },
+                            singleLine = true, colors = fieldColors, keyboardOptions = keyboardOptions.copy(showKeyboardOnFocus = false), keyboardActions = keyboardActions,
+                            label = { Text("弹幕 API 地址") }, modifier = Modifier.weight(1f).then(editOnConfirm("server")).testTag("danmaku-server"))
+                        ActionButton(onClick = {
+                            state.configure(server)
+                            preferences.edit().putString("server", server.trim()).apply()
+                            editing = null; keyboard?.hide(); focus.clearFocus()
+                        }, enabled = server.isNotBlank(), modifier = Modifier.testTag("danmaku-save")) { Text("保存") }
+                    }
+                }
+
             }
         }
         }

@@ -44,6 +44,7 @@ class LiveDanmakuPlaybackTest {
         val titleId = args.getString("danmu_title_id")!!
         val episodeId = args.getString("danmu_episode_id")!!
         val context = InstrumentationRegistry.getInstrumentation().targetContext
+        context.getSharedPreferences("danmaku", 0).edit().clear().commit()
         val liveHttp = platformHttpClient()
         val liveNetwork = Network(liveHttp)
         val files = ConcurrentHashMap<String, String>().apply { put("source", """{"api_site":{"live":{"name":"$site","api":"https://fixture.test/api"}}}""") }
@@ -71,7 +72,7 @@ class LiveDanmakuPlaybackTest {
             compose.setContent { TigerTVTheme { root = LocalView.current; PlayerScreen(model) {} } }
             fun player(): Player = find(root, PlayerView::class.java)!!.player!!
             fun overlay(): DanmakuView = find(root, DanmakuView::class.java)!!
-            fun <T> main(block: () -> T): T { var result: T? = null; compose.runOnIdle { result = block() }; @Suppress("UNCHECKED_CAST") return result as T }
+            fun <T> main(block: () -> T): T { var result: T? = null; InstrumentationRegistry.getInstrumentation().runOnMainSync { result = block() }; @Suppress("UNCHECKED_CAST") return result as T }
             compose.waitUntil(30_000) { main { player().isPlaying } }
             fun openQuick() {
                 InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_UP)
@@ -83,7 +84,7 @@ class LiveDanmakuPlaybackTest {
             }
             fun openMenu() {
                 openQuick()
-                repeat(3) { InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_UP) }
+                compose.onNodeWithTag("danmaku-action-4").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
                 InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
                 compose.waitUntil(5_000) { compose.onAllNodesWithTag("danmaku-options").fetchSemanticsNodes().isNotEmpty() }
             }
@@ -126,7 +127,7 @@ class LiveDanmakuPlaybackTest {
             assertEquals(paused, main { overlay().lastClockMs })
             // Adjust reference offset while paused: no video-time movement or repeated ad subtraction.
             openQuick()
-            repeat(2) { InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_UP) }
+            compose.onNodeWithTag("danmaku-action-1").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
             InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
             compose.waitUntil(5_000) { main { kotlin.math.abs(overlay().lastClockMs - player().currentPosition - 1_000) < 100 } }
             main { player().seekTo(310_000); player().setPlaybackSpeed(1.5f); player().play() }
@@ -142,7 +143,7 @@ class LiveDanmakuPlaybackTest {
             val droppedBefore = main { (player() as androidx.media3.exoplayer.ExoPlayer).videoDecoderCounters?.droppedBufferCount ?: 0 }
             repeat(12) {
                 Thread.sleep(5_000)
-                main { assertNull(player().playerError); assertTrue(overlay().drawnCount <= 18) }
+                main { assertNull(player().playerError); assertTrue(overlay().drawnCount <= 12) }
                 pss += android.os.Debug.getPss()
             }
             val dropped = main { ((player() as androidx.media3.exoplayer.ExoPlayer).videoDecoderCounters?.droppedBufferCount ?: 0) - droppedBefore }
@@ -169,8 +170,8 @@ class LiveDanmakuPlaybackTest {
             clickOption("danmaku-save")
             clickOption("danmaku-search")
             awaitRequest()
-            compose.onNodeWithTag("danmaku-options").performScrollToNode(hasText("弹幕搜索失败，请重试"))
-            compose.onNodeWithText("弹幕搜索失败，请重试").assertExists()
+            compose.onNodeWithTag("danmaku-options").performScrollToNode(hasText("弹幕匹配失败，请手动选择"))
+            compose.onNodeWithText("弹幕匹配失败，请手动选择").assertExists()
             val errorPosition = main { player().currentPosition }
             compose.waitUntil(10_000) { main { assertNull(player().playerError); player().currentPosition > errorPosition + 500 } }
             android.util.Log.i("TigerTVDanmakuLive", "work=$work disabledStopsDrawing=true episodeCleared=true apiFailureVideoContinues=true")

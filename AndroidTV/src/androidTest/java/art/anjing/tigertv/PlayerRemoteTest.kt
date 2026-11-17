@@ -61,6 +61,7 @@ class PlayerRemoteTest {
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     @Before fun preparePlayer() {
         val context = instrumentation.targetContext
+        context.getSharedPreferences("danmaku", 0).edit().clear().commit()
         video = File(context.cacheDir, "remote-control-test.mp4")
         instrumentation.context.assets.open("player-test.mp4").use { input -> video.outputStream().use(input::copyTo) }
         val files = ConcurrentHashMap<String, String>().apply {
@@ -140,11 +141,24 @@ class PlayerRemoteTest {
         remote(KeyEvent.KEYCODE_DPAD_RIGHT)
         compose.onNodeWithTag("player-danmaku").assertIsFocused()
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithText("提前一秒").assertExists()
-        compose.onNodeWithText("延后一秒").assertExists()
-        compose.onNodeWithText("弹幕设置").assertExists()
+        compose.onNodeWithText("提前 1 秒").assertExists()
+        compose.onNodeWithText("延后 1 秒").assertExists()
+        compose.onNodeWithText("选择弹幕").assertExists()
         compose.onNodeWithText("关闭弹幕").assertExists()
-        compose.onNodeWithTag("danmaku-action-3").assertIsFocused()
+        compose.onNodeWithTag("danmaku-action-4").assertIsFocused()
+        compose.onNodeWithTag("danmaku-offset").assertTextEquals("当前偏移 0 秒")
+        repeat(2) { remote(KeyEvent.KEYCODE_DPAD_UP) }
+        compose.onNodeWithTag("danmaku-action-1").assertIsFocused()
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag("danmaku-offset").assertTextEquals("当前偏移 +1 秒")
+        remote(KeyEvent.KEYCODE_DPAD_UP)
+        compose.onNodeWithTag("danmaku-action-2").assertIsFocused()
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag("danmaku-offset").assertTextEquals("当前偏移 0 秒")
+        repeat(3) { remote(KeyEvent.KEYCODE_DPAD_UP) }
+        compose.onNodeWithTag("danmaku-action-0").assertIsFocused()
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag("player-danmaku").assertContentDescriptionEquals("弹幕已关闭")
         compose.runOnIdle { model.selectEpisode(1) }
@@ -156,11 +170,11 @@ class PlayerRemoteTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("弹幕已关闭").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("player-danmaku").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        repeat(3) { remote(KeyEvent.KEYCODE_DPAD_UP) }
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag("danmaku-options").assertExists()
         compose.onNodeWithText("完成").assertDoesNotExist()
-        compose.onNodeWithText("提前一秒").assertDoesNotExist()
+        compose.onNodeWithText("提前 1 秒").assertDoesNotExist()
+        compose.onNodeWithTag("danmaku-options").performScrollToNode(hasTestTag("danmaku-server"))
         compose.onNodeWithTag("danmaku-server").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         Thread.sleep(500)
         val descriptor = instrumentation.uiAutomation.executeShellCommand("dumpsys input_method")
@@ -181,7 +195,6 @@ class PlayerRemoteTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("player-danmaku").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("player-danmaku").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        repeat(3) { remote(KeyEvent.KEYCODE_DPAD_UP) }
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         val panel = compose.onNodeWithTag("danmaku-options")
         panel.performScrollToNode(hasTestTag("danmaku-server"))

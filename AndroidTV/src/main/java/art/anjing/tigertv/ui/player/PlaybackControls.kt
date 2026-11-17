@@ -48,7 +48,7 @@ fun PlaybackControls(
     speedOptionFocus: FocusRequester, danmakuFocus: FocusRequester, canPrevious: Boolean, canNext: Boolean,
     onFocus: (PlayerFocusArea) -> Unit, onPrevious: () -> Unit, onNext: () -> Unit,
     onTogglePlayback: () -> Unit, onSpeedMenu: () -> Unit, onSpeed: (Float) -> Unit,
-    onSeekTo: (Long) -> Unit, danmakuOpen: Boolean, danmakuEnabled: Boolean,
+    onSeekTo: (Long) -> Unit, danmakuOpen: Boolean, danmakuEnabled: Boolean, danmakuLoaded: Boolean, danmakuOffsetMs: Long,
     onDanmakuMenu: () -> Unit, onDanmakuAction: (Int) -> Unit
 ) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Brush.verticalGradient(
@@ -77,12 +77,16 @@ fun PlaybackControls(
                 Surface(modifier = Modifier.align(Alignment.End).padding(end = 16.dp).width(152.dp).heightIn(max = speedMenuHeight),
                     shape = MaterialTheme.shapes.extraLarge, tonalElevation = 3.dp) {
                     Column(Modifier.verticalScroll(rememberScrollState()).padding(12.dp).focusGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        listOf("弹幕设置", "提前一秒", "延后一秒", if (danmakuEnabled) "关闭弹幕" else "开启弹幕").forEachIndexed { index, label ->
-                            ListItem(selected = false, onClick = { onDanmakuAction(index) },
+                        listOf(if (danmakuEnabled) "关闭弹幕" else "开启弹幕", "提前 1 秒", "延后 1 秒", "", "选择弹幕").forEachIndexed { index, label ->
+                            if (index == 3) {
+                                Text("当前偏移 ${if (danmakuOffsetMs > 0) "+" else ""}${danmakuOffsetMs / 1000} 秒",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag("danmaku-offset"))
+                            } else ListItem(selected = false, onClick = { onDanmakuAction(index) },
                                 shape = ListItemDefaults.shape(shape = MaterialTheme.shapes.large), headlineContent = { Text(label) },
                                 modifier = Modifier.fillMaxWidth().testTag("danmaku-action-$index")
-                                    .then(if (index == 3) Modifier.focusRequester(first) else Modifier)
-                                    .focusProperties { left = FocusRequester.Cancel; right = FocusRequester.Cancel; if (index == 0) up = FocusRequester.Cancel; if (index == 3) down = danmakuFocus })
+                                    .then(if (index == (if (danmakuLoaded) 0 else 4)) Modifier.focusRequester(first) else Modifier)
+                                    .focusProperties { left = FocusRequester.Cancel; right = FocusRequester.Cancel; if (index == 0) up = FocusRequester.Cancel; if (index == 4) down = danmakuFocus })
                         }
                     }
                 }
