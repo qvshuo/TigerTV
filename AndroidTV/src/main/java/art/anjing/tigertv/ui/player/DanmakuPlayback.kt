@@ -9,6 +9,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import kotlinx.coroutines.launch
@@ -62,12 +63,22 @@ internal fun DanmakuPlayback(
             if (it.nativeKeyEvent.keyCode in listOf(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER)) {
                 if (it.nativeKeyEvent.action == KeyEvent.ACTION_UP) editing = name
                 true
+            } else if (editing != name) {
+                val direction = when (it.nativeKeyEvent.keyCode) {
+                    KeyEvent.KEYCODE_DPAD_LEFT -> FocusDirection.Left
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> FocusDirection.Right
+                    KeyEvent.KEYCODE_DPAD_UP -> FocusDirection.Up
+                    KeyEvent.KEYCODE_DPAD_DOWN -> FocusDirection.Down
+                    else -> null
+                }
+                if (direction != null && it.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) focus.moveFocus(direction)
+                direction != null
             } else false
         }
-        val keyboardActions = KeyboardActions(onDone = { editing = null; keyboard?.hide(); focus.clearFocus() })
+        val keyboardActions = KeyboardActions(onDone = { editing = null; keyboard?.hide() })
         val keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
 
-        BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp), contentAlignment = Alignment.Center) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 28.dp), contentAlignment = Alignment.Center) {
         val dialogHeight = maxHeight
         Surface(modifier = Modifier.widthIn(max = 760.dp).fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge,
             colors = SurfaceDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)) {
@@ -87,15 +98,12 @@ internal fun DanmakuPlayback(
                 }
                 if (state.busy) item { Text(if (state.track == null) "正在加载弹幕…" else "正在比较弹幕…") }
                 state.error?.let { error -> item { Text(error, color = MaterialTheme.colorScheme.error) } }
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text("弹幕来源", style = MaterialTheme.typography.titleMedium)
-                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        state.titles.forEach { result ->
-                            SelectionChip(selected = state.selectedTitle == result, onClick = { state.select(result) },
-                                modifier = Modifier.fillMaxWidth().testTag("danmaku-title-${result.id}")) { Text(listOf(result.title, result.source).filter { it.isNotBlank() }.joinToString(" · "), modifier = Modifier.fillMaxWidth(), maxLines = 2, overflow = TextOverflow.Ellipsis) }
-                        }
-                    }
+                item { Text("弹幕来源", style = MaterialTheme.typography.titleMedium) }
+                items(state.titles, key = { "title-${it.id}" }) { result ->
+                    SelectionChip(selected = state.selectedTitle == result, onClick = { state.select(result) },
+                        modifier = Modifier.fillMaxWidth().testTag("danmaku-title-${result.id}")) {
+                        Text(listOf(result.title, result.source).filter { it.isNotBlank() }.joinToString(" · "),
+                            modifier = Modifier.fillMaxWidth(), maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 item {
@@ -107,7 +115,12 @@ internal fun DanmakuPlayback(
                     FlowRow(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         state.episodes.forEach { episode ->
                             SelectionChip(selected = state.selectedEpisode == episode, onClick = { state.select(episode) },
-                                modifier = Modifier.then(if (state.selectedEpisode == episode) Modifier.focusRequester(currentEpisodeFocus) else Modifier).testTag("danmaku-episode-${episode.id}")) { Text("第 ${episode.number} 集") }
+                                modifier = Modifier.then(if (state.selectedEpisode == episode) Modifier.focusRequester(currentEpisodeFocus) else Modifier).testTag("danmaku-episode-${episode.id}")) {
+                                val label = episode.title.ifBlank {
+                                    if (episode.number.isBlank()) "未命名剧集" else "第 ${episode.number} 集"
+                                }
+                                Text(label, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                     }
                     }
@@ -121,7 +134,7 @@ internal fun DanmakuPlayback(
                             state.configure(server)
                             preferences.edit().putString("server", server.trim()).apply()
                             state.search(title)
-                            editing = null; keyboard?.hide(); focus.clearFocus()
+                            editing = null; keyboard?.hide()
                         }, enabled = server.isNotBlank(), modifier = Modifier.testTag("danmaku-save")) { Text("保存") }
                     }
                 }

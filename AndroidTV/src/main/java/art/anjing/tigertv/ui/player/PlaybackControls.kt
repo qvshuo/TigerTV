@@ -59,6 +59,8 @@ fun PlaybackControls(
     ))) {
         val density = LocalDensity.current
         var danmakuWidth by remember { mutableStateOf(0.dp) }
+        val danmakuToggleFocus = remember { FocusRequester() }
+        val danmakuChoiceFocus = remember { FocusRequester() }
         val stacked = maxWidth < 900.dp
         val actionsHeight = if (stacked) 132.dp else 64.dp
         val speedMenuHeight = (maxHeight - actionsHeight - 112.dp).coerceAtLeast(132.dp)
@@ -72,8 +74,9 @@ fun PlaybackControls(
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (danmakuOpen) {
-                val first = remember { FocusRequester() }
-                LaunchedEffect(Unit) { art.anjing.tigertv.ui.requestFocusSafely(first) }
+                LaunchedEffect(Unit) {
+                    art.anjing.tigertv.ui.requestFocusSafely(if (danmakuLoaded) danmakuToggleFocus else danmakuChoiceFocus)
+                }
                 Surface(modifier = Modifier.align(Alignment.End).padding(end = 16.dp).width(152.dp).heightIn(max = speedMenuHeight),
                     shape = MaterialTheme.shapes.extraLarge, tonalElevation = 3.dp) {
                     Column(Modifier.verticalScroll(rememberScrollState()).padding(12.dp).focusGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -85,7 +88,11 @@ fun PlaybackControls(
                             } else ListItem(selected = false, onClick = { onDanmakuAction(index) },
                                 shape = ListItemDefaults.shape(shape = MaterialTheme.shapes.large), headlineContent = { Text(label) },
                                 modifier = Modifier.fillMaxWidth().testTag("danmaku-action-$index")
-                                    .then(if (index == (if (danmakuLoaded) 0 else 4)) Modifier.focusRequester(first) else Modifier)
+                                    .then(when (index) {
+                                        0 -> Modifier.focusRequester(danmakuToggleFocus)
+                                        4 -> Modifier.focusRequester(danmakuChoiceFocus)
+                                        else -> Modifier
+                                    })
                                     .focusProperties { left = FocusRequester.Cancel; right = FocusRequester.Cancel; if (index == 0) up = FocusRequester.Cancel; if (index == 4) down = danmakuFocus })
                         }
                     }
@@ -144,8 +151,12 @@ fun PlaybackControls(
             val nextFocus = remember { FocusRequester() }
             Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(actionsHeight).focusGroup()) {
                 val actionModifier = Modifier.focusProperties {
-                    up = if (controls.speedMenuOpen) speedOptionFocus else timelineFocus
-                    down = FocusRequester.Cancel
+                    up = when {
+                        danmakuOpen -> danmakuChoiceFocus
+                        controls.speedMenuOpen -> speedOptionFocus
+                        else -> timelineFocus
+                    }
+                    down = if (stacked) speedFocus else FocusRequester.Cancel
                 }.onFocusChanged { if (it.isFocused) onFocus(PlayerFocusArea.Actions) }
                 // The symmetric transport group centers play on the viewport, independently of speed.
                 Row(Modifier.align(if (stacked) Alignment.TopCenter else Alignment.Center), horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -175,15 +186,27 @@ fun PlaybackControls(
                 }
                 Row(Modifier.align(if (stacked) Alignment.BottomEnd else Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ActionButton(onClick = onSpeedMenu,
-                    modifier = Modifier.testTag("player-speed").focusRequester(speedFocus).then(actionModifier).semantics { contentDescription = "倍速 ${snapshot.speed}×" }.focusProperties {
+                    modifier = Modifier.testTag("player-speed").focusRequester(speedFocus).onFocusChanged { if (it.isFocused) onFocus(PlayerFocusArea.SpeedButton) }.semantics { contentDescription = "倍速 ${snapshot.speed}×" }.focusProperties {
                         left = if (canNext) nextFocus else playFocus; right = danmakuFocus
+                        up = when {
+                            danmakuOpen -> danmakuChoiceFocus
+                            controls.speedMenuOpen -> speedOptionFocus
+                            stacked -> playFocus
+                            else -> timelineFocus
+                        }
+                        down = FocusRequester.Cancel
                     }, contentPadding = PaddingValues(horizontal = 20.dp)) {
                     Icon(painterResource(R.drawable.player_speed), contentDescription = null, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("倍速", style = MaterialTheme.typography.labelLarge, maxLines = 1)
                 }
                 ActionButton(onClick = onDanmakuMenu, modifier = Modifier.testTag("player-danmaku").semantics { contentDescription = if (danmakuEnabled) "弹幕已开启" else "弹幕已关闭" }.onSizeChanged { danmakuWidth = with(density) { it.width.toDp() } }.focusRequester(danmakuFocus)
-                    .focusProperties { left = speedFocus; right = FocusRequester.Cancel; up = timelineFocus; down = FocusRequester.Cancel }
+                    .focusProperties { left = speedFocus; right = FocusRequester.Cancel; up = when {
+                        danmakuOpen -> danmakuChoiceFocus
+                        controls.speedMenuOpen -> speedOptionFocus
+                        stacked -> playFocus
+                        else -> timelineFocus
+                    }; down = FocusRequester.Cancel }
                     .onFocusChanged { if (it.isFocused) onFocus(PlayerFocusArea.Danmaku) }, contentPadding = PaddingValues(horizontal = 20.dp)) {
                     Icon(painterResource(if (danmakuEnabled) R.drawable.player_danmaku else R.drawable.player_danmaku_off), contentDescription = null, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(8.dp))

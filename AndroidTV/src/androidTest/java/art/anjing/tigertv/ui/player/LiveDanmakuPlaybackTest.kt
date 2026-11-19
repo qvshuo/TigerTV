@@ -141,6 +141,11 @@ class LiveDanmakuPlaybackTest {
             main { assertTrue(kotlin.math.abs(overlay().lastClockMs - player().currentPosition - 1_000) < 200) }
             Thread.sleep(1_000)
             main { assertNull(player().playerError); assertTrue(overlay().drawnCount <= 12) }
+            main {
+                val counters = (player() as androidx.media3.exoplayer.ExoPlayer).videoDecoderCounters!!
+                counters.ensureUpdated()
+                android.util.Log.i("TigerTVDanmakuLive", "renderedVideoFrames=${counters.renderedOutputBufferCount} droppedVideoFrames=${counters.droppedBufferCount}")
+            }
             val output = File(context.getExternalFilesDir(null), "danmaku-live-${work}.png")
             InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().let { bitmap -> output.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle() }
             android.util.Log.i("TigerTVDanmakuLive", "work=$work scrollingComments=$count pause=true seek=true speed=true offset=true rendered=true bufferingObserved=$bufferFrozen")

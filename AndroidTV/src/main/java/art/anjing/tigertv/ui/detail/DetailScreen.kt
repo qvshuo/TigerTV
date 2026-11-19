@@ -340,8 +340,7 @@ internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier =
             Text(title, modifier = Modifier.weight(1f, fill = false), textAlign = TextAlign.Center,
                 maxLines = maxLines, overflow = TextOverflow.Ellipsis)
             if (adFiltering) {
-                Icon(painterResource(art.anjing.tigertv.R.drawable.source_ad_off),
-                    contentDescription = "支持广告过滤", modifier = Modifier.size(20.dp))
+                Text("去广告", style = MaterialTheme.typography.labelMedium)
             }
         }
     }

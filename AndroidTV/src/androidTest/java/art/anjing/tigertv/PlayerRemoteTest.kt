@@ -81,7 +81,7 @@ class PlayerRemoteTest {
             }
             if (request.url.host == "m.douban.com") respond("""{"subject_collection_items":[]}""")
             else if (request.url.encodedPath == "/api/v2/search/anime") respond("""{"success":true,"animes":[{"animeId":101,"animeTitle":"遥控器测试(2026)【国产剧】第一来源的长标题用于检查缩放留白","source":"test"},{"animeId":102,"animeTitle":"遥控器测试(2026)【国产剧】第二来源","source":"other"}]}""")
-            else if (request.url.encodedPath.startsWith("/api/v2/bangumi/")) respond("""{"success":true,"bangumi":{"episodes":[{"episodeId":11,"episodeNumber":"1"},{"episodeId":12,"episodeNumber":"2"}]}}""")
+            else if (request.url.encodedPath.startsWith("/api/v2/bangumi/")) respond("""{"success":true,"bangumi":{"episodes":[{"episodeId":11,"episodeNumber":"1","episodeTitle":"第1期：再见朋友！出发前…"},{"episodeId":12,"episodeNumber":"2"},{"episodeId":13,"episodeTitle":"抢鲜版：真心话抢先看"},{"episodeId":14,"episodeTitle":"加更版：张萌落泪马天宇拥抱"}]}}""")
             else if (request.url.encodedPath.startsWith("/api/v2/comment/")) respond("""{"comments":[{"p":"300,1,16777215","m":"布局测试弹幕"}]}""")
             else {
                 assertEquals("Ordinary playback must not probe through core", "fixture.test", request.url.host)
@@ -215,6 +215,20 @@ class PlayerRemoteTest {
         compose.waitUntil(10_000) { compose.onNodeWithTag("danmaku-options").fetchSemanticsNode().config[SemanticsProperties.StateDescription] == "就绪" }
         panel.performScrollToNode(hasTestTag("danmaku-title-101"))
         compose.onNodeWithTag("danmaku-title-101").assertIsSelected()
+        for ((id, title) in listOf(
+            11 to "第1期：再见朋友！出发前…",
+            12 to "第 2 集",
+            13 to "抢鲜版：真心话抢先看",
+            14 to "加更版：张萌落泪马天宇拥抱",
+        )) {
+            val tag = "danmaku-episode-$id"
+            panel.performScrollToNode(hasTestTag(tag))
+            compose.onNodeWithTag(tag).assertTextContains(title)
+        }
+        panel.performScrollToNode(hasTestTag("danmaku-query"))
+        compose.onNodeWithTag("danmaku-query").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        remote(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithTag("danmaku-search").assertIsFocused()
         panel.performScrollToNode(hasTestTag("danmaku-server"))
         compose.onNodeWithTag("danmaku-server").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -251,6 +265,28 @@ class PlayerRemoteTest {
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag("player-danmaku").assertContentDescriptionEquals("弹幕已开启")
         assertEquals("Reopening a loaded track must not request another source", requestsBeforeToggle, danmakuRequests.get())
+    }
+
+    @Test fun danmakuMenuCanBeReenteredFromItsButton() {
+        compose.runOnIdle { findPlayerView(rootView)!!.player!!.pause() }
+        val play = compose.onNodeWithTag("player-play")
+        val speed = compose.onNodeWithTag("player-speed")
+        if (speed.fetchSemanticsNode().boundsInRoot.top >= play.fetchSemanticsNode().boundsInRoot.bottom) {
+            play.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            remote(KeyEvent.KEYCODE_DPAD_DOWN)
+            speed.assertIsFocused()
+            remote(KeyEvent.KEYCODE_DPAD_UP)
+            play.assertIsFocused()
+        }
+        compose.onNodeWithTag("player-danmaku").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag("danmaku-action-4").assertIsFocused()
+        remote(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.onNodeWithTag("player-danmaku").assertIsFocused()
+        remote(KeyEvent.KEYCODE_DPAD_UP)
+        compose.onNodeWithTag("danmaku-action-4").assertIsFocused()
+        remote(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithTag("player-danmaku").assertIsFocused()
     }
 
     @Test fun failureAfterPlaybackIsClearedFocusesRetryAndBackExits() {
