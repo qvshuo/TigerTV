@@ -51,7 +51,7 @@ test('Android and Web remove the same interval and preserve the key and relative
   for (const input of [
     playlist.replace(uris[2], 'changed.ts'),
     playlist.replace('#EXT-X-DISCONTINUITY\n', ''),
-    playlist.replace('MEDIA-SEQUENCE:0', 'MEDIA-SEQUENCE:1'),
+    playlist.replace('MEDIA-SEQUENCE:0', 'MEDIA-SEQUENCE:0\n#EXT-X-MEDIA-SEQUENCE:1'),
     playlist.replace('IV=0x00000000000000000000000000000001', 'KEYFORMAT="drm"'),
     playlist.replace('#EXTINF:5,', '#EXT-X-MAP:URI="init.mp4"\n#EXTINF:5,'),
     playlist.replace('#EXTINF:5,', '#EXT-X-BYTERANGE:24@0\n#EXTINF:5,'),
@@ -60,19 +60,15 @@ test('Android and Web remove the same interval and preserve the key and relative
 })
 
 test('match season, date and parts, and upgrade only a compatible cut', () => {
-  assert.equal(titleRank('逐玉', '逐玉 (2026)【爱奇艺】', '2026'), 0)
-  assert.equal(titleRank('逐玉', '逐玉 (2025)', '2026'), undefined)
-  assert.equal(titleRank('剧集第二季', '剧集', '2026'), undefined)
-  const entries = [
-    { id: 1, title: '第2期上篇 2026-04-01', number: '2', seasonId: '' },
-    { id: 2, title: '第2期下篇 2026-04-01', number: '2', seasonId: '' },
-    { id: 3, title: '第2期预告 2026-04-01', number: '2', seasonId: '' },
-  ]
-  assert.equal(matchingEpisode(entries, '第2期下篇 20260401')?.id, 2)
-  assert.equal(matchingEpisode(entries, '第2期 20260401'), undefined)
-  assert.equal(matchingEpisode(entries, '第2期下篇 20260402'), undefined)
-  assert.equal(shouldUpgrade({ comments: [0], duration: 1600 }, { comments: [0, 1], duration: 1608 }), true)
-  assert.equal(shouldUpgrade({ comments: [0], duration: 1600 }, { comments: [0, 1], duration: 1620 }), false)
+  const fixture = json('danmaku-matching')
+  for (const { query, candidate, year, rank } of fixture.titleCases) {
+    assert.equal(titleRank(query, candidate, year) ?? null, rank)
+  }
+  for (const { label, id } of fixture.episodeCases) {
+    assert.equal(matchingEpisode(fixture.episodes, label)?.id ?? null, id)
+  }
+  assert.equal(shouldUpgrade({ comments: [{mode: 1}], duration: 1600 }, { comments: [{mode: 1}, {mode: 1}], duration: 1608 }), true)
+  assert.equal(shouldUpgrade({ comments: [{mode: 1}], duration: 1600 }, { comments: [{mode: 1}, {mode: 1}], duration: 1620 }), false)
 })
 
 test('work-wide speed, volume settings, separate episode progress and recent deduplication', () => {
@@ -103,4 +99,34 @@ test('work-wide speed, volume settings, separate episode progress and recent ded
   saveVolume(0.42, true, true)
   assert.deepEqual(getVolume(true), { volume: 0.42, muted: true })
   assert.deepEqual(getVolume(false), { volume: 1, muted: false })
+})
+
+test('the same heuristic cases keep key sequence and collapse a single interval', () => {
+  for (const { name, playlist, removed } of json('hls-smart')) {
+    const result = filterPlaylist('🎬360 资源', playlist)
+    assert.deepEqual(result?.removed ?? [], removed.map(([start, end]) => ({ start: start / 1000, end: end / 1000 })), name)
+    if (name === 'same-directory-without-evidence') {
+      const fingerprints = ['e18860e8d17c825b', '27bcbb2440ca6534']
+      const rules = [{ site: 'fixture', uriFingerprints: fingerprints, durations: [4, 4], continuous: true }]
+      assert.deepEqual(filterPlaylist('fixture', playlist, rules)?.removed, [{ start: 60, end: 68 }])
+      assert.equal(filterPlaylist('fixture', playlist.replace('part103.ts', 'part333.ts'), rules), undefined)
+    }
+    if (!result) continue
+    assert.match(result.text, /IV=0x00000000000000000000000000000069/)
+    assert.match(result.text, /#EXT-X-VERSION:2/)
+    assert.match(result.text, /#EXT-X-DISCONTINUITY/)
+    assert.doesNotMatch(result.text, /#EXT-X-CUE-/)
+    assert.equal(originalTime(60, result.removed), 68)
+    assert.equal(effectiveTime(65, result.removed), 60)
+  }
+})
+
+test('conservative work identities are stable across sources', () => {
+  const identities = new Map()
+  for (const row of json('work-identity')) {
+    const id = workId({site:{name:row.site}, id:row.vod_id, title:row.vod_name, year:row.vod_year})
+    if (identities.has(row.expected)) assert.equal(id, identities.get(row.expected))
+    identities.set(row.expected, id)
+  }
+  assert.equal(new Set(identities.values()).size, identities.size)
 })

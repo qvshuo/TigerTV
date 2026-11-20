@@ -124,14 +124,15 @@ class LiveDanmakuPlaybackTest {
             compose.onNodeWithTag("danmaku-action-1").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
             InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
             compose.waitUntil(5_000) { main { kotlin.math.abs(overlay().lastClockMs - player().currentPosition - 1_000) < 100 } }
-            main { player().seekTo(310_000); player().setPlaybackSpeed(1.5f); player().play() }
+            val seekAt = args.getString("seek_millis")?.toLongOrNull() ?: 310_000L
+            main { player().seekTo(seekAt); player().setPlaybackSpeed(1.5f); player().play() }
             Thread.sleep(100)
             val buffering = main { player().playbackState == Player.STATE_BUFFERING }
             val bufferClock = main { overlay().lastClockMs }
             Thread.sleep(150)
             val bufferFrozen = buffering && main { player().playbackState == Player.STATE_BUFFERING }
             if (bufferFrozen) assertEquals(bufferClock, main { overlay().lastClockMs })
-            compose.waitUntil(25_000) { main { player().isPlaying && player().currentPosition > 311_000 && overlay().drawnCount > 0 } }
+            compose.waitUntil(25_000) { main { player().isPlaying && player().currentPosition > seekAt + 1_000 && overlay().drawnCount > 0 } }
             main { assertTrue(kotlin.math.abs(overlay().lastClockMs - player().currentPosition - 1_000) < 200) }
             Thread.sleep(1_000)
             main { assertNull(player().playerError); assertTrue(overlay().drawnCount <= 12) }

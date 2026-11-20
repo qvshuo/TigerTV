@@ -223,6 +223,10 @@ jobs:
           npm run check
           npm test
           npm run build
+      - name: Check optional metadata Gateway
+        run: |
+          docker compose -f gateway/compose.yaml config --quiet
+          node --test gateway/server.test.mjs
       - name: Package Web/PWA
         run: |
           mkdir -p artifacts

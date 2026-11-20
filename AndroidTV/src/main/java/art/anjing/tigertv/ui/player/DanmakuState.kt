@@ -90,9 +90,9 @@ internal class DanmakuState(
         selectedTitle = null; selectedEpisode = null; episodes = emptyList(); titles = emptyList(); track = null
         request("弹幕匹配失败，请手动选择", automatic = true) {
             var failure: String? = null
-            withTimeoutOrNull(60_000) overall@ {
+            withTimeoutOrNull(90_000) overall@ {
                 var requests = 0
-                suspend fun load(candidate: DanmakuTitle, manualEpisode: Long? = null): Loaded? = withTimeoutOrNull(20_000) {
+                suspend fun load(candidate: DanmakuTitle, manualEpisode: Long? = null): Loaded? = withTimeoutOrNull(65_000) {
                     try {
                         if (requests >= 12) return@withTimeoutOrNull null
                         requests++

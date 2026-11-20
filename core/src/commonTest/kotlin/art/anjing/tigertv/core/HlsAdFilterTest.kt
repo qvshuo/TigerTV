@@ -16,6 +16,33 @@ class HlsAdFilterTest {
             fixture.getValue("endMs").jsonPrimitive.long)), result.removed)
     }
 
+    @Test fun sharedHeuristicsAndImplicitIvPreserveOriginalSegmentSequence() {
+        val cases = Json.parseToJsonElement(contractFixtures.getValue("hls-smart.sample.json")).jsonArray
+        for (element in cases) {
+            val fixture = element.jsonObject
+            val name = fixture.getValue("name").jsonPrimitive.content
+            val input = fixture.getValue("playlist").jsonPrimitive.content
+            val removed = fixture.getValue("removed").jsonArray.map {
+                MediaInterval(it.jsonArray[0].jsonPrimitive.long, it.jsonArray[1].jsonPrimitive.long)
+            }
+            val result = filterSmartHlsAds("🎬360 资源", input)
+            assertEquals(removed, result?.removed.orEmpty(), name)
+            if (name == "same-directory-without-evidence") {
+                val exact = KnownHlsAdGroup("fixture",
+                    listOf("content/part103.ts", "content/part104.ts").map(::uriHash), listOf(4.0, 4.0), continuous = true)
+                assertEquals(listOf(MediaInterval(60000, 68000)), filterKnownHlsAd("fixture", input, exact)?.removed)
+                assertNull(filterKnownHlsAd("fixture", input.replace("part103.ts", "part333.ts"), exact))
+            }
+            if (result == null) continue
+            assertTrue("IV=0x00000000000000000000000000000069" in result.playlist, name)
+            assertTrue("#EXT-X-VERSION:2" in result.playlist, name)
+            assertTrue("#EXT-X-DISCONTINUITY" in result.playlist, name)
+            assertFalse("#EXT-X-CUE-" in result.playlist, name)
+            assertEquals(68000L, result.timeline.effectiveToVideo(60000))
+            assertEquals(60000L, result.timeline.videoToEffective(65000).timeMs)
+        }
+    }
+
     @Test fun removesOnlySelectedSegmentsAndMapsTime() {
         val input = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:3,\na.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:2,\nad.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:3,\nb.ts\n#EXT-X-ENDLIST\n"
         val out = filterHlsAds(input) { it == "ad.ts" }!!
@@ -92,7 +119,8 @@ class HlsAdFilterTest {
         assertFalse(result.playlist.contains("METHOD=NONE"))
         assertEquals(1, result.playlist.lines().count { it == key })
         assertTrue(result.playlist.contains("#EXTINF:3,\nb.ts"))
-        assertNull(filterHlsAds(input.replace(",IV=0x00000000000000000000000000000001", "")) { it == "ad.ts" })
+        assertTrue(filterHlsAds(input.replace(",IV=0x00000000000000000000000000000001", "")) { it == "ad.ts" }!!
+            .playlist.contains("IV=0x00000000000000000000000000000002"))
         assertNull(filterHlsAds(input.replace("AES-128", "SAMPLE-AES")) { it == "ad.ts" })
     }
 

@@ -39,7 +39,7 @@ class DanmakuClient(private val network: Network, baseUrl: String) {
     }
     suspend fun comments(episodeId: Long): DanmakuTrack {
         require(episodeId > 0)
-        return parseDanmakuTrack(network.get("$base/api/v2/comment/$episodeId?format=json&duration=true"))
+        return parseDanmakuTrack(network.get("$base/api/v2/comment/$episodeId?format=json&duration=true", 50_000))
     }
 }
 

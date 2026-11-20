@@ -36,6 +36,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import androidx.tv.material3.Icon
 import androidx.compose.ui.res.painterResource
+import art.anjing.tigertv.domain.legacyWorkId
 import art.anjing.tigertv.R
 import art.anjing.tigertv.ui.components.ActionButton
 import art.anjing.tigertv.ui.components.UiMetrics
@@ -90,23 +91,24 @@ fun PlayerScreen(
     val identity = listOf(session?.workId.orEmpty(), session?.site.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty())
         .joinToString("") { "${it.length}:$it" }
     val danmakuState = remember(identity, viewModel.playbackRevision) {
-        fun titleKey(server: String) = danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.site.orEmpty())
-        fun episodeKey(server: String) = danmakuPreferenceKey(server, session?.workId.orEmpty(),
+        val oldId = viewModel.selectedResult?.let(::legacyWorkId).orEmpty()
+        fun titleKey(server: String, id: String = session?.workId.orEmpty()) = danmakuPreferenceKey(server, id, session?.site.orEmpty())
+        fun episodeKey(server: String, id: String = session?.workId.orEmpty()) = danmakuPreferenceKey(server, id,
             session?.site.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty())
         DanmakuState(danmakuScope, viewModel::danmakuClient, inheritedOptions?.danmakuEnabled ?: preferences.getBoolean("enabled:$identity", true),
             rememberTitle = { server, id -> preferences.edit().putLong(titleKey(server), id).apply() },
-            preferredTitle = { server -> preferences.getLong(titleKey(server), -1).takeIf { it > 0 } },
+            preferredTitle = { server -> preferences.getLong(titleKey(server), preferences.getLong(titleKey(server, oldId), -1)).takeIf { it > 0 } },
             workYear = workYear, episodeLabel = session?.episode.orEmpty(),
             rememberEpisode = { server, titleId, episodeId ->
                 preferences.edit().putString(episodeKey(server), "$titleId:$episodeId").apply()
             },
             preferredEpisode = { server ->
-                preferences.getString(episodeKey(server), null)?.let { stored ->
+                (preferences.getString(episodeKey(server), null) ?: preferences.getString(episodeKey(server, oldId), null))?.let { stored ->
                     val titleId = stored.substringBefore(':').toLongOrNull()
                     val episodeId = stored.substringAfter(':', "").toLongOrNull()
                     if (titleId != null && episodeId != null) titleId to episodeId else null
                 }
-            })
+            }).also { it.offsetMs = preferences.getLong("offset:$identity", 0L) }
     }
     DisposableEffect(danmakuState) { onDispose { danmakuState.close() } }
     LaunchedEffect(danmakuState, danmakuState.enabled, configuredServer) {
@@ -238,7 +240,7 @@ fun PlayerScreen(
                 onPosition = { viewModel.savePlaybackPosition(session, it, controller.playbackProgressPercent(it)) },
                 onError = viewModel::setPlaybackError,
                 filterAds = playbackPreferences.filterAds,
-                speed = inheritedOptions?.speed ?: playbackPreferences.speed(session.workId))
+                speed = inheritedOptions?.speed ?: playbackPreferences.speed(session.workId, viewModel.availableSources))
             controller.play()
         }
         onDispose { controller.unload() }
@@ -370,8 +372,10 @@ fun PlayerScreen(
                 onDanmakuAction = { action ->
                     when (action) {
                         4 -> danmakuMenu = true
-                        1 -> danmakuState.offsetMs += 1_000
-                        2 -> danmakuState.offsetMs -= 1_000
+                        1, 2 -> {
+                            danmakuState.offsetMs += if (action == 1) 1_000 else -1_000
+                            preferences.edit().putLong("offset:$identity", danmakuState.offsetMs).apply()
+                        }
                         0 -> { danmakuState.toggleEnabled(); preferences.edit().putBoolean("enabled:$identity", danmakuState.enabled).apply() }
                     }
                     danmakuQuick = false; interact(); requestFocus(PlayerFocusArea.Danmaku)

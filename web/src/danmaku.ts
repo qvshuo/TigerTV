@@ -1,4 +1,4 @@
-import { getJson, object, scalar } from './api.ts'
+import { foldWidth as fold, getJson, object, scalar } from './api.ts'
 
 export type Title = { id: number; title: string; source: string }
 export type DanmakuEpisode = { id: number; title: string; number: string; season?: number; seasonId: string }
@@ -14,9 +14,6 @@ const fromTag = new RegExp(`(?:\\s+from\\s+(?:${platforms})|(?<=】)from\\s+[a-z
 const yearPattern = /[【\[(]((?:19|20)\d{2})[\]】)]|\s+((?:19|20)\d{2})\s*$/g
 const aliasPattern = /[【\[(](?:又名|别名|英文名|原名|aka)\s*[:：]?\s*([^】)\]]+)[\]】)]/gi
 
-function fold(text: string) {
-  return text.replace(/[\u3000！-～]/g, char => char === '\u3000' ? ' ' : String.fromCharCode(char.charCodeAt(0) - 0xfee0))
-}
 function number(text = ''): number | undefined {
   if (/^\d+$/.test(text)) return Number(text) || undefined
   let sum = 0
@@ -107,7 +104,7 @@ export class DanmakuClient {
   private signal: AbortSignal
 
   constructor(base: string, signal: AbortSignal) {
-    this.base = base
+    this.base = base.trim().replace(/\/+$/, '')
     this.signal = signal
   }
   async search(keyword: string) {
@@ -116,7 +113,7 @@ export class DanmakuClient {
     return rows(raw.animes).map(item => ({ id: id(item.animeId), title: scalar(item.animeTitle), source: scalar(item.source) })).filter(item => item.id)
   }
   async episodes(titleId: number) {
-    const raw = object(await getJson(`${this.base}/api/v2/bangumi/${titleId}`, this.signal))
+    const raw = object(await getJson(`${this.base}/api/v2/bangumi/${titleId}`, this.signal, 20_000))
     if (raw.success !== true) throw new Error('弹幕选集加载失败')
     const bangumi = object(raw.bangumi)
     const seasons = new Map(rows(bangumi.seasons).map(row => [scalar(row.id), season(scalar(row.name))]))
@@ -124,14 +121,17 @@ export class DanmakuClient {
       seasonId: scalar(row.seasonId), season: seasons.get(scalar(row.seasonId)) })).filter(item => item.id)
   }
   async track(episodeId: number): Promise<Track> {
-    const raw = object(await getJson(`${this.base}/api/v2/comment/${episodeId}?format=json&duration=true`, this.signal))
+    const raw = object(await getJson(`${this.base}/api/v2/comment/${episodeId}?format=json&duration=true`, this.signal, 50_000))
     const comments = rows(raw.comments).flatMap(row => {
-      const [time, mode, color] = scalar(row.p).split(',').map(Number)
+      const fields = scalar(row.p).split(',', 3)
+      if (fields.length !== 3 || fields.some(field => !field.trim())) return []
+      const [time, mode, color] = fields.map(Number)
       const text = scalar(row.m)
       return Number.isFinite(time) && time >= 0 && time <= 604800 && [1, 4, 5].includes(mode) &&
         Number.isInteger(color) && color >= 0 && color <= 0xffffff && text.trim() ? [{ time, mode, color, text }] : []
     }).sort((a, b) => a.time - b.time)
-    return { comments, duration: Number(raw.videoDuration) || 0 }
+    const duration = Number(raw.videoDuration)
+    return { comments, duration: Number.isFinite(duration) && duration > 0 && duration <= 604800 ? duration : 0 }
   }
 }
 const platformsByPriority = [['iqiyi', 'qiyi'], ['youku'], ['tencent', 'qq'], ['mgtv', 'imgo', 'mango']]
@@ -139,10 +139,12 @@ const priority = (source: string) => {
   const index = platformsByPriority.findIndex(group => group.includes(source.toLowerCase()))
   return index < 0 ? platformsByPriority.length : index
 }
+const scrollingCount = (track: Track) => track.comments.reduce((count, item) => count + Number(item.mode === 1), 0)
 export function shouldUpgrade(current: Track, next: Track) {
-  return current.comments.length > 0 && current.duration > 0 && next.duration > 0 &&
+  const currentCount = scrollingCount(current)
+  return currentCount > 0 && current.duration > 0 && next.duration > 0 &&
     Math.abs(current.duration - next.duration) <= Math.min(10, Math.max(1, Math.min(current.duration, next.duration) / 100)) &&
-    next.comments.length >= current.comments.length * 2
+    scrollingCount(next) >= currentCount * 2
 }
 
 export async function autoMatch(client: DanmakuClient, query: string, year: string, episodeName: string,
@@ -151,24 +153,29 @@ export async function autoMatch(client: DanmakuClient, query: string, year: stri
   const expectedSeason = season(query) ?? season(episodeName)
   async function load(title: number, remembered?: number) {
     try {
-      if (budget < 2) return
-      budget -= 2
+      if (!budget) return
+      budget--
       const episodes = await client.episodes(title)
-      const episode = episodes.find(item => item.id === remembered) ?? matchingEpisode(episodes, episodeName, expectedSeason)
-      if (!episode) return
+      const episode = remembered !== undefined ? episodes.find(item => item.id === remembered)
+        : matchingEpisode(episodes, episodeName, expectedSeason)
+      if (!episode || !budget) return
+      budget--
       const track = await client.track(episode.id)
-      if (track.comments.length) return track
+      if (scrollingCount(track)) return track
     } catch (error) { if (signal.aborted) throw error }
   }
-  const saved = memory.episode?.title ?? memory.title
-  if (saved) {
-    const track = await load(saved, memory.episode?.id)
+  if (memory.episode) {
+    const track = await load(memory.episode.title, memory.episode.id)
     if (track) { publish(track); return }
   }
-  const seen = new Set(saved ? [saved] : [])
+  if (memory.title) {
+    const track = await load(memory.title)
+    if (track) { publish(track); return }
+  }
+  const seen = new Set(memory.title ? [memory.title] : [])
   const normalized = titleParts(query).main
   for (const keyword of new Set([query, normalized].filter(Boolean))) {
-    if (budget < 3) return
+    if (!budget) return
     budget--
     const candidates = (await client.search(keyword)).flatMap(item => {
       const rank = titleRank(query, item.title, year, expectedSeason)
@@ -179,7 +186,7 @@ export async function autoMatch(client: DanmakuClient, query: string, year: stri
     let best: Track | undefined
     let bestRank: number | undefined
     for (const { item, rank } of candidates) {
-      if (budget < 2 || (bestRank !== undefined && rank > bestRank)) break
+      if (!budget || (bestRank !== undefined && rank > bestRank)) break
       const track = await load(item.id)
       if (track && (!best || shouldUpgrade(best, track))) {
         best = track
@@ -209,13 +216,16 @@ function layoutComments(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D
   const comments: PositionedComment[] = []
   for (const item of track.comments) {
     const text = item.text.slice(0, 100)
-    const size = ctx.measureText(text).width
     if (item.mode === 1) {
       const row = lanes.findIndex(until => until <= item.time)
-      if (row < 0 || size > width * 1.65) continue
+      if (row < 0) continue
+      const size = ctx.measureText(text).width
+      if (size > width * 1.65) continue
       lanes[row] = item.time + (size + 18) / velocity
       comments.push({ ...item, text, x: width, y: (row + 1) * rowHeight, end: item.time + (width + size) / velocity })
-    } else if ((item.mode === 4 || item.mode === 5) && size <= width && fixed[item.mode] <= item.time) {
+    } else if ((item.mode === 4 || item.mode === 5) && fixed[item.mode] <= item.time) {
+      const size = ctx.measureText(text).width
+      if (size > width) continue
       fixed[item.mode] = item.time + 4
       comments.push({ ...item, text, x: (width - size) / 2, y: item.mode === 5 ? rowHeight : height * 0.78, end: item.time + 4 })
     }

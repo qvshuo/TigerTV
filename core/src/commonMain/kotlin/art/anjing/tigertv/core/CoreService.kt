@@ -1,6 +1,7 @@
 package art.anjing.tigertv.core
 
 import art.anjing.tigertv.domain.*
+import art.anjing.tigertv.domain.workId as canonicalWorkId
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.*
@@ -157,16 +158,41 @@ class CoreService(
         return withPlayedSources(response)
     }
 
-    private fun playedSources(): PlayedSources = cacheRead {
-        wireJson.decodeFromString<PlayedSources>(storage.read(playedSourcesPath) ?: "{}")
-    } ?: PlayedSources()
+    private fun playedSources(): PlayedSources {
+        val saved = cacheRead {
+            wireJson.decodeFromString<PlayedSources>(storage.read(playedSourcesPath) ?: "{}")
+        } ?: PlayedSources()
+        val normalized = mutableMapOf<String, WorkPlayback>()
+        for ((id, record) in saved.byWork) {
+            val source = record.recent?.source
+            val key = if (source != null && legacyWorkId(source) == id) canonicalWorkId(source) else id
+            normalized[key] = mergePlayback(normalized[key], record)
+        }
+        return saved.copy(byWork = normalized)
+    }
+
+    private fun mergePlayback(first: WorkPlayback?, second: WorkPlayback): WorkPlayback {
+        if (first == null) return second
+        val recentSecond = (second.recent?.playedAt ?: 0) >= (first.recent?.playedAt ?: 0)
+        val older = if (recentSecond) first else second
+        val newer = if (recentSecond) second else first
+        val positions = older.positions.toMutableMap()
+        for ((site, lines) in newer.positions) {
+            val merged = positions[site].orEmpty().toMutableMap()
+            for ((line, episodes) in lines) merged[line] = merged[line].orEmpty() + episodes
+            positions[site] = merged
+        }
+        return newer.copy(resources = older.resources + newer.resources, positions = positions)
+    }
 
     private suspend fun withPlayedSources(response: SearchResponse): SearchResponse = stateMutex.withLock {
         val saved = playedSources()
-        response.copy(works = response.works.map {
-            it.copy(lastPlayedSite = saved.byWork[it.id]?.site, recentPlayedSite = saved.recentSite,
-                playback = saved.byWork[it.id]?.resources.orEmpty(),
-                playbackPositions = saved.byWork[it.id]?.positions.orEmpty())
+        response.copy(works = response.works.map { work ->
+            val playback = work.sources.map(::legacyWorkId).distinct().filter { it != work.id }
+                .mapNotNull(saved.byWork::get).plus(listOfNotNull(saved.byWork[work.id]))
+                .fold(null as WorkPlayback?) { accumulated, record -> mergePlayback(accumulated, record) }
+            work.copy(lastPlayedSite = playback?.site, recentPlayedSite = saved.recentSite,
+                playback = playback?.resources.orEmpty(), playbackPositions = playback?.positions.orEmpty())
         })
     }
 
@@ -185,7 +211,10 @@ class CoreService(
         require(workId.isNotBlank() && site.isNotBlank() && line.isNotBlank())
         require(source == null || source.site == site)
         val saved = playedSources()
-        val work = saved.byWork[workId]
+        val legacy = source?.takeIf { canonicalWorkId(it) == workId }?.let(::legacyWorkId)?.takeIf { it != workId }
+        val current = saved.byWork[workId]
+        val work = if (current != null) mergePlayback(legacy?.let(saved.byWork::get), current)
+            else legacy?.let(saved.byWork::get)
         val bookmark = PlaybackBookmark(line, episode)
         val resources = work?.resources.orEmpty() + (site to bookmark)
         val previous = work?.recent?.takeIf { work.site == site }
@@ -193,7 +222,7 @@ class CoreService(
         val recent = if (source != null) RecentPlaybackMetadata(source, clock(), progress)
             else previous?.copy(progressPercent = progress)
         val updated = saved.copy(recentSite = site,
-            byWork = saved.byWork + (workId to WorkPlayback(site, resources, work?.positions.orEmpty(), recent)))
+            byWork = (saved.byWork - listOfNotNull(legacy)) + (workId to WorkPlayback(site, resources, work?.positions.orEmpty(), recent)))
         if (updated != saved) savePlayedSources(updated)
         Unit
     }

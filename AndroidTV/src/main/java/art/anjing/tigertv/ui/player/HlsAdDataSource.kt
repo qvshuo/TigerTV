@@ -10,7 +10,7 @@ import androidx.media3.datasource.TransferListener
 import art.anjing.tigertv.core.supportsHlsAdFiltering
 import art.anjing.tigertv.core.MediaTimeline
 import art.anjing.tigertv.core.HlsFilterResult
-import art.anjing.tigertv.core.filterKnownHlsAds
+import art.anjing.tigertv.core.filterSmartHlsAds
 import art.anjing.tigertv.core.singleHlsVariant
 import java.io.ByteArrayOutputStream
 
@@ -27,7 +27,7 @@ internal class HlsPlaybackSession(val uri: Uri, val site: String, val filterAds:
 internal class HlsAdDataSource(
     private val upstream: DataSource,
     private val session: HlsPlaybackSession?,
-    private val filter: (String, String) -> HlsFilterResult? = ::filterKnownHlsAds,
+    private val filter: (String, String) -> HlsFilterResult? = ::filterSmartHlsAds,
 ) : DataSource {
     private var bytes: ByteArray? = null
     private var position = 0

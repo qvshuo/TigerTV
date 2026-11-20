@@ -1,0 +1,18 @@
+{
+  "titleCases": [
+    {"query":"逐玉","candidate":"逐玉(2026)【国产剧】from tencent","year":"2026","rank":0},
+    {"query":"逐玉","candidate":"逐玉 (2025)","year":"2026","rank":null},
+    {"query":"作品第二季","candidate":"作品 (2026)","year":"2026","rank":null},
+    {"query":"别称","candidate":"作品【又名：别称】 (2026)","year":"2026","rank":0}
+  ],
+  "episodes":[
+    {"id":1,"title":"第2期上篇 2026-04-01","number":"2","seasonId":""},
+    {"id":2,"title":"第2期下篇 2026-04-01","number":"2","seasonId":""},
+    {"id":3,"title":"第2期预告 2026-04-01","number":"2","seasonId":""}
+  ],
+  "episodeCases":[
+    {"label":"第2期下篇 20260401","id":2},
+    {"label":"第2期 20260401","id":null},
+    {"label":"第2期下篇 20260402","id":null}
+  ]
+}

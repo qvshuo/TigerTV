@@ -1,6 +1,6 @@
 import bundledConfig from '../../skills/references/LunaTV-config.json' with { type: 'json' }
 
-export type Site = { name: string; api: string }
+export type Site = { name: string; api: string; gateway?: string }
 export type Source = { site: Site; id: number; title: string; year: string; poster: string; remarks: string }
 export type Work = { id: string; display: Source; sources: Source[] }
 export type Episode = { name: string; url: string }
@@ -10,6 +10,13 @@ export type HotItem = { id: string; title: string; year: string; poster: string;
 
 const cdnConfig = 'https://cdn.jsdelivr.net/gh/qvshuo/TigerTV@main/skills/references/LunaTV-config.json'
 const rawConfig = 'https://raw.githubusercontent.com/qvshuo/TigerTV/refs/heads/main/skills/references/LunaTV-config.json'
+const gateway = import.meta.env?.VITE_TIGERTV_GATEWAY
+function gatewayUrl(route: string, params?: Record<string, string>) {
+  const base = new URL(gateway.endsWith('/') ? gateway : gateway + '/', location.href)
+  const result = new URL(route, base)
+  for (const [key, value] of Object.entries(params ?? {})) result.searchParams.set(key, value)
+  return result.href
+}
 const maxText = 10 * 1024 * 1024
 const operations = ['ac', 'wd', 'ids', 'pg', 'pagesize']
 const integerFields = new Set(['code', 'pagecount', 'vod_id'])
@@ -94,7 +101,7 @@ export function parseConfig(raw: unknown) {
     const entry = object(value)
     const name = scalar(entry.name)
     const api = scalar(entry.api)
-    if (name.includes('🎬') && !('_comment' in entry) && api && !sites.has(api)) sites.set(api, { name, api })
+    if (name.includes('🎬') && !('_comment' in entry) && api && !sites.has(api)) sites.set(api, { name, api, ...(gateway && entry.gateway ? { gateway: scalar(entry.gateway) } : {}) })
   }
   if (!sites.size) throw new Error('找不到可用资源站')
   return [...sites.values()]
@@ -103,13 +110,14 @@ export function parseConfig(raw: unknown) {
 let config: Promise<Site[]> | undefined
 function sites(): Promise<Site[]> {
   return config ??= (async () => {
+    if (gateway) return parseConfig(await getJson(gatewayUrl('config'), undefined, 4000))
     for (const url of [import.meta.env?.VITE_TIGERTV_SOURCES, cdnConfig, rawConfig]) {
       if (!url) continue
       try { return parseConfig(await getJson(url, undefined, 4000)) }
       catch (error) { console.info('资源站配置读取失败', new URL(url).hostname, error) }
     }
     return parseConfig(bundledConfig)
-  })()
+  })().catch(error => { config = undefined; throw error })
 }
 
 function sourceFrom(site: Site, value: unknown): Source {
@@ -122,10 +130,28 @@ function sourceFrom(site: Site, value: unknown): Source {
   }
 }
 
-export function workId(source: Source) {
-  const title = source.title.replace(/[\s\u001c-\u001f]/gu, '').toLowerCase()
+function workIdentity(title: string, year: string, source: Source) {
+  const text = title.replace(/[\s\u001c-\u001f]/gu, '').toLowerCase()
+  return JSON.stringify(text ? [text, year] : [null, `${source.site.name}-${source.id}`])
+}
+export function legacyWorkId(source: Source) {
   const year = source.year.trim()
-  return JSON.stringify(title ? [title, year === '0' ? '' : year] : [null, `${source.site.name}-${source.id}`])
+  return workIdentity(source.title, year === '0' ? '' : year, source)
+}
+export function foldWidth(text: string) {
+  return text.replace(/[\u3000\uff01-\uff5e]/g, char => char === '\u3000' ? ' ' : String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+}
+export function workId(source: Source) {
+  const title = foldWidth(source.title).trim()
+  const primary = title.replace(/[（(【](?:又名|别名|原名|英文名|aka)\s*[:：]\s*[^)）】]+[)）】]\s*$/i, '') || title
+  const rawYear = foldWidth(source.year).trim()
+  const year = /^((?:19|20)[0-9]{2})\s*年?$/.exec(rawYear)?.[1] ?? (rawYear === '0' ? '' : rawYear)
+  const tag = /[（(【]((?:19|20)[0-9]{2})[)）】]\s*$/.exec(primary)
+  if (tag && (!year || tag[1] === year)) {
+    const main = primary.slice(0, tag.index).trimEnd()
+    if (main) return workIdentity(main, tag[1], source)
+  }
+  return workIdentity(primary, year, source)
 }
 function vodPage(value: unknown) {
   const page = object(value)
@@ -142,12 +168,13 @@ export async function search(query: string, signal: AbortSignal, publish: (works
   signal.throwIfAborted()
   const works = new Map<string, Work>()
   const failures: string[] = []
-  await Promise.all(config.map(async (site, siteIndex) => {
+  async function searchSite(site: Site, siteIndex: number) {
     const budget = AbortSignal.any([signal, AbortSignal.timeout(60_000)])
     const found: Source[] = []
     try {
       for (let page = 1; page <= 100; page++) {
-        const url = apiUrl(site.api, { ac: 'detail', wd: query, pg: String(page), pagesize: '100' })
+        const url = gateway && site.gateway ? gatewayUrl(`search/${encodeURIComponent(site.gateway)}`, { q: query, page: String(page) })
+          : apiUrl(site.api, { ac: 'detail', wd: query, pg: String(page), pagesize: '100' })
         const { rows, pages } = vodPage(await getJson(url, budget, 20_000))
         found.push(...rows.map(row => sourceFrom(site, row)))
         if (!rows.length || page >= pages) break
@@ -169,7 +196,16 @@ export async function search(query: string, signal: AbortSignal, publish: (works
       }
     }
     publish([...works.values()].map(work => ({ ...work, sources: [...work.sources] })))
-  }))
+  }
+  if (gateway) {
+    let next = 0
+    await Promise.all(Array.from({ length: Math.min(8, config.length) }, async () => {
+      while (!signal.aborted && next < config.length) {
+        const index = next++
+        await searchSite(config[index], index)
+      }
+    }))
+  } else await Promise.all(config.map(searchSite))
   signal.throwIfAborted()
   return { failed: failures.length, total: config.length }
 }
@@ -187,7 +223,11 @@ export function parseLines(raw: string, from: string): Line[] {
 }
 
 export async function getDetail(source: Source, signal: AbortSignal): Promise<Detail> {
-  const { rows } = vodPage(await getJson(apiUrl(source.site.api, { ac: 'detail', ids: String(source.id) }), signal, 20_000))
+  // Recent records can predate a deployment-mode change. Resolve the current gateway key by API URL.
+  const site = gateway ? (await sites()).find(item => item.api === source.site.api) : source.site
+  const url = gateway && site?.gateway ? gatewayUrl(`detail/${encodeURIComponent(site.gateway)}`, { id: String(source.id) })
+    : apiUrl(source.site.api, { ac: 'detail', ids: String(source.id) })
+  const { rows } = vodPage(await getJson(url, signal, 20_000))
   const value = rows.find(row => integer(object(row).vod_id) === source.id)
   if (!value) throw new Error('来源未返回指定作品')
   const row = object(value)
@@ -208,7 +248,8 @@ export async function hot(category: string, signal: AbortSignal): Promise<HotIte
   try { cached = JSON.parse(localStorage.getItem(key) ?? 'null') ?? undefined } catch { /* Storage is optional. */ }
   if (cached && Date.now() - cached.at < 6 * 3600_000) return cached.items
   try {
-    const raw = object(await getJson(`https://m.douban.com/rexxar/api/v2/subject_collection/${category}/items?start=0&count=12`, signal))
+    const url = gateway ? gatewayUrl(`hot/${category}`) : `https://m.douban.com/rexxar/api/v2/subject_collection/${category}/items?start=0&count=12`
+    const raw = object(await getJson(url, signal))
     if (!Array.isArray(raw.subject_collection_items)) throw new Error('豆瓣响应异常')
     const items = raw.subject_collection_items.slice(0, 12).map(object).map(entry => ({
       id: scalar(entry.id), title: scalar(entry.title), year: scalar(entry.year),

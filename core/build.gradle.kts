@@ -17,14 +17,16 @@ val generateContractFixtures = tasks.register("generateContractFixtures") {
 }
 val generateHlsRules = tasks.register("generateHlsRules") {
     val source = project.file("../shared/hls-ad-rules.json")
+    val heuristics = project.file("../shared/hls-heuristics.json")
     val output = layout.buildDirectory.file("generated/hls/HlsAdRules.kt")
-    inputs.file(source)
+    inputs.files(source, heuristics)
     outputs.file(output)
     doLast {
         val json = source.readText().trim()
         output.get().asFile.apply {
             parentFile.mkdirs()
-            writeText("package art.anjing.tigertv.core\ninternal const val hlsAdRulesJson = \"\"\"" + json + "\"\"\"\n")
+            writeText("package art.anjing.tigertv.core\ninternal const val hlsAdRulesJson = \"\"\"" + json + "\"\"\"\n" +
+                "internal const val hlsHeuristicsJson = \"\"\"" + heuristics.readText().trim() + "\"\"\"\n")
         }
     }
 }

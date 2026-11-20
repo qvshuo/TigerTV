@@ -6,7 +6,7 @@
   import '@videojs/html/ui/pip-button'
   import '@videojs/html/ui/fullscreen-button'
   import type { HlsJsVideoElement } from '@videojs/html/media/hlsjs-video'
-  import { webUrl, type Episode } from './api.ts'
+  import { legacyWorkId, webUrl, type Episode } from './api.ts'
   import { effectiveTime, originalTime, supportsFilter, type Interval } from './hls.ts'
   import { getPosition, getSpeed, getVolume, read, recordStarted, savePosition, saveSpeed, saveVolume, write, type PlaybackOptions, type Selection, type Settings } from './storage.ts'
   import { autoMatch, DanmakuClient, drawComments, type DanmakuEpisode, type Title, type Track } from './danmaku.ts'
@@ -125,7 +125,7 @@
     duration = 0
     removed = []
     paused = true
-    speed = priorOptions?.speed ?? getSpeed(session.work.id, prefs.rememberSpeed)
+    speed = priorOptions?.speed ?? getSpeed(session.work.id, prefs.rememberSpeed, session.work.sources)
     const volumeSettings = priorOptions ?? getVolume(prefs.rememberVolume)
     volume = volumeSettings.volume
     muted = volumeSettings.muted
@@ -261,13 +261,21 @@
     }
   })
 
-  const titleKey = $derived('danmaku-title:' + JSON.stringify([settings.danmakuServer, selection.work.id, selection.source.site.name]))
-  const episodeKey = $derived('danmaku-episode:' + JSON.stringify([titleKey, selection.line, selection.episode, selection.episode ? null : selection.index]))
+  const danmakuTitleKey = (workId: string) => 'danmaku-title:' + JSON.stringify([settings.danmakuServer, workId, selection.source.site.name])
+  const danmakuEpisodeKey = (title: string) => 'danmaku-episode:' + JSON.stringify([title, selection.line, selection.episode, selection.episode ? null : selection.index])
+  const titleKey = $derived(danmakuTitleKey(selection.work.id))
+  const episodeKey = $derived(danmakuEpisodeKey(titleKey))
+  const legacyTitleKey = $derived(danmakuTitleKey(legacyWorkId(selection.source)))
+  const legacyEpisodeKey = $derived(danmakuEpisodeKey(legacyTitleKey))
+  function changeOffset(seconds: number) {
+    offset += seconds
+    write('danmaku-offset:' + episodeKey, offset)
+  }
   $effect(() => {
     const key = episodeKey
     const name = selection.work.display.title
-    enabled = inherited?.danmakuEnabled ?? read('danmaku-enabled:' + key, true)
-    offset = 0
+    enabled = inherited?.danmakuEnabled ?? read('danmaku-enabled:' + key, read('danmaku-enabled:' + legacyEpisodeKey, true))
+    offset = read('danmaku-offset:' + key, 0)
     keyword = name
     titles = []
     episodes = []
@@ -282,11 +290,13 @@
     const episode = episodeKey
     if (!server || !enabled) return
     const controller = new AbortController()
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(45_000)])
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(90_000)])
     request = controller
     danmakuStatus = '正在匹配弹幕…'
     void autoMatch(new DanmakuClient(server, signal), s.work.display.title, s.work.display.year, s.episode,
-      { title: read<number | undefined>(title, undefined), episode: read<{ title: number; id: number } | undefined>(episode, undefined) },
+      { title: read<number | undefined>(title, undefined) ?? read<number | undefined>(legacyTitleKey, undefined),
+        episode: read<{ title: number; id: number } | undefined>(episode, undefined)
+          ?? read<{ title: number; id: number } | undefined>(legacyEpisodeKey, undefined) },
       result => { if (!signal.aborted) { track = result; danmakuStatus = '' } }, signal)
       .then(() => { if (!controller.signal.aborted && !track) danmakuStatus = '可手动选择对应剧集' })
       .catch(() => { if (!controller.signal.aborted) danmakuStatus = '弹幕加载失败' })
@@ -436,8 +446,8 @@
     }}>弹幕</button>
     <button class="quiet" onclick={() => dialog?.showModal()}>选择弹幕</button>
     {#if enabled && track}
-      <button class="quiet" aria-label="弹幕延后 1 秒" onclick={() => { offset-- }}>−1 秒</button>
-      <button class="quiet" aria-label="弹幕提前 1 秒" onclick={() => { offset++ }}>+1 秒</button>
+      <button class="quiet" aria-label="弹幕延后 1 秒" onclick={() => changeOffset(-1)}>−1 秒</button>
+      <button class="quiet" aria-label="弹幕提前 1 秒" onclick={() => changeOffset(1)}>+1 秒</button>
     {/if}
   </div>
 </div>

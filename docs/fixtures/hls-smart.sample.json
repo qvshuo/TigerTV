@@ -1,0 +1,32 @@
+[
+  {
+    "name": "same-directory-with-cues",
+    "playlist": "#EXTM3U\n#EXT-X-VERSION:1\n#EXT-X-TARGETDURATION:20\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part100.ts\n#EXTINF:20,\ncontent/part101.ts\n#EXTINF:20,\ncontent/part102.ts\n#EXT-X-CUE-OUT:8\n#EXTINF:4,\ncontent/part103.ts\n#EXTINF:4,\ncontent/part104.ts\n#EXT-X-CUE-IN\n#EXTINF:20,\ncontent/part105.ts\n#EXTINF:20,\ncontent/part106.ts\n#EXTINF:20,\ncontent/part107.ts\n#EXTINF:20,\ncontent/part108.ts\n#EXT-X-ENDLIST\n",
+    "removed": [
+      [
+        60000,
+        68000
+      ]
+    ]
+  },
+  {
+    "name": "different-explicit-ad-path",
+    "playlist": "#EXTM3U\n#EXT-X-VERSION:1\n#EXT-X-TARGETDURATION:20\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part100.ts\n#EXTINF:20,\ncontent/part101.ts\n#EXTINF:20,\ncontent/part102.ts\n#EXTINF:4,\nvideo/adjump/part103.ts\n#EXTINF:4,\nvideo/adjump/part104.ts\n#EXTINF:20,\ncontent/part105.ts\n#EXTINF:20,\ncontent/part106.ts\n#EXTINF:20,\ncontent/part107.ts\n#EXTINF:20,\ncontent/part108.ts\n#EXT-X-ENDLIST\n",
+    "removed": [
+      [
+        60000,
+        68000
+      ]
+    ]
+  },
+  {
+    "name": "same-directory-without-evidence",
+    "playlist": "#EXTM3U\n#EXT-X-VERSION:1\n#EXT-X-TARGETDURATION:20\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part100.ts\n#EXTINF:20,\ncontent/part101.ts\n#EXTINF:20,\ncontent/part102.ts\n#EXTINF:4,\ncontent/part103.ts\n#EXTINF:4,\ncontent/part104.ts\n#EXTINF:20,\ncontent/part105.ts\n#EXTINF:20,\ncontent/part106.ts\n#EXTINF:20,\ncontent/part107.ts\n#EXTINF:20,\ncontent/part108.ts\n#EXT-X-ENDLIST\n",
+    "removed": []
+  },
+  {
+    "name": "short-chapter-without-ad-evidence",
+    "playlist": "#EXTM3U\n#EXT-X-VERSION:1\n#EXT-X-TARGETDURATION:20\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part100.ts\n#EXTINF:20,\ncontent/part101.ts\n#EXTINF:20,\ncontent/part102.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:4,\nchapter/part103.ts\n#EXTINF:4,\nchapter/part104.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:20,\ncontent/part105.ts\n#EXTINF:20,\ncontent/part106.ts\n#EXTINF:20,\ncontent/part107.ts\n#EXTINF:20,\ncontent/part108.ts\n#EXT-X-ENDLIST\n",
+    "removed": []
+  }
+]

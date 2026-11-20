@@ -1,5 +1,7 @@
 package art.anjing.tigertv.core
 
+import art.anjing.tigertv.domain.foldWidth as folded
+
 private const val numeral = "[0-9零〇一二两三四五六七八九十百]+"
 private fun chineseNumber(value: String): Int? {
     value.toIntOrNull()?.let { return it.takeIf { n -> n > 0 } }
@@ -21,16 +23,6 @@ private fun chineseNumber(value: String): Int? {
 }
 
 private val seasonPattern = Regex("第\\s*($numeral)\\s*季|(?<![a-z0-9])(?:season\\s*|s)([0-9]+)(?=e[0-9]|[^a-z0-9]|$)", RegexOption.IGNORE_CASE)
-private fun folded(value: String): String {
-    if (value.none { it == '\u3000' || it in '\uFF01'..'\uFF5E' }) return value
-    return buildString(value.length) {
-        for (c in value) append(when (c) {
-            '\u3000' -> ' '
-            in '\uFF01'..'\uFF5E' -> c - 0xFEE0
-            else -> c
-        })
-    }
-}
 private fun parseSeason(text: String): Int? = seasonPattern.find(text)
     ?.let { chineseNumber(it.groupValues[1].ifEmpty { it.groupValues[2] }) }
 fun danmakuSeason(title: String): Int? = parseSeason(folded(title))

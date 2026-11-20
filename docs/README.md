@@ -8,12 +8,13 @@ TigerTV 长期维护 Android TV、Web/PWA 和 CLI。原 macOS SwiftUI 客户端�
 | `web/` | Svelte 5 Runes、TypeScript、Vite、Tailwind CSS 4、Video.js 10 静态客户端 |
 | `cli/` | macOS arm64、Linux x86_64 / arm64 原生命令行 |
 | `core/` | Android TV 和 CLI 共用的配置、MacCMS、聚合、QX 扫描、缓存、历史等 |
-| `shared/` | Android TV 与 Web 共用的已验证 HLS 广告规则数据 |
+| `shared/` | Android TV 与 Web 共用的 HLS 精确规则和启发式参数 |
+| `gateway/` | Web 可选的元数据 Gateway 和同源静态部署 |
 | `docs/fixtures/` | 上游协议、数据契约及播放测试夹具 |
 | `macOS/`、`nativeBridge/` | 停止维护的 SwiftUI 客户端及其静态桥接，供参考 |
 | `skills/` | Agent Skill、CLI 安装器及来源配置 |
 
-保持 Kotlin/Native CLI。CLI 的搜索、详情、聚合、下载链接、配置缓存、日志及 QX 扫描已通过同一 Core 工作，并且可独立发布无需 JVM 的二进制。Go 有更成熟的单二进制交叉编译体验，但改用 Go 将重写并重复验证这些业务路径；当前保留现有 Kotlin/Native 平台 HTTP 和运行时适配。Web 在浏览器内独立实现接口与播放。两种运行时用同一 [数据与交互契约](contract.md)、夹具和已审核的广告规则数据约束行为。
+保持 Kotlin/Native CLI。CLI 的搜索、详情、聚合、下载链接、配置缓存、日志及 QX 扫描已通过同一 Core 工作，并且可独立发布无需 JVM 的二进制。Go 有更成熟的单二进制交叉编译体验，但改用 Go 将重写并重复验证这些业务路径；当前保留现有 Kotlin/Native 平台 HTTP 和运行时适配。Web 在浏览器内独立实现接口与播放。可选 Gateway 负责 HTTP 元数据，播放清单、媒体分片和密钥继续由浏览器直连。两种运行时用同一 [数据与交互契约](contract.md)、夹具和已审核的广告规则数据约束行为。
 
 Core 的 `CoreService` 负责业务协调，`Network` 负责 HTTP，`Parsing` 处理 MacCMS，`QuanxCollector` 单独负责 QX 的 HTML/HLS 扫描。生产源配置在 `skills/references/LunaTV-config.json`，由现有工作流同步。Web 网络与兼容性见 [Web 开发说明](development/web.md)，去广告研究见 [FlowScan 技术记录](development/flowscan.md)。
 
@@ -30,6 +31,7 @@ npm --prefix web ci
 npm --prefix web run check
 npm --prefix web test
 npm --prefix web run build
+node --test gateway/server.test.mjs
 ```
 
 根 Gradle 生成 Kotlin 广告规则输入，Web 直接导入同一 JSON。Web 构建输出位于 `web/dist/`。开发时用 `npm --prefix web run dev`，使用 `npm --prefix web run preview` 核对静态构建和 PWA 安装。

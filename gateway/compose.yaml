@@ -1,0 +1,11 @@
+services:
+  tigertv:
+    build:
+      context: ..
+      dockerfile: gateway/Dockerfile
+    ports:
+      - "${TIGERTV_LISTEN:-127.0.0.1}:${TIGERTV_PORT:-18811}:8080"
+    environment:
+      TIGERTV_SITES: "${TIGERTV_SITES:-}"
+      TIGERTV_WEB_ORIGIN: "${TIGERTV_WEB_ORIGIN:-}"
+    restart: unless-stopped
