@@ -34,6 +34,23 @@ import org.junit.runner.RunWith
 class DetailChoiceTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun adFilteringLabelKeepsTheSourceSelectionBehavior() {
+        val selected = mutableStateOf(false)
+        compose.setContent {
+            TigerTVTheme {
+                androidx.tv.material3.Surface(Modifier.fillMaxSize()) {
+                    Box(Modifier.fillMaxSize().padding(48.dp)) {
+                        DetailChoice("🎬暴风资源", selected.value, adFiltering = true) { selected.value = !selected.value }
+                    }
+                }
+            }
+        }
+        compose.onNodeWithText("去广告", useUnmergedTree = true).assertIsDisplayed()
+        activate("🎬暴风资源")
+        button("🎬暴风资源").assertIsSelected()
+        captureWhenRequested("ad-label")
+    }
+
     @Test fun labelsRemainVisibleCentredAndStableInAllDetailLayouts() {
         checkDetailLayouts(fontScale = 1f)
     }

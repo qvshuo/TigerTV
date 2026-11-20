@@ -11,16 +11,33 @@ class DanmakuLiveTest {
         val http = configureClient(HttpClient())
         try {
             val client = DanmakuClient(Network(http), base)
-            val titles = client.search("嫁金钗")
-            assertTrue(titles.isNotEmpty())
-            val title = titles.firstOrNull { it.source == "youku" } ?: titles.first()
-            val episodes = client.episodes(title.id)
-            assertTrue(episodes.size >= 2)
-            val first = episodes.first { it.number == "1" }
-            val track = client.comments(first.id)
-            println("danmu live: titles=${titles.size}, episodes=${episodes.size}, comments=${track.comments.size}, durationMs=${track.referenceDurationMs}")
-            assertTrue(track.comments.isNotEmpty())
-            assertTrue((track.referenceDurationMs ?: 0) > 0)
+            val works = listOf("嫁金钗" to "第1集", "逐玉" to "第1集", "后会友期" to "第20261022期第01期")
+            for ((work, label) in works) {
+                val candidates = client.search(work).mapNotNull { title ->
+                    danmakuTitleRank(work, title.title, "2026")?.let { it to title }
+                }.sortedWith(compareBy({ it.first }, { danmakuProbePriority(it.second.source) }))
+                var current: DanmakuTrack? = null
+                var currentRank: Int? = null
+                for ((rank, candidate) in candidates.take(4)) {
+                    if (currentRank?.let { rank > it } == true) break
+                    val episodes = client.episodes(candidate.id)
+                    val episode = matchingDanmakuEpisode(episodes, label, null)
+                    if (episode == null) {
+                        println("$work ${candidate.source}: no unambiguous match")
+                        continue
+                    }
+                    val track = client.comments(episode.id)
+                    val count = track.comments.count { it.mode == 1 }
+                    val accepted = count > 0 && (current?.let { shouldUpgradeDanmaku(it, track) } != false)
+                    if (accepted) {
+                        current = track
+                        currentRank = rank
+                    }
+                    println("$work ${candidate.source}: episode=${episode.title}, mode1=$count, durationMs=${track.referenceDurationMs}, accepted=$accepted")
+                    if (work == "后会友期") assertNull(matchingDanmakuEpisode(episodes, "第20261023期抢鲜版", null))
+                }
+                assertNotNull(current, "No valid rolling comments for $work")
+            }
         } finally { http.close() }
     }
 }

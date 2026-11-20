@@ -31,5 +31,6 @@ class TigerTVRepository(private val core: CoreService) {
     suspend fun addHistory(item: String) = withContext(Dispatchers.IO) { core.addHistory(item) }
     suspend fun removeHistory(item: String) = withContext(Dispatchers.IO) { core.removeHistory(item) }
     suspend fun clearHistory() = withContext(Dispatchers.IO) { core.clearHistory() }
+    fun danmakuClient(baseUrl: String) = core.danmakuClient(baseUrl)
     fun close() = core.close()
 }

@@ -9,9 +9,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.compose.rememberNavController
 import art.anjing.tigertv.ui.detail.DetailScreen
 import art.anjing.tigertv.ui.home.HomeScreen
+import art.anjing.tigertv.ui.home.SearchScreen
+import art.anjing.tigertv.ui.settings.SettingsScreen
 import art.anjing.tigertv.ui.player.PlayerScreen
 import art.anjing.tigertv.ui.results.ResultsScreen
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
@@ -19,6 +23,8 @@ import art.anjing.tigertv.ui.viewmodel.TigerTVViewModelFactory
 
 sealed class Screen(val route: String) {
     data object Home : Screen("home")
+    data object Search : Screen("search")
+    data object Settings : Screen("settings")
     data object Results : Screen("results")
     data object Episodes : Screen("episodes")
     data object Player : Screen("player")
@@ -41,14 +47,21 @@ fun TigerTVApp(
 internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostController) {
     NavHost(navController = navController, startDestination = Screen.Home.route) {
         composable(Screen.Home.route) {
-            HomeScreen(
-                viewModel = viewModel,
-                onSearch = {
-                    navController.navigate(Screen.Results.route)
-                }
-            )
+            HomeScreen(viewModel,
+                onSearch = { navController.navigate(Screen.Search.route) },
+                onSettings = { navController.navigate(Screen.Settings.route) },
+                onResults = { navController.navigate(Screen.Results.route) })
         }
-        composable(Screen.Results.route) {
+        composable(Screen.Search.route) {
+            SearchScreen(viewModel, onResults = { navController.navigate(Screen.Results.route) })
+        }
+        // This destination covers the viewport and keeps any current player session alive underneath.
+        dialog(Screen.Settings.route, dialogProperties = DialogProperties(usePlatformDefaultWidth = false)) {
+            SettingsScreen()
+        }
+        composable(Screen.Results.route,
+            popEnterTransition = { if (initialState.destination.route == Screen.Episodes.route) EnterTransition.None else null },
+        ) {
             ResultsScreen(
                 viewModel = viewModel,
                 onBack = {
@@ -63,7 +76,8 @@ internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostC
         }
         composable(Screen.Episodes.route,
             exitTransition = { if (targetState.destination.route == Screen.Player.route) ExitTransition.None else null },
-            popEnterTransition = { if (initialState.destination.route == Screen.Player.route) EnterTransition.None else null }
+            popEnterTransition = { if (initialState.destination.route == Screen.Player.route) EnterTransition.None else null },
+            popExitTransition = { if (targetState.destination.route == Screen.Results.route) ExitTransition.None else null },
         ) {
             DetailScreen(
                 viewModel = viewModel,
@@ -84,6 +98,7 @@ internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostC
         ) {
             PlayerScreen(
                 viewModel = viewModel,
+                onSettings = { navController.navigate(Screen.Settings.route) },
                 onBack = { navController.popBackStack() }
             )
         }

@@ -1,8 +1,8 @@
 # Android TV HLS 去广告
 
-当前结果见 [十源验证报告](top10-report.md) 和 [脱敏逐清单数据](top10-audit-2026-11-16.json)。基于 main `7a4db28dc416447644c79027e37ac7aeef2de310`，本轮只推进 Android TV，未改 macOS。早期阶段记录保留在 `android-source-study.md`，其中“360 尚不支持”等状态已由本轮报告更新。
+最新 Android 弹幕闭环见 [开发与验收](../../docs/development/android-danmaku.md)，四源统计见 `four-source-current-2026-11-16.json`。此前十源结果见 [十源验证报告](top10-report.md) 和 [脱敏逐清单数据](top10-audit-2026-11-16.json)。基于 main `7a4db28dc416447644c79027e37ac7aeef2de310`，本轮只推进 Android TV，未改 macOS。早期阶段记录保留在 `android-source-study.md`，其中“360 尚不支持”等状态已由本轮报告更新。
 
-生产链路是 `Media3Controller → HlsAdDataSource → Core`。五个来源的已确认素材规则接入同一次 M3U8 HTTP 响应：暴风、爱奇艺、360、魔都资源、魔都动漫。媒体仍直连 CDN，没有视频代理、转码或实时语音识别。多个来源共享同一个解析器、匹配器和 `MediaTimeline`。
+生产链路是 `Media3Controller → HlsAdDataSource → Core`。当前四个来源的已确认素材规则接入同一次 M3U8 HTTP 响应：暴风、爱奇艺、360、魔都资源。魔都动漫只保留普通播放，历史共享素材证据仍保留。媒体仍直连 CDN，没有视频代理、转码或实时语音识别。多个来源共享同一个解析器、匹配器和 `MediaTimeline`。
 
 规则只匹配完整 URI 文本指纹向量、每片精确时长、来源及组边界。它们是非加密 FNV64 **URI 文本**指纹，不是媒体内容哈希；未知素材或 URI 改变不删除。同 URI 被替换成等时长剧情仍是风险，不能将该策略称为普适内容识别。剧情烧录广告不删。
 

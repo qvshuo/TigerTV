@@ -40,6 +40,8 @@ class TigerTVViewModel(
     context: Context
 ) : ViewModel() {
 
+    fun danmakuClient(baseUrl: String) = repository.danmakuClient(baseUrl)
+
     private val appContext = context.applicationContext
 
     var keyword by mutableStateOf("")

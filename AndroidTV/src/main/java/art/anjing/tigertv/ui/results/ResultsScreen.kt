@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
@@ -44,7 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.AsyncImage
 import art.anjing.tigertv.R
 import art.anjing.tigertv.domain.VideoWork
 import art.anjing.tigertv.domain.SearchResult
@@ -127,16 +128,19 @@ private fun ResultsGrid(
     onSelectResult: (SearchResult) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val focusWorkId = works.firstOrNull { work -> work.sources.any { it.coverKey == restoreSourceKey } }?.id ?: works.first().id
+    val focusIndex = if (restoreSourceKey == null) 0 else {
+        works.indexOfFirst { work -> work.sources.any { it.coverKey == restoreSourceKey } }.coerceAtLeast(0)
+    }
+    val focusWorkId = works[focusIndex].id
     val cardFocusRequester = remember { FocusRequester() }
-    val gridState = rememberLazyGridState()
+    val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = focusIndex)
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
 
     // Navigation must finish and the restored card must attach before requesting focus.
     LaunchedEffect(lifecycleState, focusWorkId) {
         if (lifecycleState == Lifecycle.State.RESUMED) {
             if (gridState.layoutInfo.visibleItemsInfo.none { it.key == focusWorkId }) {
-                gridState.scrollToItem(works.indexOfFirst { it.id == focusWorkId })
+                gridState.scrollToItem(focusIndex)
             }
             snapshotFlow { gridState.layoutInfo.visibleItemsInfo.any { it.key == focusWorkId } }.first { it }
             requestFocusSafely(cardFocusRequester)
@@ -218,21 +222,23 @@ private fun CoverImage(
         modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center
     ) {
-        var loadedUrl by remember(workId) { mutableStateOf<String?>(null) }
+        var loadedUrl by rememberSaveable(workId) { mutableStateOf<String?>(null) }
         var failedUrls by remember(workId) { mutableStateOf(emptySet<String>()) }
         val url = loadedUrl ?: urls.firstOrNull { it !in failedUrls }
-        if (url == null) {
-            CoverPlaceholder(title)
-        } else {
-            SubcomposeAsyncImage(
+        var imageReady by remember(url) { mutableStateOf(false) }
+        if (!imageReady) CoverPlaceholder(title)
+        if (url != null) {
+            AsyncImage(
                 model = url,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
-                loading = { CoverPlaceholder(title) },
-                error = { CoverPlaceholder(title) },
-                onSuccess = { loadedUrl = url },
-                onError = { failedUrls = failedUrls + url; loadedUrl = null }
+                onSuccess = { imageReady = true; loadedUrl = url },
+                onError = {
+                    imageReady = false
+                    failedUrls = failedUrls + url
+                    if (loadedUrl == url) loadedUrl = null
+                }
             )
         }
     }

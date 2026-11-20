@@ -20,6 +20,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
@@ -45,7 +46,7 @@ import kotlinx.coroutines.delay
 
 @OptIn(UnstableApi::class)
 @Composable
-fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
+fun PlayerScreen(viewModel: TigerTVViewModel, onSettings: () -> Unit = {}, onBack: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
@@ -62,10 +63,43 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
     var consumedCenter by remember { mutableStateOf(false) }
     var showBuffering by remember { mutableStateOf(false) }
     var exiting by remember { mutableStateOf(false) }
+    var danmakuMenu by remember { mutableStateOf(false) }
+    var danmakuQuick by remember { mutableStateOf(false) }
+    val danmakuScope = rememberCoroutineScope()
+    val preferences = remember { context.applicationContext.getSharedPreferences("danmaku", 0) }
+    var configuredServer by remember { mutableStateOf(preferences.getString("server", "").orEmpty()) }
+    DisposableEffect(preferences) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "server") configuredServer = preferences.getString("server", "").orEmpty()
+        }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    val session = viewModel.playbackSession
+    val workTitle = viewModel.fetchResponse?.vodName.orEmpty().ifBlank { viewModel.selectedResult?.vodName.orEmpty() }
+    val workYear = viewModel.fetchResponse?.vodYear.orEmpty().takeIf { it.toIntOrNull() in 1900..2099 }
+        ?: viewModel.selectedResult?.vodYear.orEmpty()
+    val identity = listOf(session?.workId.orEmpty(), session?.site.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty())
+        .joinToString("") { "${it.length}:$it" }
+    val danmakuState = remember(identity, viewModel.playbackRevision) {
+        DanmakuState(danmakuScope, viewModel::danmakuClient, preferences.getBoolean("enabled:$identity", true),
+            rememberTitle = { server, id -> preferences.edit().putLong(danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.site.orEmpty()), id).apply() },
+            preferredTitle = { server -> preferences.getLong(danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.site.orEmpty()), -1).takeIf { it > 0 } },
+            workYear = workYear, episodeLabel = session?.episode.orEmpty())
+    }
+    DisposableEffect(danmakuState) { onDispose { danmakuState.close() } }
+    LaunchedEffect(danmakuState, danmakuState.enabled, configuredServer) {
+        danmakuState.configure(configuredServer)
+        if (danmakuState.enabled && !danmakuState.hasComments && !danmakuState.busy &&
+            configuredServer.isNotBlank() && workTitle.isNotBlank()) {
+            danmakuState.search(workTitle)
+        }
+    }
     val surfaceFocus = remember { FocusRequester() }
     val timelineFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
     val speedFocus = remember { FocusRequester() }
+    val danmakuFocus = remember { FocusRequester() }
     val speedOptionFocus = remember { FocusRequester() }
     val retryFocus = remember { FocusRequester() }
     fun requestFocus(area: PlayerFocusArea) { focusRequest = area to (focusRequest.second + 1) }
@@ -103,6 +137,8 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
     }
     fun handleBack() {
         when {
+            danmakuQuick -> { danmakuQuick = false; showControls(PlayerFocusArea.Danmaku) }
+            danmakuMenu -> { danmakuMenu = false; showControls(PlayerFocusArea.Danmaku) }
             blocked -> exitPlayer()
             controls.seek != null -> finishSeek(false)
             controls.speedMenuOpen -> {
@@ -127,6 +163,7 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
             controls.speedMenuOpen -> requestFocusSafely(speedOptionFocus)
             focusRequest.first == PlayerFocusArea.Timeline -> requestFocusSafely(timelineFocus)
             focusRequest.first == PlayerFocusArea.SpeedButton -> requestFocusSafely(speedFocus)
+            focusRequest.first == PlayerFocusArea.Danmaku -> requestFocusSafely(danmakuFocus)
             focusRequest.first == PlayerFocusArea.Actions -> requestFocusSafely(playFocus)
             else -> requestFocusSafely(surfaceFocus)
         }
@@ -136,6 +173,8 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
         if (snapshot.buffering && !blocked) { delay(500); showBuffering = true }
     }
     LaunchedEffect(url, viewModel.playbackRevision) {
+        danmakuMenu = false
+        danmakuQuick = false
         controls = PlaybackControlsState()
         consumedCenter = false
         requestFocus(PlayerFocusArea.Surface)
@@ -147,7 +186,8 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
     LaunchedEffect(snapshot.ended) {
         if (snapshot.ended && !blocked) showControls(PlayerFocusArea.Actions)
     }
-    LaunchedEffect(controls.lastInteractionMillis, controls.visible, controls.speedMenuOpen, controls.seek, snapshot.playWhenReady, blocked) {
+    LaunchedEffect(controls.lastInteractionMillis, controls.visible, controls.speedMenuOpen, controls.seek, snapshot.playWhenReady, blocked, danmakuMenu, danmakuQuick) {
+        if (danmakuMenu || danmakuQuick) return@LaunchedEffect
         if (!blocked && controls.visible && snapshot.playWhenReady && controls.seek == null && !controls.speedMenuOpen) {
             val remaining = (5_000 - (SystemClock.elapsedRealtime() - controls.lastInteractionMillis)).coerceAtLeast(0)
             delay(remaining)
@@ -284,6 +324,11 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
             }
         }, onRelease = { it.player = null }, modifier = Modifier.fillMaxSize())
 
+        key(url, viewModel.playbackRevision) {
+            if (!blocked) DanmakuPlayback(controller, danmakuState, workTitle, danmakuMenu,
+                onClose = { danmakuMenu = false; showControls(PlayerFocusArea.Danmaku) },
+                onSettings = { danmakuMenu = false; showControls(PlayerFocusArea.Danmaku); onSettings() })
+        }
         if (!blocked && controls.visible) {
             val line = viewModel.fetchResponse?.playSources?.getOrNull(viewModel.selectedPlaybackSourceIndex)
             val episode = viewModel.episodes.getOrNull(viewModel.selectedEpisodeIndex)
@@ -291,13 +336,25 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
                 title = listOfNotNull(viewModel.fetchResponse?.vodName, episode?.name).joinToString(" · "),
                 resource = listOfNotNull(viewModel.selectedResult?.site, line?.name).joinToString(" · "),
                 snapshot = snapshot, controls = controls, timelineFocus = timelineFocus, playFocus = playFocus,
-                speedFocus = speedFocus, speedOptionFocus = speedOptionFocus,
+                speedFocus = speedFocus, speedOptionFocus = speedOptionFocus, danmakuFocus = danmakuFocus,
+                danmakuOpen = danmakuQuick, danmakuEnabled = danmakuState.enabled, danmakuLoaded = danmakuState.hasComments, danmakuOffsetMs = danmakuState.offsetMs,
+                onDanmakuMenu = { controls = controls.copy(speedMenuOpen = false); danmakuQuick = !danmakuQuick; interact() },
+                onDanmakuAction = { action ->
+                    when (action) {
+                        4 -> danmakuMenu = true
+                        1 -> danmakuState.offsetMs += 1_000
+                        2 -> danmakuState.offsetMs -= 1_000
+                        0 -> { danmakuState.toggleEnabled(); preferences.edit().putBoolean("enabled:$identity", danmakuState.enabled).apply() }
+                    }
+                    danmakuQuick = false; interact(); requestFocus(PlayerFocusArea.Danmaku)
+                },
                 canPrevious = viewModel.selectedEpisodeIndex > 0,
                 canNext = viewModel.selectedEpisodeIndex in 0 until viewModel.episodes.lastIndex,
                 onFocus = { focusArea = it }, onPrevious = { switchEpisode(-1) }, onNext = { switchEpisode(1) },
                 onTogglePlayback = ::togglePlayback,
                 onSpeedMenu = {
                     finishSeek(false)
+                    danmakuQuick = false
                     controls = controls.copy(speedMenuOpen = !controls.speedMenuOpen).show(SystemClock.elapsedRealtime())
                     requestFocus(if (controls.speedMenuOpen) PlayerFocusArea.Speed else PlayerFocusArea.SpeedButton)
                 },

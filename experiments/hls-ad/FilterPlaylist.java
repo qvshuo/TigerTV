@@ -11,7 +11,7 @@ class FilterPlaylist {
             case "🎬暴风资源" -> BaofengAdRuleKt.filterBaofengAds(args[0], input);
             case "🎬-爱奇艺-" -> IqiyiAdRuleKt.filterIqiyiAds(args[0], input);
             case "🎬360 资源" -> ThreeSixtyAdRuleKt.filterThreeSixtyAds(args[0], input);
-            case "🎬魔都资源", "🎬魔都动漫" -> ModuAdRuleKt.filterModuAds(args[0], input);
+            case "🎬魔都资源" -> ModuAdRuleKt.filterModuAds(args[0], input);
             default -> null;
         };
         Files.writeString(Path.of(args[2]), result == null ? input : result.getPlaylist());

@@ -1,8 +1,22 @@
 package art.anjing.tigertv.core
 
 import kotlin.test.*
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.*
+import kotlinx.coroutines.test.runTest
 
 class DanmakuClientTest {
+    @Test fun tokenPathAndSeasonIdsUseTheUpstreamContract() = runTest {
+        val http = configureClient(HttpClient(testEngine { request ->
+            assertEquals("/example-token/api/v2/bangumi/42", request.url.encodedPath)
+            respond("""{"success":true,"bangumi":{"seasons":[{"id":"two","name":"第二季"}],"episodes":[{"seasonId":"two","episodeId":99,"episodeTitle":"正片","episodeNumber":"2"}]}}""")
+        }))
+        try {
+            val episodes = DanmakuClient(Network(http), "https://example.test/example-token/").episodes(42)
+            assertEquals(DanmakuEpisode(99,"正片","2",2,"two"), episodes.single())
+        } finally { http.close() }
+    }
+
     @Test fun parsesCapturedServiceShapeAndRejectsInvalidTimestamps() {
         val track = parseDanmakuTrack("""{"videoDuration":2888.2,"count":3,"comments":[{"cid":1,"p":"0.00,1,16777215,[youku]","m":"测试弹幕"},{"p":"1.25,5,255,[youku]","m":"第二条"},{"p":"-1,1,0,x","m":"无效"}]}""")
         assertEquals(2_888_200L, track.referenceDurationMs)

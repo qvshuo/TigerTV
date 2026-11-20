@@ -1,0 +1,1718 @@
+[
+  {
+    "source": "🎬-爱奇艺-",
+    "work": "长安二十四计",
+    "episode": "第01集",
+    "segments": 544,
+    "kept_segments": 539,
+    "original_seconds": 2603.526667,
+    "removed": [
+      {
+        "start_ms": 1185600,
+        "end_ms": 1203167
+      }
+    ],
+    "removed_ms": 17567,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬-爱奇艺-",
+    "work": "长安二十四计",
+    "episode": "第02集",
+    "segments": 559,
+    "kept_segments": 554,
+    "original_seconds": 2673.806667,
+    "removed": [
+      {
+        "start_ms": 897600,
+        "end_ms": 915167
+      }
+    ],
+    "removed_ms": 17567,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬-爱奇艺-",
+    "work": "嫁金钗",
+    "episode": "第01集",
+    "segments": 608,
+    "kept_segments": 603,
+    "original_seconds": 2907.686667,
+    "removed": [
+      {
+        "start_ms": 1108800,
+        "end_ms": 1126367
+      }
+    ],
+    "removed_ms": 17567,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬-爱奇艺-",
+    "work": "嫁金钗",
+    "episode": "第02集",
+    "segments": 627,
+    "kept_segments": 622,
+    "original_seconds": 3002.446667,
+    "removed": [
+      {
+        "start_ms": 1996800,
+        "end_ms": 2014367
+      }
+    ],
+    "removed_ms": 17567,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬-爱奇艺-",
+    "work": "逐玉",
+    "episode": "第01集",
+    "segments": 603,
+    "kept_segments": 598,
+    "original_seconds": 2885.726667,
+    "removed": [
+      {
+        "start_ms": 1521600,
+        "end_ms": 1539167
+      }
+    ],
+    "removed_ms": 17567,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬-爱奇艺-",
+    "work": "逐玉",
+    "episode": "第02集",
+    "segments": 591,
+    "kept_segments": 586,
+    "original_seconds": 2830.086667,
+    "removed": [
+      {
+        "start_ms": 1785600,
+        "end_ms": 1803167
+      }
+    ],
+    "removed_ms": 17567,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬360 资源",
+    "work": "长安二十四计",
+    "episode": "第01集",
+    "segments": 1305,
+    "kept_segments": 1293,
+    "original_seconds": 2638.661,
+    "removed": [
+      {
+        "start_ms": 1191800,
+        "end_ms": 1209367
+      },
+      {
+        "start_ms": 1749807,
+        "end_ms": 1767374
+      },
+      {
+        "start_ms": 2621094,
+        "end_ms": 2638661
+      }
+    ],
+    "removed_ms": 52701,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬360 资源",
+    "work": "长安二十四计",
+    "episode": "第02集",
+    "segments": 1340,
+    "kept_segments": 1328,
+    "original_seconds": 2708.941,
+    "removed": [
+      {
+        "start_ms": 845080,
+        "end_ms": 862647
+      },
+      {
+        "start_ms": 1248367,
+        "end_ms": 1265934
+      },
+      {
+        "start_ms": 2691374,
+        "end_ms": 2708941
+      }
+    ],
+    "removed_ms": 52701,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬360 资源",
+    "work": "嫁金钗",
+    "episode": "第01集",
+    "segments": 1457,
+    "kept_segments": 1445,
+    "original_seconds": 2942.821,
+    "removed": [
+      {
+        "start_ms": 824040,
+        "end_ms": 841607
+      },
+      {
+        "start_ms": 1980247,
+        "end_ms": 1997814
+      },
+      {
+        "start_ms": 2925254,
+        "end_ms": 2942821
+      }
+    ],
+    "removed_ms": 52701,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬360 资源",
+    "work": "嫁金钗",
+    "episode": "第02集",
+    "segments": 1504,
+    "kept_segments": 1492,
+    "original_seconds": 3037.581,
+    "removed": [
+      {
+        "start_ms": 1062080,
+        "end_ms": 1079647
+      },
+      {
+        "start_ms": 1889567,
+        "end_ms": 1907134
+      },
+      {
+        "start_ms": 3020014,
+        "end_ms": 3037581
+      }
+    ],
+    "removed_ms": 52701,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬360 资源",
+    "work": "逐玉",
+    "episode": "第01集",
+    "segments": 1446,
+    "kept_segments": 1434,
+    "original_seconds": 2920.861,
+    "removed": [
+      {
+        "start_ms": 175800,
+        "end_ms": 193367
+      },
+      {
+        "start_ms": 2610087,
+        "end_ms": 2627654
+      },
+      {
+        "start_ms": 2903294,
+        "end_ms": 2920861
+      }
+    ],
+    "removed_ms": 52701,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬360 资源",
+    "work": "逐玉",
+    "episode": "第02集",
+    "segments": 1418,
+    "kept_segments": 1406,
+    "original_seconds": 2865.221,
+    "removed": [
+      {
+        "start_ms": 875760,
+        "end_ms": 893327
+      },
+      {
+        "start_ms": 1323647,
+        "end_ms": 1341214
+      },
+      {
+        "start_ms": 2847654,
+        "end_ms": 2865221
+      }
+    ],
+    "removed_ms": 52701,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬魔都资源",
+    "work": "长安二十四计",
+    "episode": "第01集",
+    "segments": 746,
+    "kept_segments": 719,
+    "original_seconds": 2638.664,
+    "removed": [
+      {
+        "start_ms": 313200,
+        "end_ms": 330768
+      },
+      {
+        "start_ms": 1543968,
+        "end_ms": 1561536
+      },
+      {
+        "start_ms": 2621096,
+        "end_ms": 2638664
+      }
+    ],
+    "removed_ms": 52704,
+    "remaining_discontinuity_groups": [
+      {
+        "first": 20,
+        "last": 39,
+        "seconds": 72.0
+      },
+      {
+        "first": 40,
+        "last": 59,
+        "seconds": 72.0
+      },
+      {
+        "first": 60,
+        "last": 79,
+        "seconds": 72.0
+      },
+      {
+        "first": 80,
+        "last": 86,
+        "seconds": 25.2
+      },
+      {
+        "first": 96,
+        "last": 108,
+        "seconds": 46.8
+      },
+      {
+        "first": 109,
+        "last": 128,
+        "seconds": 72.0
+      },
+      {
+        "first": 129,
+        "last": 148,
+        "seconds": 72.0
+      },
+      {
+        "first": 149,
+        "last": 168,
+        "seconds": 72.0
+      },
+      {
+        "first": 169,
+        "last": 188,
+        "seconds": 72.0
+      },
+      {
+        "first": 189,
+        "last": 208,
+        "seconds": 72.0
+      },
+      {
+        "first": 209,
+        "last": 228,
+        "seconds": 72.0
+      },
+      {
+        "first": 229,
+        "last": 248,
+        "seconds": 72.0
+      },
+      {
+        "first": 249,
+        "last": 268,
+        "seconds": 72.0
+      },
+      {
+        "first": 269,
+        "last": 288,
+        "seconds": 72.0
+      },
+      {
+        "first": 289,
+        "last": 308,
+        "seconds": 72.0
+      },
+      {
+        "first": 309,
+        "last": 328,
+        "seconds": 72.0
+      },
+      {
+        "first": 329,
+        "last": 348,
+        "seconds": 72.0
+      },
+      {
+        "first": 349,
+        "last": 368,
+        "seconds": 72.0
+      },
+      {
+        "first": 369,
+        "last": 388,
+        "seconds": 72.0
+      },
+      {
+        "first": 389,
+        "last": 408,
+        "seconds": 72.0
+      },
+      {
+        "first": 409,
+        "last": 428,
+        "seconds": 72.0
+      },
+      {
+        "first": 429,
+        "last": 432,
+        "seconds": 14.4
+      },
+      {
+        "first": 442,
+        "last": 457,
+        "seconds": 57.6
+      },
+      {
+        "first": 458,
+        "last": 477,
+        "seconds": 72.0
+      },
+      {
+        "first": 478,
+        "last": 497,
+        "seconds": 72.0
+      },
+      {
+        "first": 498,
+        "last": 517,
+        "seconds": 72.0
+      },
+      {
+        "first": 518,
+        "last": 537,
+        "seconds": 72.0
+      },
+      {
+        "first": 538,
+        "last": 557,
+        "seconds": 72.0
+      },
+      {
+        "first": 558,
+        "last": 577,
+        "seconds": 72.0
+      },
+      {
+        "first": 578,
+        "last": 597,
+        "seconds": 72.0
+      },
+      {
+        "first": 598,
+        "last": 617,
+        "seconds": 72.0
+      },
+      {
+        "first": 618,
+        "last": 637,
+        "seconds": 72.0
+      },
+      {
+        "first": 638,
+        "last": 657,
+        "seconds": 72.0
+      },
+      {
+        "first": 658,
+        "last": 677,
+        "seconds": 72.0
+      },
+      {
+        "first": 678,
+        "last": 697,
+        "seconds": 72.0
+      },
+      {
+        "first": 698,
+        "last": 717,
+        "seconds": 72.0
+      },
+      {
+        "first": 718,
+        "last": 736,
+        "seconds": 65.96
+      }
+    ],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": false,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬魔都资源",
+    "work": "长安二十四计",
+    "episode": "第02集",
+    "segments": 765,
+    "kept_segments": 738,
+    "original_seconds": 2708.944,
+    "removed": [
+      {
+        "start_ms": 313200,
+        "end_ms": 330768
+      },
+      {
+        "start_ms": 1543968,
+        "end_ms": 1561536
+      },
+      {
+        "start_ms": 2691376,
+        "end_ms": 2708944
+      }
+    ],
+    "removed_ms": 52704,
+    "remaining_discontinuity_groups": [
+      {
+        "first": 20,
+        "last": 39,
+        "seconds": 72.0
+      },
+      {
+        "first": 40,
+        "last": 59,
+        "seconds": 72.0
+      },
+      {
+        "first": 60,
+        "last": 79,
+        "seconds": 72.0
+      },
+      {
+        "first": 80,
+        "last": 86,
+        "seconds": 25.2
+      },
+      {
+        "first": 96,
+        "last": 108,
+        "seconds": 46.8
+      },
+      {
+        "first": 109,
+        "last": 128,
+        "seconds": 72.0
+      },
+      {
+        "first": 129,
+        "last": 148,
+        "seconds": 72.0
+      },
+      {
+        "first": 149,
+        "last": 168,
+        "seconds": 72.0
+      },
+      {
+        "first": 169,
+        "last": 188,
+        "seconds": 72.0
+      },
+      {
+        "first": 189,
+        "last": 208,
+        "seconds": 72.0
+      },
+      {
+        "first": 209,
+        "last": 228,
+        "seconds": 72.0
+      },
+      {
+        "first": 229,
+        "last": 248,
+        "seconds": 72.0
+      },
+      {
+        "first": 249,
+        "last": 268,
+        "seconds": 72.0
+      },
+      {
+        "first": 269,
+        "last": 288,
+        "seconds": 72.0
+      },
+      {
+        "first": 289,
+        "last": 308,
+        "seconds": 72.0
+      },
+      {
+        "first": 309,
+        "last": 328,
+        "seconds": 72.0
+      },
+      {
+        "first": 329,
+        "last": 348,
+        "seconds": 72.0
+      },
+      {
+        "first": 349,
+        "last": 368,
+        "seconds": 72.0
+      },
+      {
+        "first": 369,
+        "last": 388,
+        "seconds": 72.0
+      },
+      {
+        "first": 389,
+        "last": 408,
+        "seconds": 72.0
+      },
+      {
+        "first": 409,
+        "last": 428,
+        "seconds": 72.0
+      },
+      {
+        "first": 429,
+        "last": 432,
+        "seconds": 14.4
+      },
+      {
+        "first": 442,
+        "last": 457,
+        "seconds": 57.6
+      },
+      {
+        "first": 458,
+        "last": 477,
+        "seconds": 72.0
+      },
+      {
+        "first": 478,
+        "last": 497,
+        "seconds": 72.0
+      },
+      {
+        "first": 498,
+        "last": 517,
+        "seconds": 72.0
+      },
+      {
+        "first": 518,
+        "last": 537,
+        "seconds": 72.0
+      },
+      {
+        "first": 538,
+        "last": 557,
+        "seconds": 72.0
+      },
+      {
+        "first": 558,
+        "last": 577,
+        "seconds": 72.0
+      },
+      {
+        "first": 578,
+        "last": 597,
+        "seconds": 72.0
+      },
+      {
+        "first": 598,
+        "last": 617,
+        "seconds": 72.0
+      },
+      {
+        "first": 618,
+        "last": 637,
+        "seconds": 72.0
+      },
+      {
+        "first": 638,
+        "last": 657,
+        "seconds": 72.0
+      },
+      {
+        "first": 658,
+        "last": 677,
+        "seconds": 72.0
+      },
+      {
+        "first": 678,
+        "last": 697,
+        "seconds": 72.0
+      },
+      {
+        "first": 698,
+        "last": 717,
+        "seconds": 72.0
+      },
+      {
+        "first": 718,
+        "last": 737,
+        "seconds": 72.0
+      },
+      {
+        "first": 738,
+        "last": 755,
+        "seconds": 64.24
+      }
+    ],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": false,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬魔都资源",
+    "work": "嫁金钗",
+    "episode": "第01集",
+    "segments": 981,
+    "kept_segments": 963,
+    "original_seconds": 2943.04,
+    "removed": [
+      {
+        "start_ms": 773320,
+        "end_ms": 790960
+      },
+      {
+        "start_ms": 1524960,
+        "end_ms": 1542600
+      },
+      {
+        "start_ms": 2925400,
+        "end_ms": 2943040
+      }
+    ],
+    "removed_ms": 52920,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬魔都资源",
+    "work": "嫁金钗",
+    "episode": "第02集",
+    "segments": 1013,
+    "kept_segments": 995,
+    "original_seconds": 3037.8,
+    "removed": [
+      {
+        "start_ms": 1081160,
+        "end_ms": 1098800
+      },
+      {
+        "start_ms": 1900000,
+        "end_ms": 1917640
+      },
+      {
+        "start_ms": 3020160,
+        "end_ms": 3037800
+      }
+    ],
+    "removed_ms": 52920,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": true,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬魔都资源",
+    "work": "逐玉",
+    "episode": "第01集",
+    "segments": 1479,
+    "kept_segments": 1434,
+    "original_seconds": 2955.96,
+    "removed": [
+      {
+        "start_ms": 175760,
+        "end_ms": 193328
+      },
+      {
+        "start_ms": 866448,
+        "end_ms": 884016
+      },
+      {
+        "start_ms": 1683736,
+        "end_ms": 1701304
+      },
+      {
+        "start_ms": 2502344,
+        "end_ms": 2519912
+      },
+      {
+        "start_ms": 2938392,
+        "end_ms": 2955960
+      }
+    ],
+    "removed_ms": 87840,
+    "remaining_discontinuity_groups": [
+      {
+        "first": 20,
+        "last": 39,
+        "seconds": 39.0
+      },
+      {
+        "first": 40,
+        "last": 59,
+        "seconds": 41.28
+      },
+      {
+        "first": 60,
+        "last": 79,
+        "seconds": 40.32
+      },
+      {
+        "first": 80,
+        "last": 86,
+        "seconds": 14.04
+      },
+      {
+        "first": 96,
+        "last": 108,
+        "seconds": 24.36
+      },
+      {
+        "first": 109,
+        "last": 128,
+        "seconds": 40.2
+      },
+      {
+        "first": 129,
+        "last": 148,
+        "seconds": 40.6
+      },
+      {
+        "first": 149,
+        "last": 168,
+        "seconds": 39.64
+      },
+      {
+        "first": 169,
+        "last": 188,
+        "seconds": 40.32
+      },
+      {
+        "first": 189,
+        "last": 208,
+        "seconds": 39.12
+      },
+      {
+        "first": 209,
+        "last": 228,
+        "seconds": 40.48
+      },
+      {
+        "first": 229,
+        "last": 248,
+        "seconds": 40.04
+      },
+      {
+        "first": 249,
+        "last": 268,
+        "seconds": 39.64
+      },
+      {
+        "first": 269,
+        "last": 288,
+        "seconds": 40.6
+      },
+      {
+        "first": 289,
+        "last": 308,
+        "seconds": 39.56
+      },
+      {
+        "first": 309,
+        "last": 328,
+        "seconds": 40.0
+      },
+      {
+        "first": 329,
+        "last": 348,
+        "seconds": 41.16
+      },
+      {
+        "first": 349,
+        "last": 368,
+        "seconds": 39.96
+      },
+      {
+        "first": 369,
+        "last": 388,
+        "seconds": 39.0
+      },
+      {
+        "first": 389,
+        "last": 408,
+        "seconds": 40.64
+      },
+      {
+        "first": 409,
+        "last": 428,
+        "seconds": 40.56
+      },
+      {
+        "first": 429,
+        "last": 432,
+        "seconds": 7.24
+      },
+      {
+        "first": 442,
+        "last": 457,
+        "seconds": 32.44
+      },
+      {
+        "first": 458,
+        "last": 477,
+        "seconds": 39.92
+      },
+      {
+        "first": 478,
+        "last": 497,
+        "seconds": 38.88
+      },
+      {
+        "first": 498,
+        "last": 517,
+        "seconds": 39.96
+      },
+      {
+        "first": 518,
+        "last": 537,
+        "seconds": 40.96
+      },
+      {
+        "first": 538,
+        "last": 557,
+        "seconds": 40.52
+      },
+      {
+        "first": 558,
+        "last": 577,
+        "seconds": 39.24
+      },
+      {
+        "first": 578,
+        "last": 597,
+        "seconds": 41.08
+      },
+      {
+        "first": 598,
+        "last": 617,
+        "seconds": 38.52
+      },
+      {
+        "first": 618,
+        "last": 637,
+        "seconds": 40.92
+      },
+      {
+        "first": 638,
+        "last": 657,
+        "seconds": 40.64
+      },
+      {
+        "first": 658,
+        "last": 677,
+        "seconds": 38.56
+      },
+      {
+        "first": 678,
+        "last": 697,
+        "seconds": 39.84
+      },
+      {
+        "first": 698,
+        "last": 717,
+        "seconds": 40.44
+      },
+      {
+        "first": 718,
+        "last": 737,
+        "seconds": 39.72
+      },
+      {
+        "first": 738,
+        "last": 757,
+        "seconds": 41.12
+      },
+      {
+        "first": 758,
+        "last": 777,
+        "seconds": 38.84
+      },
+      {
+        "first": 778,
+        "last": 797,
+        "seconds": 41.4
+      },
+      {
+        "first": 798,
+        "last": 817,
+        "seconds": 38.64
+      },
+      {
+        "first": 818,
+        "last": 837,
+        "seconds": 39.84
+      },
+      {
+        "first": 838,
+        "last": 841,
+        "seconds": 8.24
+      },
+      {
+        "first": 851,
+        "last": 866,
+        "seconds": 32.16
+      },
+      {
+        "first": 867,
+        "last": 886,
+        "seconds": 41.12
+      },
+      {
+        "first": 887,
+        "last": 906,
+        "seconds": 38.16
+      },
+      {
+        "first": 907,
+        "last": 926,
+        "seconds": 40.72
+      },
+      {
+        "first": 927,
+        "last": 946,
+        "seconds": 39.72
+      },
+      {
+        "first": 947,
+        "last": 966,
+        "seconds": 40.76
+      },
+      {
+        "first": 967,
+        "last": 986,
+        "seconds": 39.76
+      },
+      {
+        "first": 987,
+        "last": 1006,
+        "seconds": 39.56
+      },
+      {
+        "first": 1007,
+        "last": 1026,
+        "seconds": 39.76
+      },
+      {
+        "first": 1027,
+        "last": 1046,
+        "seconds": 39.88
+      },
+      {
+        "first": 1047,
+        "last": 1066,
+        "seconds": 40.64
+      },
+      {
+        "first": 1067,
+        "last": 1086,
+        "seconds": 39.8
+      },
+      {
+        "first": 1087,
+        "last": 1106,
+        "seconds": 41.0
+      },
+      {
+        "first": 1107,
+        "last": 1126,
+        "seconds": 38.64
+      },
+      {
+        "first": 1127,
+        "last": 1146,
+        "seconds": 39.72
+      },
+      {
+        "first": 1147,
+        "last": 1166,
+        "seconds": 40.32
+      },
+      {
+        "first": 1167,
+        "last": 1186,
+        "seconds": 41.04
+      },
+      {
+        "first": 1187,
+        "last": 1206,
+        "seconds": 39.52
+      },
+      {
+        "first": 1207,
+        "last": 1226,
+        "seconds": 39.12
+      },
+      {
+        "first": 1227,
+        "last": 1246,
+        "seconds": 41.64
+      },
+      {
+        "first": 1247,
+        "last": 1250,
+        "seconds": 8.0
+      },
+      {
+        "first": 1260,
+        "last": 1275,
+        "seconds": 31.84
+      },
+      {
+        "first": 1276,
+        "last": 1295,
+        "seconds": 39.68
+      },
+      {
+        "first": 1296,
+        "last": 1315,
+        "seconds": 39.32
+      },
+      {
+        "first": 1316,
+        "last": 1335,
+        "seconds": 40.6
+      },
+      {
+        "first": 1336,
+        "last": 1355,
+        "seconds": 39.4
+      },
+      {
+        "first": 1356,
+        "last": 1375,
+        "seconds": 41.0
+      },
+      {
+        "first": 1376,
+        "last": 1395,
+        "seconds": 38.84
+      },
+      {
+        "first": 1396,
+        "last": 1415,
+        "seconds": 40.0
+      },
+      {
+        "first": 1416,
+        "last": 1435,
+        "seconds": 40.0
+      },
+      {
+        "first": 1436,
+        "last": 1455,
+        "seconds": 40.0
+      },
+      {
+        "first": 1456,
+        "last": 1469,
+        "seconds": 27.8
+      }
+    ],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": false,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬魔都资源",
+    "work": "逐玉",
+    "episode": "第02集",
+    "segments": 1451,
+    "kept_segments": 1406,
+    "original_seconds": 2900.32,
+    "removed": [
+      {
+        "start_ms": 175760,
+        "end_ms": 193328
+      },
+      {
+        "start_ms": 867248,
+        "end_ms": 884816
+      },
+      {
+        "start_ms": 1683616,
+        "end_ms": 1701184
+      },
+      {
+        "start_ms": 2501504,
+        "end_ms": 2519072
+      },
+      {
+        "start_ms": 2882752,
+        "end_ms": 2900320
+      }
+    ],
+    "removed_ms": 87840,
+    "remaining_discontinuity_groups": [
+      {
+        "first": 20,
+        "last": 39,
+        "seconds": 40.48
+      },
+      {
+        "first": 40,
+        "last": 59,
+        "seconds": 40.16
+      },
+      {
+        "first": 60,
+        "last": 79,
+        "seconds": 39.52
+      },
+      {
+        "first": 80,
+        "last": 86,
+        "seconds": 15.56
+      },
+      {
+        "first": 96,
+        "last": 108,
+        "seconds": 25.36
+      },
+      {
+        "first": 109,
+        "last": 128,
+        "seconds": 39.48
+      },
+      {
+        "first": 129,
+        "last": 148,
+        "seconds": 40.48
+      },
+      {
+        "first": 149,
+        "last": 168,
+        "seconds": 39.92
+      },
+      {
+        "first": 169,
+        "last": 188,
+        "seconds": 39.36
+      },
+      {
+        "first": 189,
+        "last": 208,
+        "seconds": 40.96
+      },
+      {
+        "first": 209,
+        "last": 228,
+        "seconds": 39.44
+      },
+      {
+        "first": 229,
+        "last": 248,
+        "seconds": 39.4
+      },
+      {
+        "first": 249,
+        "last": 268,
+        "seconds": 41.44
+      },
+      {
+        "first": 269,
+        "last": 288,
+        "seconds": 38.92
+      },
+      {
+        "first": 289,
+        "last": 308,
+        "seconds": 41.44
+      },
+      {
+        "first": 309,
+        "last": 328,
+        "seconds": 38.04
+      },
+      {
+        "first": 329,
+        "last": 348,
+        "seconds": 41.08
+      },
+      {
+        "first": 349,
+        "last": 368,
+        "seconds": 39.6
+      },
+      {
+        "first": 369,
+        "last": 388,
+        "seconds": 40.16
+      },
+      {
+        "first": 389,
+        "last": 408,
+        "seconds": 39.32
+      },
+      {
+        "first": 409,
+        "last": 428,
+        "seconds": 40.92
+      },
+      {
+        "first": 429,
+        "last": 432,
+        "seconds": 8.6
+      },
+      {
+        "first": 442,
+        "last": 457,
+        "seconds": 32.08
+      },
+      {
+        "first": 458,
+        "last": 477,
+        "seconds": 39.08
+      },
+      {
+        "first": 478,
+        "last": 497,
+        "seconds": 40.04
+      },
+      {
+        "first": 498,
+        "last": 517,
+        "seconds": 39.92
+      },
+      {
+        "first": 518,
+        "last": 537,
+        "seconds": 39.92
+      },
+      {
+        "first": 538,
+        "last": 557,
+        "seconds": 40.68
+      },
+      {
+        "first": 558,
+        "last": 577,
+        "seconds": 38.88
+      },
+      {
+        "first": 578,
+        "last": 597,
+        "seconds": 40.56
+      },
+      {
+        "first": 598,
+        "last": 617,
+        "seconds": 39.84
+      },
+      {
+        "first": 618,
+        "last": 637,
+        "seconds": 39.4
+      },
+      {
+        "first": 638,
+        "last": 657,
+        "seconds": 40.44
+      },
+      {
+        "first": 658,
+        "last": 677,
+        "seconds": 40.36
+      },
+      {
+        "first": 678,
+        "last": 697,
+        "seconds": 39.28
+      },
+      {
+        "first": 698,
+        "last": 717,
+        "seconds": 41.24
+      },
+      {
+        "first": 718,
+        "last": 737,
+        "seconds": 39.96
+      },
+      {
+        "first": 738,
+        "last": 757,
+        "seconds": 39.28
+      },
+      {
+        "first": 758,
+        "last": 777,
+        "seconds": 41.28
+      },
+      {
+        "first": 778,
+        "last": 797,
+        "seconds": 38.16
+      },
+      {
+        "first": 798,
+        "last": 817,
+        "seconds": 39.96
+      },
+      {
+        "first": 818,
+        "last": 837,
+        "seconds": 41.4
+      },
+      {
+        "first": 838,
+        "last": 841,
+        "seconds": 7.04
+      },
+      {
+        "first": 851,
+        "last": 866,
+        "seconds": 32.76
+      },
+      {
+        "first": 867,
+        "last": 886,
+        "seconds": 38.88
+      },
+      {
+        "first": 887,
+        "last": 906,
+        "seconds": 41.08
+      },
+      {
+        "first": 907,
+        "last": 926,
+        "seconds": 39.48
+      },
+      {
+        "first": 927,
+        "last": 946,
+        "seconds": 41.28
+      },
+      {
+        "first": 947,
+        "last": 966,
+        "seconds": 38.8
+      },
+      {
+        "first": 967,
+        "last": 986,
+        "seconds": 39.36
+      },
+      {
+        "first": 987,
+        "last": 1006,
+        "seconds": 40.08
+      },
+      {
+        "first": 1007,
+        "last": 1026,
+        "seconds": 41.48
+      },
+      {
+        "first": 1027,
+        "last": 1046,
+        "seconds": 39.4
+      },
+      {
+        "first": 1047,
+        "last": 1066,
+        "seconds": 38.96
+      },
+      {
+        "first": 1067,
+        "last": 1086,
+        "seconds": 40.0
+      },
+      {
+        "first": 1087,
+        "last": 1106,
+        "seconds": 40.52
+      },
+      {
+        "first": 1107,
+        "last": 1126,
+        "seconds": 39.44
+      },
+      {
+        "first": 1127,
+        "last": 1146,
+        "seconds": 40.2
+      },
+      {
+        "first": 1147,
+        "last": 1166,
+        "seconds": 41.44
+      },
+      {
+        "first": 1167,
+        "last": 1186,
+        "seconds": 39.56
+      },
+      {
+        "first": 1187,
+        "last": 1206,
+        "seconds": 39.6
+      },
+      {
+        "first": 1207,
+        "last": 1226,
+        "seconds": 40.88
+      },
+      {
+        "first": 1227,
+        "last": 1246,
+        "seconds": 39.68
+      },
+      {
+        "first": 1247,
+        "last": 1250,
+        "seconds": 7.44
+      },
+      {
+        "first": 1260,
+        "last": 1275,
+        "seconds": 31.84
+      },
+      {
+        "first": 1276,
+        "last": 1295,
+        "seconds": 40.48
+      },
+      {
+        "first": 1296,
+        "last": 1315,
+        "seconds": 39.2
+      },
+      {
+        "first": 1316,
+        "last": 1335,
+        "seconds": 39.8
+      },
+      {
+        "first": 1336,
+        "last": 1355,
+        "seconds": 40.16
+      },
+      {
+        "first": 1356,
+        "last": 1375,
+        "seconds": 40.48
+      },
+      {
+        "first": 1376,
+        "last": 1395,
+        "seconds": 40.0
+      },
+      {
+        "first": 1396,
+        "last": 1415,
+        "seconds": 40.0
+      },
+      {
+        "first": 1416,
+        "last": 1435,
+        "seconds": 40.0
+      },
+      {
+        "first": 1436,
+        "last": 1441,
+        "seconds": 11.72
+      }
+    ],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": false,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬暴风资源",
+    "work": "长安二十四计",
+    "episode": "第1集",
+    "segments": 2604,
+    "kept_segments": 2586,
+    "original_seconds": 2637.32,
+    "removed": [
+      {
+        "start_ms": 300320,
+        "end_ms": 326080
+      },
+      {
+        "start_ms": 2426360,
+        "end_ms": 2452120
+      }
+    ],
+    "removed_ms": 51520,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": false,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬暴风资源",
+    "work": "长安二十四计",
+    "episode": "第2集",
+    "segments": 2674,
+    "kept_segments": 2656,
+    "original_seconds": 2707.6,
+    "removed": [
+      {
+        "start_ms": 300240,
+        "end_ms": 326000
+      },
+      {
+        "start_ms": 2426400,
+        "end_ms": 2452160
+      }
+    ],
+    "removed_ms": 51520,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": false,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬暴风资源",
+    "work": "嫁金钗",
+    "episode": "第1集",
+    "segments": 981,
+    "kept_segments": 963,
+    "original_seconds": 2941.44,
+    "removed": [
+      {
+        "start_ms": 300880,
+        "end_ms": 326640
+      },
+      {
+        "start_ms": 2428640,
+        "end_ms": 2454400
+      }
+    ],
+    "removed_ms": 51520,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": false,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬暴风资源",
+    "work": "嫁金钗",
+    "episode": "第2集",
+    "segments": 1090,
+    "kept_segments": 1072,
+    "original_seconds": 3270.08,
+    "removed": [
+      {
+        "start_ms": 302200,
+        "end_ms": 327960
+      },
+      {
+        "start_ms": 2427280,
+        "end_ms": 2453040
+      }
+    ],
+    "removed_ms": 51520,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": false,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬暴风资源",
+    "work": "逐玉",
+    "episode": "第1集crush",
+    "segments": 2859,
+    "kept_segments": 2841,
+    "original_seconds": 2893.2,
+    "removed": [
+      {
+        "start_ms": 300840,
+        "end_ms": 326600
+      },
+      {
+        "start_ms": 2425840,
+        "end_ms": 2451600
+      }
+    ],
+    "removed_ms": 51520,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": false,
+    "kept_uri_order_same_as_previous": true
+  },
+  {
+    "source": "🎬暴风资源",
+    "work": "逐玉",
+    "episode": "第2集",
+    "segments": 2809,
+    "kept_segments": 2791,
+    "original_seconds": 2843.36,
+    "removed": [
+      {
+        "start_ms": 300400,
+        "end_ms": 326160
+      },
+      {
+        "start_ms": 2426200,
+        "end_ms": 2451960
+      }
+    ],
+    "removed_ms": 51520,
+    "remaining_discontinuity_groups": [],
+    "remaining_directory_count": 1,
+    "manifest_changed_vs_previous": false,
+    "kept_uri_order_same_as_previous": true
+  }
+]

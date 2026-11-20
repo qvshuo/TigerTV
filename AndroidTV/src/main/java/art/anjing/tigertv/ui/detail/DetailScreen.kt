@@ -1,5 +1,6 @@
 package art.anjing.tigertv.ui.detail
 
+import art.anjing.tigertv.core.supportsHlsAdFiltering
 import androidx.activity.compose.BackHandler
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -8,9 +9,6 @@ import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -30,6 +28,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -43,7 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.*
-import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.AsyncImage
 import art.anjing.tigertv.R
 import art.anjing.tigertv.domain.EpisodeLink
 import art.anjing.tigertv.domain.FetchResponse
@@ -81,7 +80,6 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
     val overviewDetail = response ?: retainedDetail
     val overviewEpisode = if (response != null) currentEpisode else retainedEpisode
     val gridState = rememberLazyGridState()
-    val lineRow = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val playFocus = remember { FocusRequester() }
     val sourceFocus = remember { FocusRequester() }
@@ -93,31 +91,25 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
     val sourceRowIndex = if (result != null) 2 else 1
     val hasLines = response?.playSources?.isNotEmpty() == true
 
-    fun focusPlay() { scope.launch {
-        gridState.animateScrollToItem(0)
-        requestFocusSafely(playFocus)
-    } }
-    fun focusSources() { scope.launch {
-        if (sources.isEmpty()) return@launch
-        gridState.animateScrollToItem(sourceRowIndex - 1)
-        requestFocusSafely(sourceFocus)
-    } }
-    fun focusLines() { scope.launch {
-        gridState.animateScrollToItem(sourceRowIndex + 1)
-        lineRow.scrollToItem(preferredLine)
-        requestFocusSafely(lineFocus)
-    } }
-    fun focusEpisodes() { scope.launch {
-        gridState.animateScrollToItem(sourceRowIndex + 4 + preferredEpisode)
-        requestFocusSafely(episodeFocus)
-    } }
-
-    // Preserve the position captured before lazy content changes, until navigation supersedes it.
-    SideEffect {
-        sourceViewport?.let { (index, offset) ->
-            gridState.requestScrollToItem(index, offset)
-            if (!viewModel.isFetching) sourceViewport = null
+    var focusJump by remember { mutableStateOf<Job?>(null) }
+    fun jump(index: Int, target: FocusRequester) {
+        focusJump?.cancel()
+        focusJump = scope.launch {
+            gridState.scrollToItem(index)
+            requestFocusSafely(target)
         }
+    }
+
+    fun focusPlay() = jump(0, playFocus)
+    fun focusSources() { if (sources.isNotEmpty()) jump(sourceRowIndex - 1, sourceFocus) }
+    fun focusLines() = jump(sourceRowIndex + 1, lineFocus)
+    fun focusEpisodes() = jump(sourceRowIndex + 4 + preferredEpisode, episodeFocus)
+
+    // Only re-anchor when a new response changes the content below the focused resource.
+    LaunchedEffect(viewModel.isFetching, response) {
+        val (index, offset) = sourceViewport ?: return@LaunchedEffect
+        gridState.requestScrollToItem(index, offset)
+        if (!viewModel.isFetching) sourceViewport = null
     }
 
     LaunchedEffect(viewModel.isFetching, response?.site, response?.vodId, episodes.isNotEmpty()) {
@@ -151,22 +143,28 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                 val density = LocalDensity.current
                 val measurer = rememberTextMeasurer()
                 val episodeStyle = MaterialTheme.typography.labelLarge
-                val availableWidth = maxWidth - UiSpacing.sm * 2
+                val availableWidth = maxWidth - ChoiceInset * 2
                 val viewportHeight = maxHeight
+                // The grid asks for spans while scrolling. Shape each title at most once per layout.
+                val spans = remember(episodes, availableWidth, density, episodeStyle, measurer) {
+                    IntArray(episodes.size)
+                }
                 LazyVerticalGrid(
                     state = gridState,
                     columns = GridCells.Adaptive(minSize = EpisodeMinWidth),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(UiSpacing.sm),
-                    horizontalArrangement = Arrangement.spacedBy(UiSpacing.sm),
-                    verticalArrangement = Arrangement.spacedBy(UiSpacing.sm)
+                    contentPadding = PaddingValues(horizontal = ChoiceInset, vertical = UiSpacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(ChoiceGap),
+                    verticalArrangement = Arrangement.spacedBy(ChoiceGap)
                 ) {
                     if (result != null) {
                         item(key = "overview", span = { GridItemSpan(maxLineSpan) }) {
                             DetailOverview(result, overviewDetail, response?.vodPic, viewModel.coverFallbacks[result.coverKey],
                                 overviewEpisode, !viewModel.isFetching && response != null && currentEpisode != null,
                                 { onPlay(preferredEpisode) },
-                                { scope.launch { gridState.animateScrollToItem(0) } }, playFocus,
+                                { if (gridState.firstVisibleItemIndex != 0 || gridState.firstVisibleItemScrollOffset != 0) {
+                                    scope.launch { gridState.scrollToItem(0) }
+                                } }, playFocus,
                                 ::focusSources)
                         }
                     }
@@ -188,12 +186,12 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                                     }
                                 }
                                 .focusGroup(),
-                            horizontalArrangement = Arrangement.spacedBy(UiSpacing.md),
-                            verticalArrangement = Arrangement.spacedBy(UiSpacing.sm)
+                            horizontalArrangement = Arrangement.spacedBy(ChoiceGap),
+                            verticalArrangement = Arrangement.spacedBy(ChoiceGap)
                         ) {
                             sources.forEachIndexed { index, source ->
                                 key(source.coverKey) {
-                                    DetailChoice(source.site, source.coverKey == result?.coverKey,
+                                    DetailChoice(source.site, source.coverKey == result?.coverKey, adFiltering = supportsHlsAdFiltering(source.site),
                                         modifier = if (index == preferredSource) Modifier.focusRequester(sourceFocus) else Modifier) {
                                         if (source.coverKey != result?.coverKey) {
                                             restoreRetryFocus = false
@@ -217,14 +215,31 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                                     viewModel.retryFetch()
                                 }, compact = true, focusRetry = !entryFocusRequested || restoreRetryFocus)
                         } else if (response != null && hasLines) {
-                            LazyRow(state = lineRow,
-                                modifier = Modifier.onDpad(Key.DirectionUp, ::focusSources)
-                                    .onDpad(Key.DirectionDown, if (episodes.isNotEmpty()) ::focusEpisodes else null),
-                                horizontalArrangement = Arrangement.spacedBy(UiSpacing.md), contentPadding = PaddingValues(horizontal = UiSpacing.sm, vertical = UiSpacing.sm)) {
-                                itemsIndexed(response.playSources, key = { _, source -> source.id }) { index, source ->
-                                    DetailChoice(source.name, index == viewModel.selectedPlaybackSourceIndex,
-                                        modifier = if (index == preferredLine) Modifier.focusRequester(lineFocus) else Modifier) {
-                                        viewModel.selectPlaybackSource(index)
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = UiSpacing.sm)
+                                    .focusProperties {
+                                        onExit = {
+                                            val destination = when (requestedFocusDirection) {
+                                                FocusDirection.Up -> ::focusSources
+                                                FocusDirection.Down -> if (episodes.isNotEmpty()) ::focusEpisodes else null
+                                                else -> null
+                                            }
+                                            if (destination != null) {
+                                                cancelFocusChange()
+                                                destination()
+                                            }
+                                        }
+                                    }
+                                    .focusGroup(),
+                                horizontalArrangement = Arrangement.spacedBy(ChoiceGap),
+                                verticalArrangement = Arrangement.spacedBy(ChoiceGap),
+                            ) {
+                                response.playSources.forEachIndexed { index, source ->
+                                    key(source.id) {
+                                        DetailChoice(source.name, index == preferredLine,
+                                            modifier = if (index == preferredLine) Modifier.focusRequester(lineFocus) else Modifier) {
+                                            viewModel.selectPlaybackSource(index)
+                                        }
                                     }
                                 }
                             }
@@ -243,13 +258,20 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                                     if (!viewModel.isFetching && viewModel.fetchErrorMessage == null) Text("暂无播放内容")
                                 }
                             }
-                        else -> itemsIndexed(episodes, key = { index, _ -> "episode-$index" }, span = { _, episode ->
-                            // Long titles can span two compact columns; short titles keep one.
-                            val cellWidth = (availableWidth - UiSpacing.sm * (maxLineSpan - 1)) / maxLineSpan
-                            val textWidth = with(density) { (cellWidth - UiSpacing.md * 2).roundToPx().coerceAtLeast(1) }
-                            val overflow = measurer.measure(AnnotatedString(episode.name), style = episodeStyle,
-                                maxLines = 2, constraints = Constraints(maxWidth = textWidth)).hasVisualOverflow
-                            GridItemSpan(if (overflow) minOf(2, maxLineSpan) else 1)
+                        else -> itemsIndexed(episodes, key = { index, _ -> "episode-$index" }, span = { index, episode ->
+                            val columns = maxLineSpan
+                            val span = spans[index].takeIf { it != 0 } ?: run {
+                                val measured = if (columns == 1) 1 else {
+                                    val cellWidth = (availableWidth - ChoiceGap * (columns - 1)) / columns
+                                    val textWidth = with(density) { (cellWidth - UiSpacing.md * 2).roundToPx().coerceAtLeast(1) }
+                                    val overflow = measurer.measure(AnnotatedString(episode.name), style = episodeStyle,
+                                        maxLines = 2, constraints = Constraints(maxWidth = textWidth), skipCache = true).hasVisualOverflow
+                                    if (overflow) 2 else 1
+                                }
+                                spans[index] = measured
+                                measured
+                            }
+                            GridItemSpan(span)
                         }) { index, episode ->
                             EpisodeCard(episode, index == viewModel.selectedEpisodeIndex,
                                 modifier = if (index == preferredEpisode) Modifier.focusRequester(episodeFocus) else Modifier) { onPlay(index) }
@@ -332,12 +354,17 @@ private fun SectionTitle(title: String) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier = Modifier, maxLines: Int = 1, onClick: () -> Unit) {
+internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier = Modifier, maxLines: Int = 1, adFiltering: Boolean = false, onClick: () -> Unit) {
     SelectionChip(selected = selected, onClick = onClick,
         modifier = modifier.width(IntrinsicSize.Max).heightIn(min = UiMetrics.controlHeight)) {
-        Box(Modifier.heightIn(min = UiMetrics.controlHeight - 16.dp), contentAlignment = Alignment.Center) {
-            Text(title, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+        Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.controlHeight - 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text(title, modifier = Modifier.weight(1f, fill = false), textAlign = TextAlign.Center,
                 maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+            if (adFiltering) {
+                Text("去广告", style = MaterialTheme.typography.labelMedium)
+            }
         }
     }
 }
@@ -346,10 +373,11 @@ internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier =
 private fun SourcePoster(result: SearchResult, urls: List<String>, modifier: Modifier) {
     var index by remember(result.coverKey, urls) { mutableIntStateOf(0) }
     val url = urls.getOrNull(index)
+    var loaded by remember(url) { mutableStateOf(false) }
     Box(modifier.clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-        if (url == null) PosterPlaceholder(result.vodName)
-        else SubcomposeAsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(), loading = { PosterPlaceholder(result.vodName) }, error = { PosterPlaceholder(result.vodName) },
+        if (!loaded) PosterPlaceholder(result.vodName)
+        if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(), onSuccess = { loaded = true },
             onError = { if (urls.getOrNull(index) == url) index++ })
     }
 }
@@ -364,10 +392,17 @@ private fun PosterPlaceholder(title: String) {
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun EpisodeCard(episode: EpisodeLink, isSelected: Boolean, modifier: Modifier = Modifier, onPlay: () -> Unit) {
-    DetailChoice(episode.name, isSelected, modifier.fillMaxWidth(), maxLines = 2, onClick = onPlay)
+    SelectionChip(selected = isSelected, onClick = onPlay,
+        modifier = modifier.fillMaxWidth().heightIn(min = UiMetrics.controlHeight)) {
+        Box(Modifier.fillMaxWidth().heightIn(min = UiMetrics.controlHeight - 16.dp), contentAlignment = Alignment.Center) {
+            Text(episode.name, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+    }
 }
 
-private val EpisodeMinWidth = 132.dp
+private val EpisodeMinWidth = 120.dp
+private val ChoiceInset = UiSpacing.md
+private val ChoiceGap = 20.dp
 
 // Source updates must not re-center controls that are already visible.
 @OptIn(ExperimentalFoundationApi::class)

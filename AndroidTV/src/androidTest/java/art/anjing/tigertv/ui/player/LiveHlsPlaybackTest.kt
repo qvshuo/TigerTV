@@ -36,6 +36,25 @@ class LiveHlsPlaybackTest {
                 }
                 fail("Timed out: $label")
             }
+            if (args.getString("expect_filter") == "false") {
+                onPlayer { it.play() }
+                await("original CDN playback") { it.player.isPlaying }
+                onPlayer { it.player.seekTo(120_000) }
+                await("original CDN seek") { it.player.isPlaying && it.player.currentPosition > 121_000 }
+                onPlayer {
+                    assertNull(it.playbackTimeline)
+                    assertTrue(it.player.videoDecoderCounters!!.renderedOutputBufferCount > 0)
+                    assertTrue(it.player.audioDecoderCounters!!.renderedOutputBufferCount > 0)
+                    it.pause()
+                }
+                val paused = onPlayer { it.player.currentPosition }
+                Thread.sleep(1_000)
+                assertTrue(kotlin.math.abs(onPlayer { it.player.currentPosition } - paused) < 100)
+                onPlayer { it.setSpeed(2f); it.play() }
+                await("original CDN rate") { it.player.currentPosition > paused + 1_000 }
+                android.util.Log.i("TigerTVLive", "source=$site filtered=false audioVideoRendered=true seekPauseRate=true")
+                return
+            }
             await("current filtered media") { it.player.playbackState == Player.STATE_READY && it.playbackTimeline != null }
             val timeline = onPlayer { it.playbackTimeline!! }
             val intervals = timeline.ads
