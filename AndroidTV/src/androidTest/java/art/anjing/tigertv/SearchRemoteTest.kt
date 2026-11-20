@@ -16,7 +16,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.tv.material3.Text
 import art.anjing.tigertv.ui.components.ActionButton
-import art.anjing.tigertv.ui.home.SearchInput
+import art.anjing.tigertv.ui.components.TvTextInput
 import art.anjing.tigertv.ui.requestFocusSafely
 import art.anjing.tigertv.ui.theme.TigerTVTheme
 import org.junit.Assert.assertEquals
@@ -41,7 +41,7 @@ class SearchRemoteTest {
             TigerTVTheme {
                 val inputFocus = remember { FocusRequester() }
                 Column(Modifier.fillMaxSize()) {
-                    SearchInput(keyword.value, { keyword.value = it }, { searches++ }, inputFocus)
+                    TvTextInput(keyword.value, { keyword.value = it }, { searches++ }, inputFocus, hint = "搜索")
                     ActionButton(onClick = {}) { Text("国产剧") }
                 }
                 LaunchedEffect(Unit) { requestFocusSafely(inputFocus) }

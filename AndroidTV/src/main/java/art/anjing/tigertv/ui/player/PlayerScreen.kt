@@ -46,7 +46,7 @@ import kotlinx.coroutines.delay
 
 @OptIn(UnstableApi::class)
 @Composable
-fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
+fun PlayerScreen(viewModel: TigerTVViewModel, onSettings: () -> Unit = {}, onBack: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
@@ -76,20 +76,24 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
         onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     val session = viewModel.playbackSession
+    val workTitle = viewModel.fetchResponse?.vodName.orEmpty().ifBlank { viewModel.selectedResult?.vodName.orEmpty() }
+    val workYear = viewModel.fetchResponse?.vodYear.orEmpty().takeIf { it.toIntOrNull() in 1900..2099 }
+        ?: viewModel.selectedResult?.vodYear.orEmpty()
     val identity = listOf(session?.workId.orEmpty(), session?.site.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty())
         .joinToString("") { "${it.length}:$it" }
     val danmakuState = remember(identity, viewModel.playbackRevision) {
         DanmakuState(danmakuScope, viewModel::danmakuClient, preferences.getBoolean("enabled:$identity", true),
-            art.anjing.tigertv.core.regularDanmakuEpisode(session?.episode.orEmpty()),
-            { server, id -> preferences.edit().putLong(danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.site.orEmpty()), id).apply() },
-            { server -> preferences.getLong(danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.site.orEmpty()), -1).takeIf { it > 0 } },
-            workYear = viewModel.fetchResponse?.vodYear.orEmpty())
+            rememberTitle = { server, id -> preferences.edit().putLong(danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.site.orEmpty()), id).apply() },
+            preferredTitle = { server -> preferences.getLong(danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.site.orEmpty()), -1).takeIf { it > 0 } },
+            workYear = workYear, episodeLabel = session?.episode.orEmpty())
     }
     DisposableEffect(danmakuState) { onDispose { danmakuState.close() } }
     LaunchedEffect(danmakuState, danmakuState.enabled, configuredServer) {
         danmakuState.configure(configuredServer)
-        if (danmakuState.enabled && !danmakuState.hasComments && !danmakuState.busy && configuredServer.isNotBlank())
-            danmakuState.search(viewModel.fetchResponse?.vodName.orEmpty())
+        if (danmakuState.enabled && !danmakuState.hasComments && !danmakuState.busy &&
+            configuredServer.isNotBlank() && workTitle.isNotBlank()) {
+            danmakuState.search(workTitle)
+        }
     }
     val surfaceFocus = remember { FocusRequester() }
     val timelineFocus = remember { FocusRequester() }
@@ -321,8 +325,9 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onBack: () -> Unit) {
         }, onRelease = { it.player = null }, modifier = Modifier.fillMaxSize())
 
         key(url, viewModel.playbackRevision) {
-            if (!blocked) DanmakuPlayback(controller, danmakuState, viewModel.fetchResponse?.vodName.orEmpty(), danmakuMenu,
-                onClose = { danmakuMenu = false; showControls(PlayerFocusArea.Danmaku) }, )
+            if (!blocked) DanmakuPlayback(controller, danmakuState, workTitle, danmakuMenu,
+                onClose = { danmakuMenu = false; showControls(PlayerFocusArea.Danmaku) },
+                onSettings = { danmakuMenu = false; showControls(PlayerFocusArea.Danmaku); onSettings() })
         }
         if (!blocked && controls.visible) {
             val line = viewModel.fetchResponse?.playSources?.getOrNull(viewModel.selectedPlaybackSourceIndex)

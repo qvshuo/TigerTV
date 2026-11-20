@@ -48,6 +48,8 @@ class Media3Controller(context: Context) {
 
     var snapshot by mutableStateOf(PlayerSnapshot())
         private set
+    var hasVideoFrame by mutableStateOf(false)
+        private set
     private var resumeOnForeground = false
     private var inBackground = false
     private var pendingLoad: (() -> Unit)? = null
@@ -83,6 +85,10 @@ class Media3Controller(context: Context) {
         restoring = true
         listener = object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) { if (listener === this) refresh() }
+
+            override fun onRenderedFirstFrame() {
+                if (listener === this) hasVideoFrame = true
+            }
 
             override fun onPlaybackStateChanged(state: Int) {
                 if (listener !== this) return
@@ -211,6 +217,7 @@ class Media3Controller(context: Context) {
         player.stop()
         player.clearMediaItems()
         hlsSession = null
+        hasVideoFrame = false
         snapshot = PlayerSnapshot(speed = player.playbackParameters.speed)
     }
     fun close() {

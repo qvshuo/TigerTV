@@ -49,7 +49,7 @@ internal fun parseDanmakuTrack(text: String): DanmakuTrack {
     val duration = millis(root["videoDuration"]?.jsonPrimitive?.doubleOrNull)?.takeIf { it > 0 }
     val comments = root["comments"]?.jsonArray.orEmpty().mapNotNull { value ->
         val item = value.jsonObject
-        val fields = item["p"]?.jsonPrimitive?.contentOrNull?.split(',') ?: return@mapNotNull null
+        val fields = item["p"]?.jsonPrimitive?.contentOrNull?.split(',', limit = 4) ?: return@mapNotNull null
         val time = millis(fields.firstOrNull()?.toDoubleOrNull()) ?: return@mapNotNull null
         val message = item["m"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
         val mode = fields.getOrNull(1)?.toIntOrNull() ?: return@mapNotNull null

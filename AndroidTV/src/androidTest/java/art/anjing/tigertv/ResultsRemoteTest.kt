@@ -1,5 +1,6 @@
 package art.anjing.tigertv
 
+import android.view.KeyEvent
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -83,6 +84,59 @@ class ResultsRemoteTest {
             assertTrue("Native focus scale extends into the bottom safety margin",
                 focusedBounds.bottom <= windowBounds.bottom - UiMetrics.pageVerticalPadding)
             captureWhenRequested("results")
+        } finally {
+            compose.runOnIdle { store.clear() }
+        }
+    }
+
+    @Test fun recommendationsSearchAndSettingsReturnToTheirLaunchControls() {
+        val files = ConcurrentHashMap(mapOf("source" to """{"api_site":{"test":{"name":"🎬审查","api":"https://fixture.test/api"}}}"""))
+        val storage = object : Storage {
+            override fun read(path: String) = files[path]
+            override fun writeAtomic(path: String, text: String) { files[path] = text }
+        }
+        val core = CoreService("cache", "source", storage, configureClient(HttpClient(MockEngine { request ->
+            if (request.url.host == "m.douban.com") {
+                respond("""{"subject_collection_items":[{"id":"home","title":"热门验收","year":"2026"}]}""")
+            } else {
+                respond("""{"code":1,"list":[{"vod_id":1,"vod_name":"热门验收","vod_play_from":"主线","vod_play_url":"第一集${'$'}https://fixture.test/video.m3u8"}]}""")
+            }
+        })))
+        val store = ViewModelStore()
+        val model = compose.runOnIdle {
+            TigerTVViewModel(TigerTVRepository(core), instrumentation.targetContext).also { store.put("home", it) }
+        }
+        fun remote(key: Int) {
+            instrumentation.sendKeyDownUpSync(key)
+            compose.waitForIdle()
+        }
+        try {
+            compose.setContent {
+                TigerTVTheme { Surface(Modifier.fillMaxSize()) { TigerTVNavHost(model, rememberNavController()) } }
+            }
+            compose.onNodeWithText("热门推荐").assertIsDisplayed()
+            compose.onNodeWithText("豆瓣热门").assertDoesNotExist()
+            compose.onNodeWithText("小老虎爱看剧").assertDoesNotExist()
+            val recommendation = hasText("热门验收 (2026)") and hasClickAction()
+            compose.waitUntil(10_000) { compose.onAllNodes(recommendation and isFocused()).fetchSemanticsNodes().isNotEmpty() }
+            remote(KeyEvent.KEYCODE_DPAD_CENTER)
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("搜索结果: 热门验收")).fetchSemanticsNodes().isNotEmpty() }
+            remote(KeyEvent.KEYCODE_BACK)
+            compose.waitUntil(10_000) { compose.onAllNodes(recommendation and isFocused()).fetchSemanticsNodes().isNotEmpty() }
+            remote(KeyEvent.KEYCODE_DPAD_UP)
+            remote(KeyEvent.KEYCODE_DPAD_UP)
+            compose.onNodeWithTag("home-search").assertIsFocused()
+            remote(KeyEvent.KEYCODE_DPAD_CENTER)
+            compose.onNode(hasSetTextAction()).assertIsFocused()
+            compose.onNodeWithText("搜索历史").assertIsDisplayed()
+            remote(KeyEvent.KEYCODE_BACK)
+            compose.onNodeWithTag("home-search").assertIsFocused()
+            remote(KeyEvent.KEYCODE_DPAD_RIGHT)
+            compose.onNodeWithTag("home-settings").assertIsFocused()
+            remote(KeyEvent.KEYCODE_DPAD_CENTER)
+            compose.onNodeWithTag("danmaku-server").assertIsFocused()
+            remote(KeyEvent.KEYCODE_BACK)
+            compose.onNodeWithTag("home-settings").assertIsFocused()
         } finally {
             compose.runOnIdle { store.clear() }
         }

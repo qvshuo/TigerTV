@@ -43,7 +43,9 @@ class DetailSourceScrollTest {
     @Test fun repeatedRetryFailureRestoresRetryFocus() = checkSourceSwitch(failDetail = true, retryAgain = true)
     @Test fun lateRetryFailureDoesNotStealFocusAfterRemoteNavigation() = checkSourceSwitch(failDetail = true, retryAgain = true, navigateDuringRetry = true)
 
-    private fun checkSourceSwitch(shortSynopsis: Boolean = false, failDetail: Boolean = false, navigateWhileLoading: Boolean = false, startsShort: Boolean = false, fontScale: Float = 1f, emptyEpisodes: Boolean = false, retryAgain: Boolean = false, navigateDuringRetry: Boolean = false) {
+    @Test fun rapidEpisodeNavigationKeepsFocusInLongLists() = checkSourceSwitch(rapidEpisodes = true)
+
+    private fun checkSourceSwitch(shortSynopsis: Boolean = false, failDetail: Boolean = false, navigateWhileLoading: Boolean = false, startsShort: Boolean = false, fontScale: Float = 1f, emptyEpisodes: Boolean = false, retryAgain: Boolean = false, navigateDuringRetry: Boolean = false, rapidEpisodes: Boolean = false) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val files = ConcurrentHashMap(mapOf("source" to """{"api_site":{"a":{"name":"🎬源甲","api":"https://a.test/api"},"b":{"name":"🎬源乙","api":"https://b.test/api"}}}"""))
         val storage = object : Storage {
@@ -53,7 +55,10 @@ class DetailSourceScrollTest {
         val releaseDetail = CompletableDeferred<Unit>()
         val releaseRetry = CompletableDeferred<Unit>()
         var secondSourceRequests = 0
-        val episodes = (1..30).joinToString("#") { "第${it}集${'$'}https://media.test/$it.m3u8" }
+        val episodes = (1..if (rapidEpisodes) 120 else 30).joinToString("#") {
+            val name = if (rapidEpisodes && it % 3 == 0) "第${it}集：这是一段用于验证长标题跨列显示的剧集原名" else "第${it}集"
+            "$name${'$'}https://media.test/$it.m3u8"
+        }
         val longSynopsis = "这是一段用于验证切源时保持资源位置的剧情简介。".repeat(80)
         val synopsis = if (startsShort) "简短介绍" else longSynopsis
         val core = CoreService("cache", "source", storage, configureClient(HttpClient(MockEngine { request ->
@@ -85,6 +90,45 @@ class DetailSourceScrollTest {
                 }
             }
             compose.waitUntil(5_000) { compose.onAllNodes(hasText("播放 · 第1集") and isFocused()).fetchSemanticsNodes().isNotEmpty() }
+            if (rapidEpisodes) {
+                val down = KeyEvent.KEYCODE_DPAD_DOWN
+                val up = KeyEvent.KEYCODE_DPAD_UP
+                repeat(3) { instrumentation.sendKeyDownUpSync(down); compose.waitForIdle() }
+                compose.onNode(hasText("第1集") and hasClickAction()).assertIsFocused()
+                val stats = InstrumentationRegistry.getArguments().getString("measure_episode_focus") == "true"
+                fun gfx(command: String): String = android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                    instrumentation.uiAutomation.executeShellCommand("dumpsys gfxinfo ${instrumentation.targetContext.packageName} $command")
+                ).bufferedReader().use { it.readText() }
+                if (stats) gfx("reset")
+                val timings = mutableListOf<Long>()
+                fun send(key: Int) {
+                    val start = android.os.SystemClock.uptimeMillis()
+                    instrumentation.sendKeyDownUpSync(key)
+                    val latency = android.os.SystemClock.uptimeMillis() - start
+                    timings += latency
+                    android.os.SystemClock.sleep((35 - latency).coerceAtLeast(0))
+                }
+                repeat(18) { send(down) }
+                compose.waitForIdle()
+                val focused = compose.onNode(isFocused()).fetchSemanticsNode().config[SemanticsProperties.Text].single().text
+                val episode = focused.removePrefix("第").removeSuffix("集").toIntOrNull()
+                assertTrue("Expected focus several rows into the episode grid: $focused", episode != null && episode >= 24)
+                repeat(18) { send(up) }
+                compose.waitForIdle()
+                val returned = compose.onNode(isFocused()).fetchSemanticsNode().config[SemanticsProperties.Text].single().text
+                if (stats) {
+                    val sorted = timings.sorted()
+                    val result = gfx("framestats").lineSequence().filter {
+                        it.startsWith("Total frames rendered:") || it.startsWith("Janky frames:") ||
+                            Regex("^(50|90|95|99)th percentile:").containsMatchIn(it)
+                    }.take(6).joinToString(", ")
+                    android.util.Log.i("TigerTVEpisodeFocus", "keys=${sorted.size}, keyDispatchMsP50=${sorted[sorted.size / 2]}, keyDispatchMsP95=${sorted[sorted.size * 95 / 100]}, down=$focused, returned=$returned, $result")
+                }
+                assertTrue("Focus was lost after reversing: $returned",
+                    Regex("^第[1-9]集").containsMatchIn(returned) || returned in listOf("主线", "🎬源甲"))
+                assertNull(model.playbackUrl)
+                return
+            }
             val layouts = mutableListOf<TextLayoutResult>()
             compose.onNodeWithText(synopsis, useUnmergedTree = true)
                 .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }

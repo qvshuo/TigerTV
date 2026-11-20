@@ -39,12 +39,14 @@ class LiveDanmakuPlaybackTest {
         val service = args.getString("danmu_url")
         assumeNotNull(mediaUrl, service)
         val nextMediaUrl = args.getString("next_media_url") ?: mediaUrl
+        val episodeLabel = args.getString("episode_label") ?: "第1集"
         val work = args.getString("work_title")!!
         val site = args.getString("media_site")!!
-        val titleId = args.getString("danmu_title_id")!!
-        val episodeId = args.getString("danmu_episode_id")!!
+        val titleId = args.getString("danmu_title_id")?.toLongOrNull()
+        val episodeId = args.getString("danmu_episode_id")
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        context.getSharedPreferences("danmaku", 0).edit().clear().commit()
+        val preferences = context.getSharedPreferences("danmaku", 0)
+        preferences.edit().clear().putString("server", service).commit()
         val liveHttp = platformHttpClient()
         val liveNetwork = Network(liveHttp)
         val files = ConcurrentHashMap<String, String>().apply { put("source", """{"api_site":{"live":{"name":"$site","api":"https://fixture.test/api"}}}""") }
@@ -52,7 +54,7 @@ class LiveDanmakuPlaybackTest {
             override fun read(path: String) = files[path]
             override fun writeAtomic(path: String, text: String) { files[path] = text }
         }
-        val response = """{"code":1,"list":[{"vod_id":1,"vod_name":"$work","vod_play_from":"HLS","vod_play_url":"第1集${'$'}$mediaUrl#第2集${'$'}$nextMediaUrl"}]}"""
+        val response = """{"code":1,"list":[{"vod_id":1,"vod_name":"$work","vod_play_from":"HLS","vod_play_url":"$episodeLabel${'$'}$mediaUrl#第2集${'$'}$nextMediaUrl"}]}"""
         val core = CoreService("live-ui", "source", storage, configureClient(HttpClient(MockEngine { request ->
             when (request.url.host) {
                 "fixture.test" -> respond(response)
@@ -68,7 +70,13 @@ class LiveDanmakuPlaybackTest {
             compose.waitUntil(15_000) { model.works.isNotEmpty() && !model.isSearching }
             compose.runOnIdle { model.selectResult(model.works.single().sources.single()) }
             compose.waitUntil(15_000) { model.fetchResponse != null && !model.isFetching }
-            compose.runOnIdle { model.selectEpisode(0) }
+            compose.runOnIdle {
+                model.selectEpisode(0)
+                if (titleId != null) {
+                    val session = checkNotNull(model.playbackSession)
+                    preferences.edit().putLong(danmakuPreferenceKey(service!!, session.workId, session.site), titleId).apply()
+                }
+            }
             compose.setContent { TigerTVTheme { root = LocalView.current; PlayerScreen(model) {} } }
             fun player(): Player = find(root, PlayerView::class.java)!!.player!!
             fun overlay(): DanmakuView = find(root, DanmakuView::class.java)!!
@@ -92,29 +100,15 @@ class LiveDanmakuPlaybackTest {
                 compose.onNodeWithTag("danmaku-options").performScrollToNode(hasTestTag(tag))
                 return compose.onNodeWithTag(tag)
             }
-            fun clickOption(tag: String) {
-                option(tag).performSemanticsAction(SemanticsActions.RequestFocus) { it() }
-                InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
-                compose.waitForIdle()
-            }
             fun awaitRequest() {
                 compose.waitUntil(45_000) {
                     compose.onNodeWithTag("danmaku-options").fetchSemanticsNode().config[SemanticsProperties.StateDescription] == "就绪"
                 }
             }
+            compose.waitUntil(35_000) { main { overlay().commentCount > 0 } }
             openMenu()
-            option("danmaku-server").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
-            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
-            option("danmaku-server").performTextReplacement(service!!)
-            compose.onNodeWithTag("danmaku-server").performImeAction()
-            clickOption("danmaku-save")
-            clickOption("danmaku-search")
-            awaitRequest()
-            clickOption("danmaku-title-$titleId")
-            awaitRequest()
-            clickOption("danmaku-episode-$episodeId")
-            awaitRequest()
-            android.util.Log.i("TigerTVDanmakuLive", "work=$work selectedEpisode=$episodeId")
+            if (titleId != null) option("danmaku-title-$titleId").assertIsSelected()
+            if (episodeId != null) option("danmaku-episode-$episodeId").assertIsSelected()
             InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
             main { player().seekTo(120_000); player().play() }
             compose.waitUntil(25_000) { main { player().isPlaying && overlay().drawnCount > 0 } }
@@ -146,6 +140,20 @@ class LiveDanmakuPlaybackTest {
                 counters.ensureUpdated()
                 android.util.Log.i("TigerTVDanmakuLive", "renderedVideoFrames=${counters.renderedOutputBufferCount} droppedVideoFrames=${counters.droppedBufferCount}")
             }
+            val soakSeconds = args.getString("soak_seconds")?.toIntOrNull()?.coerceIn(0, 120) ?: 0
+            if (soakSeconds > 0) {
+                val before = main { player().currentPosition }
+                Thread.sleep(soakSeconds * 1_000L)
+                main {
+                    assertNull(player().playerError)
+                    val advanced = player().currentPosition - before
+                    assertTrue("Playback stalled during soak", advanced >= soakSeconds * 750L)
+                    assertTrue(kotlin.math.abs(overlay().lastClockMs - player().currentPosition - 1_000) < 300 || overlay().drawnCount == 0)
+                    val counters = (player() as androidx.media3.exoplayer.ExoPlayer).videoDecoderCounters!!
+                    counters.ensureUpdated()
+                    android.util.Log.i("TigerTVDanmakuLive", "soakSeconds=$soakSeconds advancedMs=$advanced rendered=${counters.renderedOutputBufferCount} dropped=${counters.droppedBufferCount}")
+                }
+            }
             val output = File(context.getExternalFilesDir(null), "danmaku-live-${work}.png")
             InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().let { bitmap -> output.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle() }
             android.util.Log.i("TigerTVDanmakuLive", "work=$work scrollingComments=$count pause=true seek=true speed=true offset=true rendered=true bufferingObserved=$bufferFrozen")
@@ -161,12 +169,7 @@ class LiveDanmakuPlaybackTest {
             compose.waitUntil(25_000) { main { player().isPlaying } }
             assertEquals(0, main { overlay().drawnCount })
             openMenu()
-            option("danmaku-server").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
-            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
-            option("danmaku-server").performTextReplacement(service + "/missing")
-            compose.onNodeWithTag("danmaku-server").performImeAction()
-            clickOption("danmaku-save")
-            clickOption("danmaku-search")
+            main { preferences.edit().putString("server", service + "/missing").apply() }
             awaitRequest()
             compose.onNodeWithTag("danmaku-options").performScrollToNode(hasText("弹幕匹配失败，请手动选择"))
             compose.onNodeWithText("弹幕匹配失败，请手动选择").assertExists()
@@ -179,7 +182,7 @@ class LiveDanmakuPlaybackTest {
             bitmap.recycle()
             throw failure
         } finally {
-            compose.runOnIdle { store.clear() }
+            compose.runOnIdle { store.clear(); preferences.edit().clear().apply() }
             liveHttp.close()
         }
     }

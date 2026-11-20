@@ -1,6 +1,16 @@
 package art.anjing.tigertv.ui.player
 
 import android.view.View
+import android.view.ViewGroup
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalView
+import androidx.media3.ui.PlayerView
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import kotlinx.coroutines.CompletableDeferred
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -49,8 +59,67 @@ class DanmakuRenderTest {
             compose.waitUntil(2_000){main{kotlin.math.abs(view.lastClockMs-media.player.currentPosition-1000)<100}}
             main{view.bind(media.player,DanmakuTrack(120_000,emptyList()),true,0){null}}
             compose.waitUntil(2_000){main{view.drawnCount==0&&view.commentCount==0}}
-            main{view.bind(media.player,data,false,0){null}}
-            assertEquals(View.GONE,main{view.visibility})
+            main { view.bind(media.player, null, true, 0, loading = true) { null } }
+            assertEquals(View.VISIBLE, main { view.visibility })
+            assertEquals("弹幕加载中...", main { view.contentDescription })
+            main { view.bind(media.player, null, false, 0, loading = true) { null } }
+            assertEquals(View.GONE, main { view.visibility })
+            assertNull(main { view.contentDescription })
         } finally { main{view.release();media.close()};file.delete() }
+    }
+
+    @Test fun loadingHintWaitsForTheFirstVideoFrame() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val file = File(context.cacheDir, "danmaku-first-frame.mp4")
+        instrumentation.context.assets.open("player-test.mp4").use { input -> file.outputStream().use(input::copyTo) }
+        val response = CompletableDeferred<Unit>()
+        val requestStarted = CompletableDeferred<Unit>()
+        val http = configureClient(HttpClient(MockEngine {
+            requestStarted.complete(Unit)
+            response.await()
+            respond("""{"success":true,"animes":[]}""")
+        }))
+        val media = compose.runOnIdle { Media3Controller(context) }
+        lateinit var root: View
+        fun overlay(view: View): DanmakuView? {
+            if (view is DanmakuView) return view
+            if (view is ViewGroup) for (i in 0 until view.childCount) overlay(view.getChildAt(i))?.let { return it }
+            return null
+        }
+        try {
+            compose.setContent {
+                root = LocalView.current
+                val scope = rememberCoroutineScope()
+                val state = androidx.compose.runtime.remember(scope) {
+                    DanmakuState(scope, { DanmakuClient(Network(http), it) })
+                }
+                LaunchedEffect(state) {
+                    state.configure("https://fixture.test")
+                    state.search("测试")
+                }
+                Box(Modifier.fillMaxSize()) {
+                    AndroidView(factory = { PlayerView(it).apply { player = media.player } }, modifier = Modifier.fillMaxSize())
+                    DanmakuPlayback(media, state, "测试", false, {}, {})
+                }
+            }
+            compose.waitUntil(5_000) { requestStarted.isCompleted }
+            compose.runOnIdle {
+                assertFalse(media.hasVideoFrame)
+                assertNull(checkNotNull(overlay(root)).contentDescription)
+                media.load(file.toURI().toString(), 0, "测试", "fixture", {}, {}, { error(it) })
+                media.play()
+            }
+            compose.waitUntil(10_000) {
+                compose.runOnIdle { media.hasVideoFrame && overlay(root)?.contentDescription == "弹幕加载中..." }
+            }
+            response.complete(Unit)
+            compose.waitUntil(5_000) { compose.runOnIdle { overlay(root)?.contentDescription == null } }
+        } finally {
+            response.complete(Unit)
+            compose.runOnIdle { media.close() }
+            http.close()
+            file.delete()
+        }
     }
 }

@@ -52,8 +52,9 @@ fun PlaybackControls(
     onDanmakuMenu: () -> Unit, onDanmakuAction: (Int) -> Unit
 ) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Brush.verticalGradient(
-        0f to Color.Black.copy(alpha = 0.55f),
-        0.28f to Color.Transparent,
+        0f to Color.Black.copy(alpha = 0.72f),
+        0.17f to Color.Black.copy(alpha = 0.55f),
+        0.32f to Color.Transparent,
         0.52f to Color.Transparent,
         1f to Color.Black.copy(alpha = 0.8f)
     ))) {
@@ -68,7 +69,7 @@ fun PlaybackControls(
             Text(title, color = Color.White, style = MaterialTheme.typography.headlineSmall,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(8.dp))
-            Text(resource, color = Color.White.copy(alpha = 0.65f), style = MaterialTheme.typography.bodyMedium,
+            Text(resource, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding),

@@ -17,14 +17,15 @@ class DanmakuFallbackTest {
                 path.endsWith("bangumi/1") -> """{"success":true,"bangumi":{"episodes":[{"episodeId":11,"episodeNumber":"1"}]}}"""
                 path.contains("bangumi") -> { val id=path.substringAfterLast('/').toInt()*10+2; """{"success":true,"bangumi":{"episodes":[{"episodeId":$id,"episodeNumber":"2"}]}}""" }
                 path.endsWith("22") -> """{"comments":[]}"""
-                else -> """{"comments":[{"p":"1,1,16777215","m":"有效"}]}"""
+                else -> """{"comments":[{"p":"1,1,16777215","m":"有效"},{"p":"2,5,16777215","m":"固定弹幕"}]}"""
             })
         }))
         try {
-            val state = DanmakuState(this,{ DanmakuClient(Network(http),it) },true,2,{_,id->remembered+=id},{1}, workYear = "2026")
+            val state = DanmakuState(this,{ DanmakuClient(Network(http),it) },true,"2",{_,id->remembered+=id},{1}, workYear = "2026")
             state.configure("https://example.test/token"); state.search("示例")
             withTimeout(5_000) { while(state.busy) delay(10) }
             assertEquals(3L,state.selectedTitle?.id)
+            assertEquals(listOf("有效"), state.track?.comments?.map { it.text })
             assertTrue(remembered.isEmpty())
             assertFalse(calls.any { it.endsWith("bangumi/4") || it.endsWith("bangumi/5") })
             val commentCalls = calls.count { it.contains("comment") }
@@ -47,12 +48,12 @@ class DanmakuFallbackTest {
             }
         }))
         try {
-            val state = DanmakuState(this, { DanmakuClient(Network(http), it) }, true, 1, { _, id -> writes += id }, { 9 })
+            val state = DanmakuState(this, { DanmakuClient(Network(http), it) }, true, "1", { _, id -> writes += id }, { 9 })
             state.configure("https://example.test/first"); state.search("示例")
             withTimeout(5_000) { while (state.busy) delay(10) }
             assertEquals(9L, state.selectedTitle?.id)
             assertTrue(writes.isEmpty())
-            val nextEpisode = DanmakuState(this, { DanmakuClient(Network(http), it) }, true, 2, preferredTitle = { 9 })
+            val nextEpisode = DanmakuState(this, { DanmakuClient(Network(http), it) }, true, "2", preferredTitle = { 9 })
             nextEpisode.configure("https://example.test/first"); nextEpisode.search("示例")
             withTimeout(5_000) { while (nextEpisode.busy) delay(10) }
             assertEquals(9L, nextEpisode.selectedTitle?.id)
@@ -82,7 +83,7 @@ class DanmakuFallbackTest {
             }
         }))
         try {
-            val state = DanmakuState(this, { DanmakuClient(Network(http), it) }, true, 1)
+            val state = DanmakuState(this, { DanmakuClient(Network(http), it) }, true, "1")
             state.configure("https://example.test"); state.search("示例")
             withTimeout(5_000) { while (state.busy) delay(10) }
             assertEquals(2L, state.selectedTitle?.id)

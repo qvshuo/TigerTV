@@ -15,7 +15,7 @@ class DanmakuProgressiveTest {
         val http=configureClient(HttpClient(MockEngine { r ->
             val p=r.url.encodedPath;calls+=p
             respond(when {
-                p.contains("search") -> """{"success":true,"animes":[{"animeId":2,"animeTitle":"示例","source":"tencent"},{"animeId":1,"animeTitle":"示例","source":"iqiyi"},{"animeId":3,"animeTitle":"示例","source":"360"}]}"""
+                p.contains("search") -> """{"success":true,"animes":[{"animeId":4,"animeTitle":"示例","source":"iqiyi"},{"animeId":2,"animeTitle":"示例(2026)","source":"tencent"},{"animeId":1,"animeTitle":"示例(2026)","source":"iqiyi"},{"animeId":3,"animeTitle":"示例(2026)","source":"360"},{"animeId":5,"animeTitle":"示例(2025)","source":"iqiyi"}]}"""
                 p.contains("bangumi") -> """{"success":true,"bangumi":{"episodes":[{"episodeId":${p.substringAfterLast('/').toInt()*10},"episodeNumber":"1"}]}}"""
                 p.endsWith("20") -> { gate.await(); comments(9) }
                 p.endsWith("30") -> comments(10)
@@ -23,7 +23,7 @@ class DanmakuProgressiveTest {
             })
         }))
         try {
-            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,1,{_,id->writes+=id})
+            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,"1",{_,id->writes+=id}, workYear = "2026")
             state.configure("https://example.test");state.offsetMs=3000;state.search("示例")
             withTimeout(5_000){while(state.track==null)delay(10)}
             assertEquals(1L,state.selectedTitle?.id);assertTrue(state.busy)
@@ -31,6 +31,7 @@ class DanmakuProgressiveTest {
             withTimeout(5_000){while(state.busy)delay(10)}
             assertEquals(2L,state.selectedTitle?.id);assertEquals(3000L,state.offsetMs);assertTrue(writes.isEmpty())
             assertEquals(listOf("/api/v2/comment/10","/api/v2/comment/20","/api/v2/comment/30"),calls.filter{it.contains("comment")})
+            assertFalse(calls.any { it.endsWith("bangumi/4") || it.endsWith("bangumi/5") })
             state.close()
         } finally {http.close()}
     }
@@ -47,7 +48,7 @@ class DanmakuProgressiveTest {
             })
         }))
         try {
-            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,1,{_,id->writes+=id})
+            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,"1",{_,id->writes+=id})
             state.configure("https://example.test");state.search("示例")
             withTimeout(5_000){while(state.track==null)delay(10)}
             state.select(state.titles.first{it.id==1L})
@@ -79,7 +80,7 @@ class DanmakuProgressiveTest {
             })
         }))
         try {
-            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,1)
+            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,"1")
             state.configure("https://example.test");state.search("示例")
             withTimeout(5_000){while(state.busy)delay(10)}
             assertEquals(1L,state.selectedTitle?.id);assertNotNull(state.track)
@@ -97,7 +98,7 @@ class DanmakuProgressiveTest {
             })
         }))
         try {
-            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,1)
+            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,"1")
             state.search("未配置");assertNotNull(state.error)
             state.configure("https://example.test");state.search("示例")
             withTimeout(5_000){while(state.busy)delay(10)}
@@ -117,7 +118,7 @@ class DanmakuProgressiveTest {
             })
         }))
         try {
-            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,1)
+            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,"1")
             state.configure("https://example.test");state.search("示例")
             withTimeout(5_000){secondStarted.await()}
             val loaded=state.track;assertNotNull(loaded)
@@ -148,7 +149,7 @@ class DanmakuProgressiveTest {
             })
         }))
         try {
-            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,1)
+            val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,"1")
             state.configure("https://example.test");state.search("示例")
             withTimeout(5_000){started.await()}
             state.toggleEnabled()
