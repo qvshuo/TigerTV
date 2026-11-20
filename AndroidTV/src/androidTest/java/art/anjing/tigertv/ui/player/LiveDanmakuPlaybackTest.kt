@@ -140,7 +140,7 @@ class LiveDanmakuPlaybackTest {
                 counters.ensureUpdated()
                 android.util.Log.i("TigerTVDanmakuLive", "renderedVideoFrames=${counters.renderedOutputBufferCount} droppedVideoFrames=${counters.droppedBufferCount}")
             }
-            val soakSeconds = args.getString("soak_seconds")?.toIntOrNull()?.coerceIn(0, 120) ?: 0
+            val soakSeconds = args.getString("soak_seconds")?.toIntOrNull()?.coerceIn(0, 600) ?: 0
             if (soakSeconds > 0) {
                 val before = main { player().currentPosition }
                 Thread.sleep(soakSeconds * 1_000L)

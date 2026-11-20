@@ -16,6 +16,8 @@ fun shouldUpgradeDanmaku(current: DanmakuTrack, next: DanmakuTrack,
 ): Boolean {
     val oldDuration = current.referenceDurationMs ?: return false
     val newDuration = next.referenceDurationMs ?: return false
-    if (oldDuration <= 0 || newDuration <= 0 || kotlin.math.abs(oldDuration - newDuration) > maxOf(30_000L, oldDuration / 50)) return false
+    if (oldDuration <= 0 || newDuration <= 0 || currentCount <= 0) return false
+    val tolerance = (minOf(oldDuration, newDuration) / 100).coerceIn(1_000L, 10_000L)
+    if (kotlin.math.abs(oldDuration - newDuration) > tolerance) return false
     return nextCount.toLong() >= currentCount.toLong() * 2
 }

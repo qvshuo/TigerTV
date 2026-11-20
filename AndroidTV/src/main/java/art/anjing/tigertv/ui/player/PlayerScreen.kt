@@ -46,7 +46,12 @@ import kotlinx.coroutines.delay
 
 @OptIn(UnstableApi::class)
 @Composable
-fun PlayerScreen(viewModel: TigerTVViewModel, onSettings: () -> Unit = {}, onBack: () -> Unit) {
+fun PlayerScreen(
+    viewModel: TigerTVViewModel,
+    onSettings: () -> Unit = {},
+    onExitCleanup: () -> Unit = viewModel::clearPlayback,
+    onBack: () -> Unit,
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
@@ -82,10 +87,23 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onSettings: () -> Unit = {}, onBac
     val identity = listOf(session?.workId.orEmpty(), session?.site.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty())
         .joinToString("") { "${it.length}:$it" }
     val danmakuState = remember(identity, viewModel.playbackRevision) {
+        fun titleKey(server: String) = danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.site.orEmpty())
+        fun episodeKey(server: String) = danmakuPreferenceKey(server, session?.workId.orEmpty(),
+            session?.site.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty())
         DanmakuState(danmakuScope, viewModel::danmakuClient, preferences.getBoolean("enabled:$identity", true),
-            rememberTitle = { server, id -> preferences.edit().putLong(danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.site.orEmpty()), id).apply() },
-            preferredTitle = { server -> preferences.getLong(danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.site.orEmpty()), -1).takeIf { it > 0 } },
-            workYear = workYear, episodeLabel = session?.episode.orEmpty())
+            rememberTitle = { server, id -> preferences.edit().putLong(titleKey(server), id).apply() },
+            preferredTitle = { server -> preferences.getLong(titleKey(server), -1).takeIf { it > 0 } },
+            workYear = workYear, episodeLabel = session?.episode.orEmpty(),
+            rememberEpisode = { server, titleId, episodeId ->
+                preferences.edit().putString(episodeKey(server), "$titleId:$episodeId").apply()
+            },
+            preferredEpisode = { server ->
+                preferences.getString(episodeKey(server), null)?.let { stored ->
+                    val titleId = stored.substringBefore(':').toLongOrNull()
+                    val episodeId = stored.substringAfter(':', "").toLongOrNull()
+                    if (titleId != null && episodeId != null) titleId to episodeId else null
+                }
+            })
     }
     DisposableEffect(danmakuState) { onDispose { danmakuState.close() } }
     LaunchedEffect(danmakuState, danmakuState.enabled, configuredServer) {
@@ -200,7 +218,7 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onSettings: () -> Unit = {}, onBac
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             controller.close()
-            if (exiting) viewModel.clearPlayback()
+            if (exiting) onExitCleanup()
         }
     }
     DisposableEffect(url, viewModel.playbackRevision) {
@@ -209,7 +227,7 @@ fun PlayerScreen(viewModel: TigerTVViewModel, onSettings: () -> Unit = {}, onBac
             val title = listOfNotNull(viewModel.fetchResponse?.vodName, session.episode).joinToString(" · ")
             controller.load(url, session.positionMillis, title, session.site,
                 onStarted = { viewModel.playbackDidStart(session) },
-                onPosition = { viewModel.savePlaybackPosition(session, it) },
+                onPosition = { viewModel.savePlaybackPosition(session, it, controller.playbackProgressPercent(it)) },
                 onError = viewModel::setPlaybackError)
             controller.play()
         }

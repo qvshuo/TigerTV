@@ -14,19 +14,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import art.anjing.tigertv.data.normalizeCoverUrl
 import art.anjing.tigertv.domain.HotSearchItem
 import art.anjing.tigertv.ui.components.MediaCard
 import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.components.MediaCardDetails
 import art.anjing.tigertv.ui.requestFocusSafely
-import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 
 @Composable
 internal fun HotSearchGrid(
@@ -41,28 +38,18 @@ internal fun HotSearchGrid(
         }
     }
     val context = LocalContext.current.applicationContext
-    var loadedRows by remember(items) { mutableIntStateOf(0) }
     val rows = remember(items) { items.chunked(5) }
     val requests = remember(items, context) {
         items.associate { item -> item.id to ImageRequest.Builder(context)
-            .data(item.poster)
+            .data(normalizeCoverUrl(item.poster))
             .size(320, 480)
             .httpHeaders(NetworkHeaders.Builder().set("Referer", "https://m.douban.com/").build())
             .build()
         }
     }
-    // Finish each poster row before starting the next; leaving home cancels this effect.
-    LaunchedEffect(items) {
-        for ((index, row) in rows.withIndex()) {
-            coroutineScope {
-                row.map { item -> async { SingletonImageLoader.get(context).execute(requests.getValue(item.id)) } }.awaitAll()
-            }
-            loadedRows = index + 1
-        }
-    }
     Column(modifier.fillMaxWidth().padding(horizontal = UiMetrics.cardGridHorizontalPadding)
         .padding(top = 16.dp, bottom = UiMetrics.cardGridVerticalPadding), verticalArrangement = Arrangement.spacedBy(UiMetrics.cardGap)) {
-        rows.forEachIndexed { index, row ->
+        rows.forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(UiMetrics.cardGap)) {
                 row.forEach { item ->
                     MediaCard(onClick = { onSearch(item) }, modifier = Modifier.weight(1f)
@@ -71,7 +58,7 @@ internal fun HotSearchGrid(
                             .clip(MaterialTheme.shapes.small)
                             .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
                             Text(item.title.take(1), style = MaterialTheme.typography.displayMedium)
-                            if (index < loadedRows) AsyncImage(model = requests.getValue(item.id), contentDescription = null,
+                            AsyncImage(model = requests.getValue(item.id), contentDescription = null,
                                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                         }
                         MediaCardDetails(

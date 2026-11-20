@@ -184,6 +184,12 @@ class Media3Controller(context: Context) {
         if (resume && player.mediaItemCount > 0) play()
     }
 
+    fun playbackProgressPercent(savedPositionMillis: Long): Int? {
+        if (savedPositionMillis == 0L) return 0
+        val duration = player.duration.takeIf { it > 0 } ?: return null
+        return (100.0 * player.currentPosition / duration).toInt().coerceIn(0, 100)
+    }
+
     fun savePosition() {
         if (closed || !didStart || restoring || ended) return
         val position = hlsSession?.timeline?.effectiveToVideo(player.currentPosition.coerceAtLeast(0)) ?: player.currentPosition.coerceAtLeast(0)

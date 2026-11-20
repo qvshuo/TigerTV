@@ -22,6 +22,7 @@ import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.*
 import java.util.concurrent.ConcurrentHashMap
+import java.io.File
 import org.junit.Rule
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -90,6 +91,9 @@ class ResultsRemoteTest {
     }
 
     @Test fun recommendationsSearchAndSettingsReturnToTheirLaunchControls() {
+        val media = File(instrumentation.targetContext.cacheDir, "home-resume-fixture.mp4")
+        instrumentation.context.assets.open("player-test.mp4").use { input -> media.outputStream().use(input::copyTo) }
+        val mediaUrl = media.toURI()
         val files = ConcurrentHashMap(mapOf("source" to """{"api_site":{"test":{"name":"🎬审查","api":"https://fixture.test/api"}}}"""))
         val storage = object : Storage {
             override fun read(path: String) = files[path]
@@ -99,7 +103,7 @@ class ResultsRemoteTest {
             if (request.url.host == "m.douban.com") {
                 respond("""{"subject_collection_items":[{"id":"home","title":"热门验收","year":"2026"}]}""")
             } else {
-                respond("""{"code":1,"list":[{"vod_id":1,"vod_name":"热门验收","vod_play_from":"主线","vod_play_url":"第一集${'$'}https://fixture.test/video.m3u8"}]}""")
+                respond("""{"code":1,"list":[{"vod_id":1,"vod_name":"热门验收","vod_play_from":"主线","vod_play_url":"第一集${'$'}$mediaUrl"}]}""")
             }
         })))
         val store = ViewModelStore()
@@ -110,13 +114,20 @@ class ResultsRemoteTest {
             instrumentation.sendKeyDownUpSync(key)
             compose.waitForIdle()
         }
+        lateinit var navigation: androidx.navigation.NavHostController
         try {
             compose.setContent {
-                TigerTVTheme { Surface(Modifier.fillMaxSize()) { TigerTVNavHost(model, rememberNavController()) } }
+                TigerTVTheme {
+                    Surface(Modifier.fillMaxSize()) {
+                        navigation = rememberNavController()
+                        TigerTVNavHost(model, navigation)
+                    }
+                }
             }
             compose.onNodeWithText("热门推荐").assertIsDisplayed()
             compose.onNodeWithText("豆瓣热门").assertDoesNotExist()
-            compose.onNodeWithText("小老虎爱看剧").assertDoesNotExist()
+            compose.onNodeWithText("小老虎爱看剧").assertIsDisplayed()
+            compose.onNodeWithText("最近播放").assertDoesNotExist()
             val recommendation = hasText("热门验收 (2026)") and hasClickAction()
             compose.waitUntil(10_000) { compose.onAllNodes(recommendation and isFocused()).fetchSemanticsNodes().isNotEmpty() }
             remote(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -137,8 +148,47 @@ class ResultsRemoteTest {
             compose.onNodeWithTag("danmaku-server").assertIsFocused()
             remote(KeyEvent.KEYCODE_BACK)
             compose.onNodeWithTag("home-settings").assertIsFocused()
+
+            compose.onNode(recommendation).performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            remote(KeyEvent.KEYCODE_DPAD_CENTER)
+            val work = hasText("热门验收") and hasClickAction()
+            compose.waitUntil(10_000) { compose.onAllNodes(work and isFocused()).fetchSemanticsNodes().isNotEmpty() }
+            remote(KeyEvent.KEYCODE_DPAD_CENTER)
+            compose.waitUntil(10_000) {
+                compose.onAllNodes(hasText("播放 · 第一集") and isFocused()).fetchSemanticsNodes().isNotEmpty()
+            }
+            remote(KeyEvent.KEYCODE_DPAD_DOWN)
+            remote(KeyEvent.KEYCODE_DPAD_DOWN)
+            remote(KeyEvent.KEYCODE_DPAD_DOWN)
+            compose.onNode(hasText("第一集") and hasClickAction()).assertIsFocused()
+            remote(KeyEvent.KEYCODE_DPAD_CENTER)
+            compose.waitUntil(15_000) { model.works.single().playback.isNotEmpty() }
+            fun currentRoute() = compose.runOnIdle { navigation.currentDestination?.route }
+            fun backTo(route: String) {
+                repeat(5) {
+                    if (currentRoute() == route) return
+                    remote(KeyEvent.KEYCODE_BACK)
+                }
+                org.junit.Assert.assertEquals(route, currentRoute())
+            }
+            backTo(Screen.Home.route)
+            val recent = compose.onNodeWithTag("recent-card")
+            compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("recent-card")).fetchSemanticsNodes().isNotEmpty() }
+            compose.onNode(recommendation).assertIsFocused()
+            recent.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            remote(KeyEvent.KEYCODE_DPAD_CENTER)
+            compose.waitUntil(10_000) { navigation.currentDestination?.route == Screen.Player.route }
+            assertTrue(model.works.isEmpty())
+            org.junit.Assert.assertEquals("第一集", model.playbackSession?.episode)
+            backTo(Screen.Home.route)
+            compose.waitUntil(10_000) {
+                compose.onAllNodes(hasTestTag("recent-card") and isFocused()).fetchSemanticsNodes().isNotEmpty()
+            }
+            recent.assertIsFocused()
+            captureWhenRequested("home-recent")
         } finally {
             compose.runOnIdle { store.clear() }
+            media.delete()
         }
     }
 

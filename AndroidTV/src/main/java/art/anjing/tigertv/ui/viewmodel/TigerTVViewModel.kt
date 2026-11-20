@@ -13,6 +13,7 @@ import art.anjing.tigertv.data.Result
 import art.anjing.tigertv.data.TigerTVRepository
 import art.anjing.tigertv.domain.HotSearchCategory
 import art.anjing.tigertv.domain.PlaybackBookmark
+import art.anjing.tigertv.domain.RecentPlayback
 import art.anjing.tigertv.domain.FetchResponse
 import art.anjing.tigertv.domain.VideoWork
 import art.anjing.tigertv.domain.SearchResult
@@ -50,8 +51,38 @@ class TigerTVViewModel(
     var submittedKeyword by mutableStateOf("")
         private set
 
-    private val selectedWork get() = works.firstOrNull { work ->
+    private val selectedWork get() = recentWork ?: works.firstOrNull { work ->
         work.sources.any { it.coverKey == selectedResult?.coverKey }
+    }
+    private var recentWork by mutableStateOf<VideoWork?>(null)
+    private var pendingRecentBookmark: PlaybackBookmark? = null
+    var recentPlayback by mutableStateOf<List<RecentPlayback>>(emptyList())
+        private set
+    var recentPlaybackLoaded by mutableStateOf(false)
+        private set
+
+    suspend fun refreshRecentPlayback() {
+        playbackSaveJob?.join()
+        recentPlayback = repository.recentPlayback()
+        recentPlaybackLoaded = true
+    }
+
+    fun openRecentPlayback(recent: RecentPlayback) {
+        val source = recent.source
+        recentWork = VideoWork(recent.workId, source.vodName, listOf(source), source.coverKey,
+            lastPlayedSite = source.site, playback = mapOf(source.site to recent.bookmark),
+            playbackPositions = mapOf(source.site to recent.positions))
+        pendingRecentBookmark = recent.bookmark
+        selectResult(source, forceRefresh = true)
+    }
+
+    /** If the original line or episode disappeared, leave the user in details to choose. */
+    fun takeExactRecentEpisode(): Int? {
+        val bookmark = pendingRecentBookmark ?: return null
+        pendingRecentBookmark = null
+        val line = fetchResponse?.playSources?.getOrNull(selectedPlaybackSourceIndex) ?: return null
+        if (line.id != bookmark.line) return null
+        return line.episodes.withIndex().singleOrNull { it.value.name == bookmark.episode }?.index
     }
 
     var works by mutableStateOf<List<VideoWork>>(emptyList())
@@ -138,39 +169,48 @@ class TigerTVViewModel(
         val active = playbackSession ?: return
         // Resume positions can change while the identity of the playing session stays fixed.
         if (session.copy(positionMillis = active.positionMillis) != active) return
+        val source = selectedResult ?: return
+        val detail = fetchResponse
+        val recentSource = source.copy(
+            vodName = source.vodName.ifBlank { detail?.vodName.orEmpty() },
+            vodPic = detail?.vodPic?.takeIf { it.isNotBlank() } ?: source.vodPic,
+        )
         if (startedPlaybackRevision == session.revision) return
         startedPlaybackRevision = session.revision
         changedPlaybackWorks += session.workId
         latestPlayedSite = session.site
-        works = works.map {
-            it.copy(
-                lastPlayedSite = if (it.id == session.workId) session.site else it.lastPlayedSite,
-                recentPlayedSite = session.site,
-                playback = if (it.id == session.workId) it.playback + (session.site to PlaybackBookmark(session.line, session.episode)) else it.playback
-            )
-        }
+        fun updateBookmark(work: VideoWork) = work.copy(
+            lastPlayedSite = if (work.id == session.workId) session.site else work.lastPlayedSite,
+            recentPlayedSite = session.site,
+            playback = if (work.id == session.workId) work.playback +
+                (session.site to PlaybackBookmark(session.line, session.episode)) else work.playback,
+        )
+        recentWork = recentWork?.let(::updateBookmark)
+        works = works.map(::updateBookmark)
         val previous = playbackSaveJob
         playbackSaveJob = persistenceScope.launch {
             previous?.join()
-            repository.recordPlayback(session.workId, session.site, session.line, session.episode)
+            repository.recordPlayback(session.workId, session.site, session.line, session.episode, recentSource)
         }
     }
 
-    fun savePlaybackPosition(session: PlaybackSession, positionMillis: Long) {
+    fun savePlaybackPosition(session: PlaybackSession, positionMillis: Long, percent: Int? = null) {
         if (positionMillis < 0) return
-        works = works.map { work ->
-            if (work.id != session.workId) work else {
-                changedPlaybackWorks += session.workId
-                val sites = work.playbackPositions
-                val lines = sites[session.site].orEmpty()
-                val episodes = lines[session.line].orEmpty()
-                work.copy(playbackPositions = sites + (session.site to (lines + (session.line to (episodes + (session.episode to positionMillis))))))
-            }
+        fun updatePosition(work: VideoWork): VideoWork {
+            if (work.id != session.workId) return work
+            changedPlaybackWorks += session.workId
+            val sites = work.playbackPositions
+            val lines = sites[session.site].orEmpty()
+            val episodes = lines[session.line].orEmpty()
+            return work.copy(playbackPositions = sites +
+                (session.site to (lines + (session.line to (episodes + (session.episode to positionMillis))))))
         }
+        recentWork = recentWork?.let(::updatePosition)
+        works = works.map(::updatePosition)
         val previous = playbackSaveJob
         playbackSaveJob = persistenceScope.launch {
             previous?.join()
-            repository.recordPlaybackPosition(session.workId, session.site, session.line, session.episode, positionMillis)
+            repository.recordPlaybackPosition(session.workId, session.site, session.line, session.episode, positionMillis, percent)
         }
     }
     private val coverJobs = mutableMapOf<String, Job>()
@@ -216,13 +256,12 @@ class TigerTVViewModel(
         val category = selectedHotCategory
         if (category.isEmpty()) return
         val generation = ++hotSearchGeneration
-        isLoadingHotSearches = true
-        hotSearches = emptyList()
+        isLoadingHotSearches = hotSearches.isEmpty()
         try {
             val titles = repository.hotSearches(category)
             kotlinx.coroutines.currentCoroutineContext().ensureActive()
             if (generation == hotSearchGeneration && selectedHotCategory == category) {
-                hotSearches = titles
+                if (titles.isNotEmpty()) hotSearches = titles
                 if (titles.isNotEmpty() && hotWarmJob == null) {
                     hotWarmJob = viewModelScope.launch { repository.warmHotSearches(category) }
                 }
@@ -420,6 +459,13 @@ class TigerTVViewModel(
     val resumeEpisodeIndex: Int get() = fetchResponse?.playSources
         ?.getOrNull(selectedPlaybackSourceIndex)?.resumeEpisodeIndex(playbackBookmark) ?: 0
 
+    val resumePositionMillis: Long get() {
+        val source = selectedResult ?: return 0
+        val line = fetchResponse?.playSources?.getOrNull(selectedPlaybackSourceIndex) ?: return 0
+        val episode = line.episodes.getOrNull(resumeEpisodeIndex) ?: return 0
+        return selectedWork?.playbackPositions?.get(source.site)?.get(line.id)?.get(episode.name) ?: 0
+    }
+
     fun selectResult(result: SearchResult, forceRefresh: Boolean = false) {
         if (!forceRefresh && fetchResponse != null && selectedResult?.let { it.site == result.site && it.vodId == result.vodId } == true) return
         cancelCoverLoads()
@@ -453,6 +499,12 @@ class TigerTVViewModel(
     }
 
     fun leaveDetail() {
+        if (recentWork != null) {
+            recentWork = null
+            pendingRecentBookmark = null
+            selectedResult = null
+            fetchResponse = null
+        }
         fetchJob?.cancel()
         isFetching = false
         clearPlayback()

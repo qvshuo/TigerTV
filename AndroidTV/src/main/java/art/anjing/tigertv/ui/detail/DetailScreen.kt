@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,20 +28,17 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.tv.material3.*
 import coil3.compose.AsyncImage
 import art.anjing.tigertv.R
@@ -69,6 +67,10 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
     val preferredLine = viewModel.selectedPlaybackSourceIndex
     val preferredEpisode = viewModel.resumeEpisodeIndex
     val currentEpisode = episodes.getOrNull(preferredEpisode)
+    val episodeLabelHeight = with(LocalDensity.current) { MaterialTheme.typography.labelLarge.lineHeight.toDp() * 2 }
+    val episodeCellHeight = maxOf(UiMetrics.controlHeight, episodeLabelHeight + UiSpacing.md)
+    val selectedEpisode = viewModel.selectedEpisodeIndex
+    val hasResumePosition = viewModel.resumePositionMillis > 0
     var retainedDetail by remember { mutableStateOf(response) }
     var retainedEpisode by remember { mutableStateOf(currentEpisode) }
     LaunchedEffect(response, currentEpisode) {
@@ -103,7 +105,6 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
     fun focusPlay() = jump(0, playFocus)
     fun focusSources() { if (sources.isNotEmpty()) jump(sourceRowIndex - 1, sourceFocus) }
     fun focusLines() = jump(sourceRowIndex + 1, lineFocus)
-    fun focusEpisodes() = jump(sourceRowIndex + 4 + preferredEpisode, episodeFocus)
 
     // Only re-anchor when a new response changes the content below the focused resource.
     LaunchedEffect(viewModel.isFetching, response) {
@@ -132,36 +133,22 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
             }
             false
         }.padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(result?.site.orEmpty(), modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.End, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            Spacer(Modifier.height(UiSpacing.md))
-            // Reveal lazy rows before requesting their remembered control.
             BoxWithConstraints(Modifier.weight(1f)) {
-                val density = LocalDensity.current
-                val measurer = rememberTextMeasurer()
-                val episodeStyle = MaterialTheme.typography.labelLarge
-                val availableWidth = maxWidth - ChoiceInset * 2
                 val viewportHeight = maxHeight
-                // The grid asks for spans while scrolling. Shape each title at most once per layout.
-                val spans = remember(episodes, availableWidth, density, episodeStyle, measurer) {
-                    IntArray(episodes.size)
-                }
+                fun focusEpisodes() = jump(sourceRowIndex + 4 + preferredEpisode, episodeFocus)
                 LazyVerticalGrid(
                     state = gridState,
                     columns = GridCells.Adaptive(minSize = EpisodeMinWidth),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = ChoiceInset, vertical = UiSpacing.sm),
                     horizontalArrangement = Arrangement.spacedBy(ChoiceGap),
-                    verticalArrangement = Arrangement.spacedBy(ChoiceGap)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     if (result != null) {
                         item(key = "overview", span = { GridItemSpan(maxLineSpan) }) {
                             DetailOverview(result, overviewDetail, response?.vodPic, viewModel.coverFallbacks[result.coverKey],
                                 overviewEpisode, !viewModel.isFetching && response != null && currentEpisode != null,
-                                { onPlay(preferredEpisode) },
+                                hasResumePosition, { onPlay(preferredEpisode) },
                                 { if (gridState.firstVisibleItemIndex != 0 || gridState.firstVisibleItemScrollOffset != 0) {
                                     scope.launch { gridState.scrollToItem(0) }
                                 } }, playFocus,
@@ -179,9 +166,9 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                                             FocusDirection.Down -> if (hasLines) ::focusLines else if (episodes.isNotEmpty()) ::focusEpisodes else null
                                             else -> null
                                         }
-                                        if (destination != null) {
+                                        if (requestedFocusDirection == FocusDirection.Up || destination != null) {
                                             cancelFocusChange()
-                                            destination()
+                                            destination?.invoke()
                                         }
                                     }
                                 }
@@ -213,6 +200,7 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                                 onRetry = {
                                     restoreRetryFocus = true
                                     viewModel.retryFetch()
+                                    focusSources()
                                 }, compact = true, focusRetry = !entryFocusRequested || restoreRetryFocus)
                         } else if (response != null && hasLines) {
                             FlowRow(
@@ -258,22 +246,8 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                                     if (!viewModel.isFetching && viewModel.fetchErrorMessage == null) Text("暂无播放内容")
                                 }
                             }
-                        else -> itemsIndexed(episodes, key = { index, _ -> "episode-$index" }, span = { index, episode ->
-                            val columns = maxLineSpan
-                            val span = spans[index].takeIf { it != 0 } ?: run {
-                                val measured = if (columns == 1) 1 else {
-                                    val cellWidth = (availableWidth - ChoiceGap * (columns - 1)) / columns
-                                    val textWidth = with(density) { (cellWidth - UiSpacing.md * 2).roundToPx().coerceAtLeast(1) }
-                                    val overflow = measurer.measure(AnnotatedString(episode.name), style = episodeStyle,
-                                        maxLines = 2, constraints = Constraints(maxWidth = textWidth), skipCache = true).hasVisualOverflow
-                                    if (overflow) 2 else 1
-                                }
-                                spans[index] = measured
-                                measured
-                            }
-                            GridItemSpan(span)
-                        }) { index, episode ->
-                            EpisodeCard(episode, index == viewModel.selectedEpisodeIndex,
+                        else -> itemsIndexed(episodes, key = { index, _ -> "episode-$index" }) { index, episode ->
+                            EpisodeCard(episode, index == selectedEpisode, episodeCellHeight,
                                 modifier = if (index == preferredEpisode) Modifier.focusRequester(episodeFocus) else Modifier) { onPlay(index) }
                         }
                     }
@@ -292,12 +266,10 @@ private fun Modifier.onDpad(key: Key, action: (() -> Unit)?): Modifier = onPrevi
 
 @Composable
 private fun DetailOverview(result: SearchResult, detail: FetchResponse?, poster: String?, fallback: String?,
-    episode: EpisodeLink?, canPlay: Boolean, onPlay: () -> Unit, onPlayFocus: () -> Unit,
+    episode: EpisodeLink?, canPlay: Boolean, hasResumePosition: Boolean, onPlay: () -> Unit, onPlayFocus: () -> Unit,
     playFocus: FocusRequester, onPlayDown: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.large)
-            .padding(UiSpacing.lg),
+        Modifier.fillMaxWidth().padding(bottom = UiSpacing.lg),
         horizontalArrangement = Arrangement.spacedBy(UiSpacing.lg),
         verticalAlignment = Alignment.Top
     ) {
@@ -309,12 +281,6 @@ private fun DetailOverview(result: SearchResult, detail: FetchResponse?, poster:
                 style = MaterialTheme.typography.headlineMedium)
             val metadata = listOf(detail?.vodYear ?: result.vodYear, detail?.typeName ?: result.typeName, detail?.vodArea.orEmpty()).filter { it.isNotBlank() }
             if (metadata.isNotEmpty()) Text(metadata.joinToString(" · "), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
-                if (!detail?.vodLang.isNullOrBlank()) Text(detail.vodLang, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                val status = detail?.vodRemarks ?: result.vodRemarks
-                if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.small).padding(horizontal = UiSpacing.sm, vertical = UiSpacing.xs))
-            }
             ActionButton(onClick = onPlay, enabled = canPlay,
                 height = 64.dp,
                 colors = ButtonDefaults.colors(containerColor = MaterialTheme.colorScheme.primary,
@@ -324,23 +290,15 @@ private fun DetailOverview(result: SearchResult, detail: FetchResponse?, poster:
                     .onFocusChanged { if (it.isFocused) onPlayFocus() }) {
                 Icon(painterResource(R.drawable.player_play_arrow), contentDescription = null, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.width(UiSpacing.sm))
-                Text(episode?.let { "播放 · ${it.name}" } ?: "播放", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleMedium)
+                val action = if (hasResumePosition) "继续播放" else "播放"
+                Text(episode?.name?.takeIf { it.isNotBlank() }?.let { "$action · $it" } ?: action,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
             }
-            if (!detail?.vodDirector.isNullOrBlank()) Credit("导演", detail.vodDirector)
-            if (!detail?.vodActor.isNullOrBlank()) Credit("主演", detail.vodActor)
             if (!detail?.vodContent.isNullOrBlank()) {
-                Credit("简介", detail.vodContent, maxLines = Int.MAX_VALUE)
+                Text(detail.vodContent, style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-    }
-}
-
-@Composable
-private fun Credit(label: String, value: String, maxLines: Int = 2) {
-    Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.sm), verticalAlignment = Alignment.Top) {
-        Text(label, modifier = Modifier.width(32.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -391,11 +349,12 @@ private fun PosterPlaceholder(title: String) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun EpisodeCard(episode: EpisodeLink, isSelected: Boolean, modifier: Modifier = Modifier, onPlay: () -> Unit) {
+private fun EpisodeCard(episode: EpisodeLink, isSelected: Boolean, height: Dp, modifier: Modifier = Modifier, onPlay: () -> Unit) {
     SelectionChip(selected = isSelected, onClick = onPlay,
-        modifier = modifier.fillMaxWidth().heightIn(min = UiMetrics.controlHeight)) {
-        Box(Modifier.fillMaxWidth().heightIn(min = UiMetrics.controlHeight - 16.dp), contentAlignment = Alignment.Center) {
-            Text(episode.name, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        modifier = modifier.fillMaxWidth().height(height)) {
+        Box(Modifier.fillMaxWidth().height(height - UiSpacing.md), contentAlignment = Alignment.Center) {
+            Text(episode.name.ifBlank { "未命名剧集" }, textAlign = TextAlign.Center,
+                maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
