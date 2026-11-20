@@ -1,0 +1,12 @@
+[
+  {"site": "🎬暴风资源", "uriFingerprints": ["5f09ccea8dc282b0", "e45d22e24d6ee625", "b2ab5cdb574c10de", "3498aad314153dbb", "260e850c0f621814", "d3d6fb05076df279", "63a7d4fc3b341682", "e55e22f3f7ce00ef", "15f55d2ec9bdf648"], "durations": [3, 3, 3, 3, 3, 3, 3, 3, 1.76], "pathPrefix": "/video/adjump/time/"},
+  {"site": "🎬-爱奇艺-", "uriFingerprints": ["f00cb8577f6daf47", "1d8cabdefae59aa9", "a5241c9badbb126c", "3d886fa36295ce39", "5e09f0d5715d0171"], "durations": [4, 4, 4, 4, 1.566667]},
+  {"site": "🎬-爱奇艺-", "uriFingerprints": ["de516211586b1e81", "49d5f0d981faed7b", "bf3ffa529673451b", "5fd89cffeb1ece35", "217c5444a03b600d"], "durations": [4, 4, 4, 4, 1.566667]},
+  {"site": "🎬-爱奇艺-", "uriFingerprints": ["79b777e076233b56", "2c11f8576a09ad8b", "bae74977ed4c113c", "e4e9213441adf349", "992ee40514d54e0d"], "durations": [4, 4, 4, 4, 1.566667]},
+  {"site": "🎬360 资源", "uriFingerprints": ["9a4461710a75e235", "2e50e87425947cdb", "7fbce29088ad2044", "d46d2c0b27377340"], "durations": [5, 5, 5, 2.567], "allowEnd": true},
+  {"site": "🎬360 资源", "uriFingerprints": ["97a8a9a5bdb68800", "519d8318d112a48a", "6fc4720824260c91", "6cd7acbbc09d95b1"], "durations": [5, 5, 5, 2.567], "allowEnd": true},
+  {"site": "🎬360 资源", "uriFingerprints": ["e9b8eb4cb96deae4", "3c2167f6e7a64f04", "3ddcef9d18abb778", "30176f9df56df020"], "durations": [5, 5, 5, 2.567], "allowEnd": true},
+  {"site": "🎬360 资源", "uriFingerprints": ["861c5b9b5f0f8285", "a308a362081606a5", "6d70cfa78c923c01", "598963f61df353e1"], "durations": [5, 5, 5, 2.567], "allowEnd": true},
+  {"site": "🎬魔都资源", "uriFingerprints": ["ba94c6f44f2c9eb6", "8be1e06b5c8debc9", "1c4ae96984b7e72a", "5acfd94666be171e", "e5d9ce4b7dc114ab", "2dcf8008f74d4391"], "durations": [3, 3, 5, 3, 3, 0.64], "allowEnd": true},
+  {"site": "🎬魔都资源", "uriFingerprints": ["777824862eb3587e", "223d8a1a63e344f2", "80beefa4cbff3dac", "9e6f5e3830e196b2", "323f02196302313c", "4c1b5dcd6a73b793", "6d70d886fce1ea34", "afc2732153d6bc10", "3300ffee83ea3e09"], "durations": [3.333, 1.667, 1.667, 2.933, 1.667, 1.667, 1.667, 1.667, 1.3], "allowEnd": true}
+]

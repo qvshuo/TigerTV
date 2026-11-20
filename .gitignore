@@ -32,3 +32,6 @@ local.properties
 
 # Release output
 artifacts/
+
+/web/node_modules/
+/web/dist/

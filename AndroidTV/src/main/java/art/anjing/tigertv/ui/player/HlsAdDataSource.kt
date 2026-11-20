@@ -10,10 +10,7 @@ import androidx.media3.datasource.TransferListener
 import art.anjing.tigertv.core.supportsHlsAdFiltering
 import art.anjing.tigertv.core.MediaTimeline
 import art.anjing.tigertv.core.HlsFilterResult
-import art.anjing.tigertv.core.filterBaofengAds
-import art.anjing.tigertv.core.filterIqiyiAds
-import art.anjing.tigertv.core.filterModuAds
-import art.anjing.tigertv.core.filterThreeSixtyAds
+import art.anjing.tigertv.core.filterKnownHlsAds
 import art.anjing.tigertv.core.singleHlsVariant
 import java.io.ByteArrayOutputStream
 
@@ -21,7 +18,7 @@ internal fun mayFilterHls(site: String, uri: Uri): Boolean =
     supportsHlsAdFiltering(site) && uri.path?.endsWith(".m3u8", ignoreCase = true) == true
 
 /** Bound to one media item. A new playback session gets a new instance. */
-internal class HlsPlaybackSession(val uri: Uri, val site: String) {
+internal class HlsPlaybackSession(val uri: Uri, val site: String, val filterAds: Boolean = true) {
     @Volatile var timeline: MediaTimeline? = null
     @Volatile var childPlaylist: Uri? = null
 }
@@ -30,7 +27,7 @@ internal class HlsPlaybackSession(val uri: Uri, val site: String) {
 internal class HlsAdDataSource(
     private val upstream: DataSource,
     private val session: HlsPlaybackSession?,
-    private val filter: (String, String) -> HlsFilterResult? = ::filterKnownSource,
+    private val filter: (String, String) -> HlsFilterResult? = ::filterKnownHlsAds,
 ) : DataSource {
     private var bytes: ByteArray? = null
     private var position = 0
@@ -41,7 +38,7 @@ internal class HlsAdDataSource(
 
     override fun open(dataSpec: DataSpec): Long {
         val current = session
-        delegated = current == null || !mayFilterHls(current.site, current.uri) ||
+        delegated = current == null || !current.filterAds || !mayFilterHls(current.site, current.uri) ||
             (dataSpec.uri != current.uri && dataSpec.uri != current.childPlaylist) || dataSpec.position != 0L || dataSpec.length != C.LENGTH_UNSET.toLong()
         if (delegated) return upstream.open(dataSpec)
         upstream.open(dataSpec)
@@ -97,12 +94,4 @@ internal class HlsAdDataSource(
         bytes = null
         resolved = null
     }
-}
-
-private fun filterKnownSource(site: String, playlist: String): HlsFilterResult? = when (site) {
-    "🎬暴风资源" -> filterBaofengAds(site, playlist)
-    "🎬-爱奇艺-" -> filterIqiyiAds(site, playlist)
-    "🎬360 资源" -> filterThreeSixtyAds(site, playlist)
-    "🎬魔都资源" -> filterModuAds(site, playlist)
-    else -> null
 }

@@ -290,7 +290,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cd \"$SRCROOT/..\"\n./gradlew :nativeBridge:link${CONFIGURATION}FrameworkMacosArm64 --console=plain\n";
+			shellScript = "cd \"$SRCROOT/..\"\n./gradlew :nativeBridge:link${CONFIGURATION}FrameworkMacosArm64 -ParchiveMacOS=true --console=plain\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

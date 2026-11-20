@@ -30,7 +30,7 @@ env:
   ANDROID_SIGNING_CERT_SHA256: 0d81ab7cb1a16d58d91a953fe62049eb77fc840cc544a297ae1854f54bc73b96
 
 jobs:
-  build-macos:
+  build-macos-cli:
     runs-on: xcode-27
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
@@ -43,7 +43,6 @@ jobs:
           xcodebuild -version
           xcodebuild -version | grep -Fx 'Xcode 27.2'
           test "$(xcrun --sdk macosx --show-sdk-version)" = 27.2
-          xcrun swift --version
       - uses: actions/setup-java@v6.1.0
         with:
           distribution: temurin
@@ -51,30 +50,20 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6.4.1
       - name: Validate release inputs
         run: python3 scripts/validate-release.py
-      - name: Test core, Native bridge and CLI
+      - name: Test core and native CLI
         run: |
-          ./gradlew :core:jvmTest :core:macosArm64Test :nativeBridge:macosArm64Test :nativeBridge:linkDebugFrameworkMacosArm64 :cli:linkReleaseExecutableMacosArm64 -PreleaseVersion="$RELEASE_VERSION"
+          ./gradlew :core:jvmTest :core:macosArm64Test :cli:linkReleaseExecutableMacosArm64 -PreleaseVersion="$RELEASE_VERSION"
           python3 scripts/check-cli-contract.py cli/build/bin/macosArm64/releaseExecutable/tigertv.kexe
-          mkdir -p build
-          swiftc -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -framework TigerTVCore scripts/check-native-bridge.swift -o build/check-native-bridge
-          build/check-native-bridge
-          swiftc -swift-version 6 -parse-as-library -F nativeBridge/build/bin/macosArm64/debugFramework -framework TigerTVCore macOS/App/Data/Models.swift macOS/App/Data/HTTPConfiguration.swift macOS/App/Data/LoadResult.swift macOS/App/Data/TigerTVError.swift macOS/App/Data/SharedCoreRepository.swift macOS/App/Application/TigerTVViewModel.swift macOS/App/UI/Player/AVPlayerController.swift scripts/check-macos-state.swift -o build/check-macos-state
-          build/check-macos-state
-          swift test --package-path macOS
-      - name: Build native macOS app
-        run: |
-          xcodebuild -quiet -project macOS/TigerTV.xcodeproj -scheme TigerTV -configuration Release -derivedDataPath DerivedData ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$RELEASE_VERSION" build
-      - name: Package unsigned macOS app and CLI
+      - name: Package macOS CLI
         run: |
           mkdir -p artifacts build/cli-package
-          ditto -c -k --keepParent 'DerivedData/Build/Products/Release/小老虎爱看剧.app' artifacts/TigerTV-macOS-arm64.zip
           cp cli/build/bin/macosArm64/releaseExecutable/tigertv.kexe build/cli-package/tigertv
           tar -czf artifacts/TigerTV-CLI-macOS-arm64.tar.gz -C build/cli-package tigertv
           cd artifacts
-          for asset in *.zip *.tar.gz; do shasum -a 256 "$asset" > "$asset.sha256"; done
+          shasum -a 256 TigerTV-CLI-macOS-arm64.tar.gz > TigerTV-CLI-macOS-arm64.tar.gz.sha256
       - uses: actions/upload-artifact@v7.0.2
         with:
-          name: tigertv-macos
+          name: tigertv-macos-cli
           path: artifacts/*
           if-no-files-found: error
 
@@ -217,10 +206,39 @@ jobs:
         if: always()
         run: rm -f AndroidTV/release.keystore ~/.android/debug.keystore
 
+  build-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Check and build Web/PWA
+        working-directory: web
+        run: |
+          npm ci
+          npm run check
+          npm test
+          npm run build
+      - name: Package Web/PWA
+        run: |
+          mkdir -p artifacts
+          tar -czf artifacts/TigerTV-Web.tar.gz -C web/dist .
+          cd artifacts
+          sha256sum TigerTV-Web.tar.gz > TigerTV-Web.tar.gz.sha256
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: tigertv-web
+          path: artifacts/*
+          if-no-files-found: error
+
   release:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    needs: [build-macos, build-linux, test-linux-arm64, build-android]
+    needs: [build-macos-cli, build-linux, test-linux-arm64, build-android, build-web]
     timeout-minutes: 10
     permissions:
       contents: write
@@ -233,11 +251,11 @@ jobs:
       - name: Verify release assets
         run: |
           cd artifacts
-          test -f TigerTV-macOS-arm64.zip
           test -f TigerTV-CLI-macOS-arm64.tar.gz
           test -f TigerTV-CLI-Linux-x86_64.tar.gz
           test -f TigerTV-CLI-Linux-arm64.tar.gz
           test -f TigerTV-AndroidTV-universal.apk
+          test -f TigerTV-Web.tar.gz
           sha256sum -c *.sha256
       - uses: softprops/action-gh-release@v3.0.3
         with:

@@ -72,6 +72,9 @@ fun PlayerScreen(
     var danmakuQuick by remember { mutableStateOf(false) }
     val danmakuScope = rememberCoroutineScope()
     val preferences = remember { context.applicationContext.getSharedPreferences("danmaku", 0) }
+    val playbackPreferences = remember { PlaybackPreferences(context) }
+    var automaticOptions by remember { mutableStateOf<AutomaticPlaybackOptions?>(null) }
+    val inheritedOptions = automaticOptions?.takeIf { it.revision == viewModel.playbackRevision }
     var configuredServer by remember { mutableStateOf(preferences.getString("server", "").orEmpty()) }
     DisposableEffect(preferences) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -90,7 +93,7 @@ fun PlayerScreen(
         fun titleKey(server: String) = danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.site.orEmpty())
         fun episodeKey(server: String) = danmakuPreferenceKey(server, session?.workId.orEmpty(),
             session?.site.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty())
-        DanmakuState(danmakuScope, viewModel::danmakuClient, preferences.getBoolean("enabled:$identity", true),
+        DanmakuState(danmakuScope, viewModel::danmakuClient, inheritedOptions?.danmakuEnabled ?: preferences.getBoolean("enabled:$identity", true),
             rememberTitle = { server, id -> preferences.edit().putLong(titleKey(server), id).apply() },
             preferredTitle = { server -> preferences.getLong(titleKey(server), -1).takeIf { it > 0 } },
             workYear = workYear, episodeLabel = session?.episode.orEmpty(),
@@ -202,7 +205,12 @@ fun PlayerScreen(
         if (!snapshot.playWhenReady && snapshot.ready && !blocked && controls.seek == null) showControls(PlayerFocusArea.Actions)
     }
     LaunchedEffect(snapshot.ended) {
-        if (snapshot.ended && !blocked) showControls(PlayerFocusArea.Actions)
+        if (!snapshot.ended || blocked || exiting || controls.seek != null) return@LaunchedEffect
+        if (playbackPreferences.autoNext && viewModel.selectedEpisodeIndex in 0 until viewModel.episodes.lastIndex) {
+            val speed = snapshot.speed
+            switchEpisode(1)
+            automaticOptions = AutomaticPlaybackOptions(viewModel.playbackRevision, speed, danmakuState.enabled)
+        } else showControls(PlayerFocusArea.Actions)
     }
     LaunchedEffect(controls.lastInteractionMillis, controls.visible, controls.speedMenuOpen, controls.seek, snapshot.playWhenReady, blocked, danmakuMenu, danmakuQuick) {
         if (danmakuMenu || danmakuQuick) return@LaunchedEffect
@@ -228,7 +236,9 @@ fun PlayerScreen(
             controller.load(url, session.positionMillis, title, session.site,
                 onStarted = { viewModel.playbackDidStart(session) },
                 onPosition = { viewModel.savePlaybackPosition(session, it, controller.playbackProgressPercent(it)) },
-                onError = viewModel::setPlaybackError)
+                onError = viewModel::setPlaybackError,
+                filterAds = playbackPreferences.filterAds,
+                speed = inheritedOptions?.speed ?: playbackPreferences.speed(session.workId))
             controller.play()
         }
         onDispose { controller.unload() }
@@ -353,7 +363,7 @@ fun PlayerScreen(
             PlaybackControls(
                 title = listOfNotNull(viewModel.fetchResponse?.vodName, episode?.name).joinToString(" · "),
                 resource = listOfNotNull(viewModel.selectedResult?.site, line?.name).joinToString(" · "),
-                snapshot = snapshot, controls = controls, timelineFocus = timelineFocus, playFocus = playFocus,
+                adFiltered = controller.playbackTimeline != null, snapshot = snapshot, controls = controls, timelineFocus = timelineFocus, playFocus = playFocus,
                 speedFocus = speedFocus, speedOptionFocus = speedOptionFocus, danmakuFocus = danmakuFocus,
                 danmakuOpen = danmakuQuick, danmakuEnabled = danmakuState.enabled, danmakuLoaded = danmakuState.hasComments, danmakuOffsetMs = danmakuState.offsetMs,
                 onDanmakuMenu = { controls = controls.copy(speedMenuOpen = false); danmakuQuick = !danmakuQuick; interact() },
@@ -378,6 +388,7 @@ fun PlayerScreen(
                 },
                 onSpeed = {
                     controller.setSpeed(it)
+                    session?.let { session -> playbackPreferences.saveSpeed(session.workId, it) }
                     controls = controls.copy(speedMenuOpen = false).show(SystemClock.elapsedRealtime())
                     requestFocus(PlayerFocusArea.SpeedButton)
                 }, onSeekTo = { controller.seekTo(it); interact() }
@@ -409,3 +420,5 @@ fun PlayerScreen(
         }
     }
 }
+
+private data class AutomaticPlaybackOptions(val revision: Int, val speed: Float, val danmakuEnabled: Boolean)

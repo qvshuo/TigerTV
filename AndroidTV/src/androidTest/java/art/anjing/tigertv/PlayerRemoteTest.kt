@@ -30,6 +30,7 @@ import art.anjing.tigertv.ui.Screen
 import art.anjing.tigertv.ui.TigerTVNavHost
 import art.anjing.tigertv.ui.settings.SettingsScreen
 import art.anjing.tigertv.ui.player.Media3Controller
+import art.anjing.tigertv.ui.player.PlaybackPreferences
 import art.anjing.tigertv.ui.player.PlayerScreen
 import art.anjing.tigertv.ui.theme.TigerTVTheme
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
@@ -43,11 +44,13 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.rules.TestName
 
 /** A real ExoPlayer, Compose focus tree and Kotlin core, with deterministic API fixtures. */
 @RunWith(AndroidJUnit4::class)
 class PlayerRemoteTest {
     @get:Rule val compose = createComposeRule()
+    @get:Rule val testName = TestName()
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val shown = mutableStateOf(true)
     private val detailShown = mutableStateOf(false)
@@ -65,10 +68,14 @@ class PlayerRemoteTest {
     @Before fun preparePlayer() {
         val context = instrumentation.targetContext
         context.getSharedPreferences("danmaku", 0).edit().clear().commit()
+        context.getSharedPreferences("playback", 0).edit().clear().commit()
         video = File(context.cacheDir, "remote-control-test.mp4")
         instrumentation.context.assets.open("player-test.mp4").use { input -> video.outputStream().use(input::copyTo) }
+        val alternate = if (testName.methodName == "speedIsRestoredForTheSameWorkAfterSwitchingSource") {
+            ""","alternate":{"name":"🎬备用资源","api":"https://fixture.test/alternate"}"""
+        } else ""
         val files = ConcurrentHashMap<String, String>().apply {
-            put("source", """{"api_site":{"test":{"name":"🎬测试","api":"https://fixture.test/api"}}}""")
+            put("source", """{"api_site":{"test":{"name":"🎬测试","api":"https://fixture.test/api"}$alternate}}""")
         }
         val storage = object : Storage {
             override fun read(path: String) = files[path]
@@ -97,7 +104,7 @@ class PlayerRemoteTest {
             model.search()
         }
         compose.waitUntil(10_000) { model.works.isNotEmpty() && !model.isSearching }
-        compose.runOnIdle { model.selectResult(model.works.single().sources.single()) }
+        compose.runOnIdle { model.selectResult(model.works.single().sources.first { it.site == "🎬测试" }) }
         compose.waitUntil(10_000) { model.fetchResponse != null && !model.isFetching }
         compose.runOnIdle { model.selectEpisode(0) }
         compose.waitUntil(10_000) { model.playbackUrl != null }
@@ -141,6 +148,52 @@ class PlayerRemoteTest {
         compose.waitForIdle()
     }
 
+
+    @Test fun naturalEndAutoAdvancesAndKeepsPlaybackOptions() {
+        val prefs = instrumentation.targetContext.getSharedPreferences("playback", 0)
+        compose.runOnIdle {
+            val player = findPlayerView(rootView)!!.player!!
+            player.setPlaybackSpeed(1.5f)
+            player.seekTo(player.duration - 300)
+        }
+        compose.waitUntil(10_000) { model.selectedEpisodeIndex == 1 }
+        compose.waitUntil(10_000) { model.works.single().playback.values.singleOrNull()?.episode == "第二集" }
+        compose.runOnIdle {
+            val player = findPlayerView(rootView)!!.player!!
+            assertEquals(1.5f, player.playbackParameters.speed)
+            prefs.edit().putBoolean("autoNext", false).putBoolean("rememberSpeed", false).apply()
+            model.selectEpisode(0)
+        }
+        compose.waitUntil(10_000) { model.works.single().playback.values.singleOrNull()?.episode == "第一集" }
+        compose.runOnIdle {
+            val player = findPlayerView(rootView)!!.player!!
+            assertEquals(1f, player.playbackParameters.speed)
+            player.seekTo(player.duration - 300)
+        }
+        compose.waitUntil(10_000) {
+            var ended = false
+            instrumentation.runOnMainSync {
+                ended = findPlayerView(rootView)?.player?.playbackState == androidx.media3.common.Player.STATE_ENDED
+            }
+            ended
+        }
+        compose.runOnIdle { assertEquals(0, model.selectedEpisodeIndex) }
+    }
+
+    @Test fun speedIsRestoredForTheSameWorkAfterSwitchingSource() {
+        val prefs = PlaybackPreferences(instrumentation.targetContext)
+        compose.runOnIdle {
+            val work = model.works.single()
+            prefs.saveSpeed(work.id, 1.5f)
+            model.selectResult(work.sources.single { it.site == "🎬备用资源" })
+        }
+        compose.waitUntil(10_000) { model.fetchResponse != null && !model.isFetching }
+        compose.runOnIdle { model.selectEpisode(0) }
+        compose.waitUntil(10_000) { model.works.single().lastPlayedSite == "🎬备用资源" }
+        compose.runOnIdle {
+            assertEquals(1.5f, findPlayerView(rootView)!!.player!!.playbackParameters.speed)
+        }
+    }
 
     @Test fun danmakuMenuAndPerEpisodePreference() {
         compose.runOnIdle { findPlayerView(rootView)!!.player!!.pause() }

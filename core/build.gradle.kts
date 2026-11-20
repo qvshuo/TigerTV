@@ -15,6 +15,19 @@ val generateContractFixtures = tasks.register("generateContractFixtures") {
         }
     }
 }
+val generateHlsRules = tasks.register("generateHlsRules") {
+    val source = project.file("../shared/hls-ad-rules.json")
+    val output = layout.buildDirectory.file("generated/hls/HlsAdRules.kt")
+    inputs.file(source)
+    outputs.file(output)
+    doLast {
+        val json = source.readText().trim()
+        output.get().asFile.apply {
+            parentFile.mkdirs()
+            writeText("package art.anjing.tigertv.core\ninternal const val hlsAdRulesJson = \"\"\"" + json + "\"\"\"\n")
+        }
+    }
+}
 if (providers.gradleProperty("android").orNull == "true") {
     layout.buildDirectory.set(rootProject.layout.buildDirectory.dir("core"))
     apply(plugin = "com.android.kotlin.multiplatform.library")
@@ -36,6 +49,7 @@ kotlin {
     applyDefaultHierarchyTemplate()
     sourceSets {
         commonTest { kotlin.srcDir(generateContractFixtures.map { layout.buildDirectory.dir("generated/fixtures").get() }) }
+        commonMain { kotlin.srcDir(generateHlsRules.map { layout.buildDirectory.dir("generated/hls").get() }) }
         commonMain.dependencies {
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
             api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")

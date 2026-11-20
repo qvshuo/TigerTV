@@ -1,6 +1,5 @@
 package art.anjing.tigertv.ui.detail
 
-import art.anjing.tigertv.core.supportsHlsAdFiltering
 import androidx.activity.compose.BackHandler
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -178,7 +177,7 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                         ) {
                             sources.forEachIndexed { index, source ->
                                 key(source.coverKey) {
-                                    DetailChoice(source.site, source.coverKey == result?.coverKey, adFiltering = supportsHlsAdFiltering(source.site),
+                                    DetailChoice(source.site, source.coverKey == result?.coverKey,
                                         modifier = if (index == preferredSource) Modifier.focusRequester(sourceFocus) else Modifier) {
                                         if (source.coverKey != result?.coverKey) {
                                             restoreRetryFocus = false
@@ -312,7 +311,7 @@ private fun SectionTitle(title: String) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier = Modifier, maxLines: Int = 1, adFiltering: Boolean = false, onClick: () -> Unit) {
+internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier = Modifier, maxLines: Int = 1, onClick: () -> Unit) {
     SelectionChip(selected = selected, onClick = onClick,
         modifier = modifier.width(IntrinsicSize.Max).heightIn(min = UiMetrics.controlHeight)) {
         Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.controlHeight - 16.dp),
@@ -320,9 +319,6 @@ internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier =
             verticalAlignment = Alignment.CenterVertically) {
             Text(title, modifier = Modifier.weight(1f, fill = false), textAlign = TextAlign.Center,
                 maxLines = maxLines, overflow = TextOverflow.Ellipsis)
-            if (adFiltering) {
-                Text("去广告", style = MaterialTheme.typography.labelMedium)
-            }
         }
     }
 }

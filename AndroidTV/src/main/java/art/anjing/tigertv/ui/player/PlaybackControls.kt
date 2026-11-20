@@ -49,7 +49,7 @@ fun PlaybackControls(
     onFocus: (PlayerFocusArea) -> Unit, onPrevious: () -> Unit, onNext: () -> Unit,
     onTogglePlayback: () -> Unit, onSpeedMenu: () -> Unit, onSpeed: (Float) -> Unit,
     onSeekTo: (Long) -> Unit, danmakuOpen: Boolean, danmakuEnabled: Boolean, danmakuLoaded: Boolean, danmakuOffsetMs: Long,
-    onDanmakuMenu: () -> Unit, onDanmakuAction: (Int) -> Unit
+    onDanmakuMenu: () -> Unit, onDanmakuAction: (Int) -> Unit, adFiltered: Boolean = false
 ) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Brush.verticalGradient(
         0f to Color.Black.copy(alpha = 0.72f),
@@ -69,7 +69,7 @@ fun PlaybackControls(
             Text(title, color = Color.White, style = MaterialTheme.typography.headlineSmall,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(8.dp))
-            Text(resource, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodyMedium,
+            Text(if (adFiltered) "$resource · 去广告" else resource, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding),

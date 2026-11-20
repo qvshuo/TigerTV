@@ -7,4 +7,5 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "TigerTV"
-include(":core", ":nativeBridge", ":cli")
+include(":core", ":cli")
+if (providers.gradleProperty("archiveMacOS").orNull == "true") include(":nativeBridge")

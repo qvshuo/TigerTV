@@ -1,8 +1,21 @@
 package art.anjing.tigertv.core
 
 import kotlin.test.*
+import kotlinx.serialization.json.*
 
 class HlsAdFilterTest {
+    @Test fun sharedWebFixturePreservesTheOriginalKeyAndRemovesTheSameInterval() {
+        val fixture = Json.parseToJsonElement(contractFixtures.getValue("hls-filter.sample.json")).jsonObject
+        val site = fixture.getValue("site").jsonPrimitive.content
+        val hashes = fixture.getValue("uris").jsonArray.map { uriHash(it.jsonPrimitive.content) }
+        val durations = fixture.getValue("durations").jsonArray.map { it.jsonPrimitive.double }
+        val input = fixture.getValue("playlist").jsonPrimitive.content
+        val result = filterKnownHlsAd(site, input, KnownHlsAdGroup(site, hashes, durations))!!
+        assertEquals(fixture.getValue("expected").jsonPrimitive.content, result.playlist)
+        assertEquals(listOf(MediaInterval(fixture.getValue("startMs").jsonPrimitive.long,
+            fixture.getValue("endMs").jsonPrimitive.long)), result.removed)
+    }
+
     @Test fun removesOnlySelectedSegmentsAndMapsTime() {
         val input = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:3,\na.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:2,\nad.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:3,\nb.ts\n#EXT-X-ENDLIST\n"
         val out = filterHlsAds(input) { it == "ad.ts" }!!

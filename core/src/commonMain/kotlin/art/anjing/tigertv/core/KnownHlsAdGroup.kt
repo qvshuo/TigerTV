@@ -1,11 +1,16 @@
 package art.anjing.tigertv.core
 
 import kotlin.math.roundToLong
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /** Source capability only; individual manifests still require an exact known asset match. */
-fun supportsHlsAdFiltering(site: String): Boolean = site in setOf("🎬暴风资源", "🎬-爱奇艺-", "🎬360 资源", "🎬魔都资源")
+fun supportsHlsAdFiltering(site: String): Boolean = knownHlsRules.any { it.site == site }
+
+private val knownHlsRules: List<KnownHlsAdGroup> by lazy { Json.decodeFromString(hlsAdRulesJson) }
 
 /** A known asset's URI fingerprints, not hashes of the downloaded media bytes. */
+@Serializable
 internal data class KnownHlsAdGroup(
     val site: String,
     val uriFingerprints: List<String>,
@@ -13,6 +18,9 @@ internal data class KnownHlsAdGroup(
     val pathPrefix: String? = null,
     val allowEnd: Boolean = false,
 )
+
+fun filterKnownHlsAds(site: String, playlist: String): HlsFilterResult? =
+    filterKnownHlsAds(site, playlist, knownHlsRules)
 
 internal fun filterKnownHlsAd(site: String, playlist: String, rule: KnownHlsAdGroup): HlsFilterResult? =
     filterKnownHlsAds(site, playlist, listOf(rule))

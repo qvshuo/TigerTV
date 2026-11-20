@@ -59,6 +59,17 @@ class HlsAdDataSourceTest {
         assertEquals(changed, refreshed)
         assertNull(old.timeline)
     }
+    @Test fun switchingFilteringOffKeepsOriginalBytesAndTimeline() {
+        val session = HlsPlaybackSession(uri, "🎬暴风资源", filterAds = false)
+        val input = playlist()
+        val source = HlsAdDataSource(Fake(input.toByteArray(), uri), session) { _, _ ->
+            fail("Disabled filtering must not invoke the parser")
+            null
+        }
+        assertEquals(input, read(source))
+        assertNull(session.timeline)
+    }
+
     @Test fun unsupportedTagsAndOtherSourcesReturnOriginal() {
         val input = playlist().replace("#EXTM3U", "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\"")
         val session = HlsPlaybackSession(uri, "🎬暴风资源")

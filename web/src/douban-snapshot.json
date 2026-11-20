@@ -1,0 +1,521 @@
+{
+  "date": "2026-11-20",
+  "categories": {
+    "tv_american": [
+      {
+        "id": "30145677",
+        "title": "青春共体",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2937427662.jpg",
+        "rating": 7.4
+      },
+      {
+        "id": "36137784",
+        "title": "幻视任务",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2934961457.jpg",
+        "rating": 8.7
+      },
+      {
+        "id": "35857367",
+        "title": "蜜谍",
+        "year": "2026",
+        "poster": "https://img2.doubanio.com/view/photo/m_ratio_poster/public/p2937411391.jpg",
+        "rating": 0
+      },
+      {
+        "id": "36894893",
+        "title": "12 12 12",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936648118.jpg",
+        "rating": 0
+      },
+      {
+        "id": "37218278",
+        "title": "翠鸟谋杀案",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935049923.jpg",
+        "rating": 8.3
+      },
+      {
+        "id": "37413245",
+        "title": "怪物：丽兹·波顿的故事",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935880473.jpg",
+        "rating": 7.3
+      },
+      {
+        "id": "36689816",
+        "title": "流人 第六季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935061677.jpg",
+        "rating": 7.1
+      },
+      {
+        "id": "37083974",
+        "title": "魔女嘉莉 第一季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936631582.jpg",
+        "rating": 7.8
+      },
+      {
+        "id": "36227197",
+        "title": "终极名单 第二季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935094693.jpg",
+        "rating": 8.0
+      },
+      {
+        "id": "36801678",
+        "title": "指环王：力量之戒 第三季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936827360.jpg",
+        "rating": 7.6
+      },
+      {
+        "id": "37433948",
+        "title": "万物生灵 第七季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936108030.jpg",
+        "rating": 9.1
+      },
+      {
+        "id": "37403692",
+        "title": "黑帮领地 第二季",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2934927616.jpg",
+        "rating": 8.0
+      }
+    ],
+    "tv_animation": [
+      {
+        "id": "37421775",
+        "title": "赛博朋克：边缘行者 第二季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2937474557.jpg",
+        "rating": 5.6
+      },
+      {
+        "id": "37923549",
+        "title": "FX战士久留美",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2935924656.jpg",
+        "rating": 8.0
+      },
+      {
+        "id": "37193332",
+        "title": "学生会也有洞！",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2935222216.jpg",
+        "rating": 8.2
+      },
+      {
+        "id": "37570011",
+        "title": "闹鬼酒店 第二季",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2935678255.jpg",
+        "rating": 8.6
+      },
+      {
+        "id": "38540867",
+        "title": "冰之城墙 第2季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935297047.jpg",
+        "rating": 8.5
+      },
+      {
+        "id": "37426245",
+        "title": "药屋少女的呢喃 第三季",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2934974126.jpg",
+        "rating": 8.5
+      },
+      {
+        "id": "37937084",
+        "title": "你好、我是受心上人所托来做恋爱药的魔女。",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2935817685.jpg",
+        "rating": 7.3
+      },
+      {
+        "id": "37352866",
+        "title": "黑色五叶草 第二季",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2936199034.jpg",
+        "rating": 9.1
+      },
+      {
+        "id": "38239691",
+        "title": "被流放的开挂魔术师讴歌随心所欲第二人生",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935646070.jpg",
+        "rating": 7.1
+      },
+      {
+        "id": "37247391",
+        "title": "某暗部的少女共栖",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2930134572.jpg",
+        "rating": 8.0
+      },
+      {
+        "id": "37322148",
+        "title": "极恶老大 第三季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935860552.jpg",
+        "rating": 6.9
+      },
+      {
+        "id": "38221205",
+        "title": "七龙珠超：比鲁斯",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935478803.jpg",
+        "rating": 8.5
+      }
+    ],
+    "tv_domestic": [
+      {
+        "id": "36689621",
+        "title": "今天是太阳雨",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935903589.jpg",
+        "rating": 8.0
+      },
+      {
+        "id": "37191789",
+        "title": "嫁金钗",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936594583.jpg",
+        "rating": 6.7
+      },
+      {
+        "id": "36977822",
+        "title": "十万狂花入梦来",
+        "year": "2026",
+        "poster": "https://img2.doubanio.com/view/photo/m_ratio_poster/public/p2935866961.jpg",
+        "rating": 0
+      },
+      {
+        "id": "36155994",
+        "title": "多喜一家人",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2937033477.jpg",
+        "rating": 0
+      },
+      {
+        "id": "37109676",
+        "title": "谷雨",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936897680.jpg",
+        "rating": 6.3
+      },
+      {
+        "id": "36675942",
+        "title": "小城良方",
+        "year": "2026",
+        "poster": "https://img2.doubanio.com/view/photo/m_ratio_poster/public/p2936709341.jpg",
+        "rating": 8.1
+      },
+      {
+        "id": "35861007",
+        "title": "尚公主",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936873942.jpg",
+        "rating": 6.5
+      },
+      {
+        "id": "36809913",
+        "title": "折月亮",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2931738914.jpg",
+        "rating": 4.7
+      },
+      {
+        "id": "36155236",
+        "title": "伟大的长征",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936465959.jpg",
+        "rating": 8.8
+      },
+      {
+        "id": "36449295",
+        "title": "兰香如故",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2933527614.jpg",
+        "rating": 7.6
+      },
+      {
+        "id": "37296949",
+        "title": "蒸蒸日上",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936476679.jpg",
+        "rating": 7.8
+      },
+      {
+        "id": "36942992",
+        "title": "走马上任",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2922760095.jpg",
+        "rating": 6.6
+      }
+    ],
+    "tv_japanese": [
+      {
+        "id": "36961929",
+        "title": "有人刚好提起我吗？",
+        "year": "2026",
+        "poster": "https://img2.doubanio.com/view/photo/m_ratio_poster/public/p2936110521.jpg",
+        "rating": 8.3
+      },
+      {
+        "id": "38619251",
+        "title": "地雷格力高",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936706099.jpg",
+        "rating": 0
+      },
+      {
+        "id": "37296349",
+        "title": "幸福伽菜子的快乐杀手生活 第二季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2934937530.jpg",
+        "rating": 6.6
+      },
+      {
+        "id": "38382925",
+        "title": "深夜食堂6",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936517289.jpg",
+        "rating": 8.7
+      },
+      {
+        "id": "38433096",
+        "title": "欢迎回来，初恋。",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936193042.jpg",
+        "rating": 7.6
+      },
+      {
+        "id": "38611331",
+        "title": "政盗鲁邦",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936192947.jpg",
+        "rating": 7.3
+      },
+      {
+        "id": "37472961",
+        "title": "假面美颜",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935306689.jpg",
+        "rating": 6.2
+      },
+      {
+        "id": "38630282",
+        "title": "人生交换",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935784027.jpg",
+        "rating": 7.0
+      },
+      {
+        "id": "38563383",
+        "title": "LOST10",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936303589.jpg",
+        "rating": 7.1
+      },
+      {
+        "id": "37925782",
+        "title": "非常律师南田南",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936192977.jpg",
+        "rating": 6.2
+      },
+      {
+        "id": "38618692",
+        "title": "豆与麦",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2936333126.jpg",
+        "rating": 7.5
+      },
+      {
+        "id": "38409190",
+        "title": "假面骑士麦斯",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2934657040.jpg",
+        "rating": 7.5
+      }
+    ],
+    "tv_korean": [
+      {
+        "id": "37806882",
+        "title": "我的有罪之人",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935797899.jpg",
+        "rating": 9.1
+      },
+      {
+        "id": "37235560",
+        "title": "Doctor X：白色黑手党时代",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935916102.jpg",
+        "rating": 8.1
+      },
+      {
+        "id": "36996291",
+        "title": "碰撞搜查线 第二季",
+        "year": "2026",
+        "poster": "https://img2.doubanio.com/view/photo/m_ratio_poster/public/p2937048031.jpg",
+        "rating": 0
+      },
+      {
+        "id": "37530006",
+        "title": "文武",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936626097.jpg",
+        "rating": 0
+      },
+      {
+        "id": "37210712",
+        "title": "末路兼职",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2936279046.jpg",
+        "rating": 6.5
+      },
+      {
+        "id": "37746098",
+        "title": "恋爱博士",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936061513.jpg",
+        "rating": 7.6
+      },
+      {
+        "id": "37071110",
+        "title": "再婚皇后",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935889112.jpg",
+        "rating": 6.0
+      },
+      {
+        "id": "37069670",
+        "title": "百日谎言",
+        "year": "2026",
+        "poster": "https://img2.doubanio.com/view/photo/m_ratio_poster/public/p2935670701.jpg",
+        "rating": 8.0
+      },
+      {
+        "id": "37214286",
+        "title": "中头奖还是要上班",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935403473.jpg",
+        "rating": 8.0
+      },
+      {
+        "id": "37317494",
+        "title": "心动制造所",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2937320994.jpg",
+        "rating": 7.5
+      },
+      {
+        "id": "37317490",
+        "title": "恋爱充电中",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935670713.jpg",
+        "rating": 7.1
+      },
+      {
+        "id": "37862873",
+        "title": "不是你的恋爱",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2934880749.jpg",
+        "rating": 5.2
+      }
+    ],
+    "tv_variety_show": [
+      {
+        "id": "39054885",
+        "title": "不栩此行",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2937570342.jpg",
+        "rating": 0
+      },
+      {
+        "id": "37100984",
+        "title": "后会友期",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936933522.jpg",
+        "rating": 8.7
+      },
+      {
+        "id": "38422419",
+        "title": "扯淡电影史",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2937460613.jpg",
+        "rating": 8.6
+      },
+      {
+        "id": "37816990",
+        "title": "现在就出发 第四季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936261227.jpg",
+        "rating": 8.0
+      },
+      {
+        "id": "38900231",
+        "title": "骑有此理 第四季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2937156700.jpg",
+        "rating": 0
+      },
+      {
+        "id": "37662385",
+        "title": "魔鬼的计谋：死亡重启",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2936626237.jpg",
+        "rating": 8.7
+      },
+      {
+        "id": "37817080",
+        "title": "花儿与少年 第八季",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2935688706.jpg",
+        "rating": 0
+      },
+      {
+        "id": "37303191",
+        "title": "克拉克森的农场 第五季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2933231160.jpg",
+        "rating": 9.6
+      },
+      {
+        "id": "37815373",
+        "title": "地球超新鲜 第二季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2933553320.jpg",
+        "rating": 7.4
+      },
+      {
+        "id": "37817070",
+        "title": "脱口秀和Ta的朋友们 第三季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2933494390.jpg",
+        "rating": 7.3
+      },
+      {
+        "id": "39025316",
+        "title": "交换生活的我们",
+        "year": "2026",
+        "poster": "https://img9.doubanio.com/view/photo/m_ratio_poster/public/p2937363944.jpg",
+        "rating": 8.3
+      },
+      {
+        "id": "37926820",
+        "title": "思想验证区域 第二季",
+        "year": "2026",
+        "poster": "https://img3.doubanio.com/view/photo/m_ratio_poster/public/p2935462419.jpg",
+        "rating": 8.2
+      }
+    ]
+  }
+}
