@@ -12,6 +12,8 @@ internal class DanmakuState(
     private val rememberTitle: (String, Long) -> Unit = { _, _ -> },
     private val preferredTitle: (String) -> Long? = { null },
     private val workYear: String = "",
+    private val rememberEpisode: (String, Long, Long) -> Unit = { _, _, _ -> },
+    private val preferredEpisode: (String) -> Pair<Long, Long>? = { null },
 ) {
     var enabled by mutableStateOf(initialEnabled); private set
     var offsetMs by mutableLongStateOf(0)
@@ -29,7 +31,6 @@ internal class DanmakuState(
     val isConfigured: Boolean get() = base.isNotBlank()
     private var workSeason: Int? = null
     private var generation = 0
-    private var manualTitle: DanmakuTitle? = null
     private val tracks = linkedMapOf<Long, DanmakuTrack>()
     private data class Loaded(val title: DanmakuTitle, val episodes: List<DanmakuEpisode>, val episode: DanmakuEpisode, val track: DanmakuTrack)
 
@@ -55,6 +56,7 @@ internal class DanmakuState(
         }
     }
     private fun serviceError(e: Exception): String? = when {
+        e.message == "HTTP 401" || e.message == "HTTP 403" -> "弹幕服务拒绝访问，请检查 API 地址"
         e.message == "HTTP 429" -> "弹幕服务请求过多，请稍后重试"
         generateSequence<Throwable>(e) { it.cause }.any { it is SSLHandshakeException } ->
             "弹幕服务安全连接失败，请检查设备日期和时间"
@@ -75,7 +77,7 @@ internal class DanmakuState(
         val normalized = url.trim().trimEnd('/')
         if (base == normalized) return
         cancelRequest(); error = null
-        base = normalized; tracks.clear(); manualTitle = null
+        base = normalized; tracks.clear()
         selectedTitle = null; selectedEpisode = null; episodes = emptyList(); titles = emptyList(); track = null
     }
     private fun show(data: Loaded) {
@@ -85,19 +87,20 @@ internal class DanmakuState(
         if (!isConfigured) { error = "请先保存弹幕 API 地址"; return }
         val query = keyword.trim()
         workSeason = danmakuSeason(query) ?: danmakuSeason(episodeLabel)
-        manualTitle = null
         selectedTitle = null; selectedEpisode = null; episodes = emptyList(); titles = emptyList(); track = null
         request("弹幕匹配失败，请手动选择", automatic = true) {
             var failure: String? = null
             withTimeoutOrNull(60_000) overall@ {
                 var requests = 0
-                suspend fun load(candidate: DanmakuTitle): Loaded? = withTimeoutOrNull(20_000) {
+                suspend fun load(candidate: DanmakuTitle, manualEpisode: Long? = null): Loaded? = withTimeoutOrNull(20_000) {
                     try {
                         if (requests >= 12) return@withTimeoutOrNull null
                         requests++
                         val (list, episode) = withContext(Dispatchers.IO) {
                             val list = client(base).episodes(candidate.id)
-                            list to matchingDanmakuEpisode(list, episodeLabel, workSeason)
+                            val episode = if (manualEpisode != null) list.singleOrNull { it.id == manualEpisode }
+                                else matchingDanmakuEpisode(list, episodeLabel, workSeason)
+                            list to episode
                         }
                         if (episode == null) return@withTimeoutOrNull null
                         if (episode.id !in tracks) { if (requests >= 12) return@withTimeoutOrNull null; requests++ }
@@ -111,6 +114,12 @@ internal class DanmakuState(
                         }
                         null
                     }
+                }
+                val savedEpisode = if (useSaved) preferredEpisode(base) else null
+                if (savedEpisode != null && savedEpisode.first > 0 && savedEpisode.second > 0) {
+                    val item = DanmakuTitle(savedEpisode.first, query, "")
+                    val data = load(item, savedEpisode.second)
+                    if (data != null) { titles = listOf(item); show(data); return@overall }
                 }
                 val saved = (if (useSaved) preferredTitle(base) else null)?.takeIf { it > 0 }
                 if (saved != null) {
@@ -150,11 +159,12 @@ internal class DanmakuState(
     }
     private fun rememberIfValid(data: DanmakuTrack) {
         if (data.comments.isEmpty()) { error = "这一集没有滚动弹幕"; return }
-        manualTitle?.let { rememberTitle(base, it.id) }
-        manualTitle = null
+        val title = selectedTitle ?: return
+        val episode = selectedEpisode ?: return
+        rememberTitle(base, title.id)
+        rememberEpisode(base, title.id, episode.id)
     }
     fun select(title: DanmakuTitle) {
-        manualTitle = title
         selectedTitle = title; selectedEpisode = null; episodes = emptyList(); track = null
         request("弹幕选集加载失败，请重试") {
             episodes = withContext(Dispatchers.IO) { client(base).episodes(title.id) }

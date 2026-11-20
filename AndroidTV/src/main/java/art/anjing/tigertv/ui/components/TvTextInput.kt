@@ -1,7 +1,5 @@
 package art.anjing.tigertv.ui.components
 
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -73,23 +71,24 @@ internal fun TvTextInput(
     LaunchedEffect(state) {
         snapshotFlow { state.text.toString() }.drop(1).collect { onChange(it) }
     }
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
+    var isFocused by remember { mutableStateOf(false) }
 
     BasicTextField(
         state = state,
         modifier = modifier
             .height(UiMetrics.controlHeight)
             .focusRequester(focusRequester)
-            .onFocusChanged { if (!it.isFocused) keyboardRequested = false }
+            .onFocusChanged {
+                isFocused = it.isFocused
+                if (!isFocused) keyboardRequested = false
+            }
             .onPreviewKeyEvent { event ->
                 if (imeVisible) return@onPreviewKeyEvent false
                 when (event.key) {
                     Key.DirectionCenter -> {
-                        if (event.type == KeyEventType.KeyDown) {
-                            // Start an input session on confirmation, including the first focus.
-                            keyboardRequested = true
-                            keyboard?.show()
+                        if (event.type == KeyEventType.KeyDown && event.nativeKeyEvent.repeatCount == 0) {
+                            if (keyboardRequested) keyboard?.show()
+                            else keyboardRequested = true
                         }
                         true
                     }
@@ -115,7 +114,6 @@ internal fun TvTextInput(
             keyboard?.hide()
             onImeAction()
         },
-        interactionSource = interactionSource,
         decorator = { innerTextField ->
             Surface(
                 modifier = Modifier.fillMaxSize(), shape = MaterialTheme.shapes.extraLarge,

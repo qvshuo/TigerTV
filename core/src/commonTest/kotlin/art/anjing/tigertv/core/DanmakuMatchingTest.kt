@@ -20,6 +20,8 @@ class DanmakuMatchingTest {
         assertEquals(second, matchingDanmakuEpisode(listOf(first,second),2,2))
         assertNull(matchingDanmakuEpisode(listOf(first.copy(season=null),second.copy(season=null)),2,2))
         assertNull(matchingDanmakuEpisode(listOf(first, first.copy(id=3)),2,1))
+        val explicitlyNumbered = first.copy(id = 4, title = "第2集")
+        assertEquals(explicitlyNumbered, matchingDanmakuEpisode(listOf(first, explicitlyNumbered), 2, 1))
         assertNull(matchingDanmakuEpisode(listOf(first),null,1))
         assertNull(matchingDanmakuEpisode(listOf(first.copy(title="Special 2")),2,1))
         assertNull(matchingDanmakuEpisode(listOf(first.copy(title="第3集")),2,1))
@@ -31,6 +33,7 @@ class DanmakuMatchingTest {
         assertEquals(1, danmakuTitleRank("逐玉", "【高清】逐玉", "2026"))
         assertNull(danmakuTitleRank("逐玉", "逐玉（2025）", "2026"))
         assertNull(danmakuTitleRank("后会友期", "后会友期【沉浸版】"))
+        assertNull(danmakuTitleRank("示例", "抢鲜版【别名：示例】"))
         assertTrue(reasonableDanmakuTitle("《示例》 S02", "Example 第二季（又名：示例）【1080P】"))
         assertEquals("示例 S02", danmakuSearchKeyword("示例 S02（2026）【高清】"))
     }

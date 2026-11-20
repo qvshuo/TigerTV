@@ -6,6 +6,7 @@ class DanmakuSelectionTest {
         val track = DanmakuTrack(2_810_000, emptyList())
         assertTrue(shouldUpgradeDanmaku(track, track.copy(referenceDurationMs=2_806_720), 13_381,42_288))
         assertTrue(shouldUpgradeDanmaku(track,track,2,4))
+        assertFalse(shouldUpgradeDanmaku(track, track.copy(referenceDurationMs = 2_783_520), 5, 15))
         assertFalse(shouldUpgradeDanmaku(track,track,2,3))
         assertFalse(shouldUpgradeDanmaku(track,track,2_000,3_999))
         assertFalse(shouldUpgradeDanmaku(track,track.copy(referenceDurationMs=7_446_000),1_000,5_000))

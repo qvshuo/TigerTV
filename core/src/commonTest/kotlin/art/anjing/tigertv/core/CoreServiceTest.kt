@@ -103,6 +103,31 @@ class CoreServiceTest {
         } finally { first.close(); second.close() }
     }
 
+    @Test fun recentPlaybackReusesExactBookmarksAndKeepsActualPlayOrder() = runTest {
+        val store = MemoryStorage().apply {
+            files["data/last-played-sources.json"] = """{"byWork":{"legacy":{"site":"A","resources":{"A":{"line":"0","episode":"旧集"}},"positions":{"A":{"0":{"旧集":900}}}}}}"""
+        }
+        var now = 1_000L
+        val core = CoreService("cache", storage = store, historyDirectory = "data", clock = { now++ })
+        val source = art.anjing.tigertv.domain.SearchResult("A", 42, "作品", vodPic = "https://a.test/cover")
+        try {
+            assertTrue(core.recentPlayback().isEmpty())
+            core.recordPlayback("one", "A", "0", "首集", source)
+            core.recordPlaybackPosition("one", "A", "0", "首集", 800, 20)
+            core.recordPlayback("two", "A", "0", "首集", source.copy(vodId = 43))
+            core.recordPlaybackPosition("one", "A", "0", "首集", 900, 25)
+            assertEquals(listOf("two", "one"), core.recentPlayback().map { it.workId })
+            val otherSource = source.copy(site = "B", vodId = 7)
+            core.recordPlayback("one", "B", "2", "第二集", otherSource)
+            core.recordPlaybackPosition("one", "A", "0", "首集", 1_000, 30)
+            val resumed = core.recentPlayback().first()
+            assertEquals(otherSource, resumed.source)
+            assertEquals(0L, resumed.positionMillis)
+            assertNull(resumed.progressPercent)
+            assertEquals(listOf("one", "two"), core.recentPlayback().map { it.workId })
+        } finally { core.close() }
+    }
+
     @Test fun historyMutationsRecoverFromCorruptStorageAndPropagateCancellation() = runTest {
         val store = MemoryStorage().apply { files["cache/search-history.json"] = "invalid" }
         val core = CoreService("cache", storage = store)

@@ -99,6 +99,13 @@ fun aggregateWorks(results: List<SearchResult>): List<VideoWork> = results.disti
 @Serializable
 data class PlaybackBookmark(val line: String, val episode: String)
 
+data class RecentPlayback(
+    val workId: String, val source: SearchResult, val bookmark: PlaybackBookmark,
+    val positions: Map<String, Map<String, Long>>, val progressPercent: Int?, val playedAt: Long,
+) {
+    val positionMillis: Long get() = positions[bookmark.line]?.get(bookmark.episode) ?: 0
+}
+
 @Serializable
 data class HotSearchCategory(val id: String, val name: String)
 

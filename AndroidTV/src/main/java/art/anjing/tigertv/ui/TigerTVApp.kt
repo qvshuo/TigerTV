@@ -1,6 +1,7 @@
 package art.anjing.tigertv.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -50,7 +51,11 @@ internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostC
             HomeScreen(viewModel,
                 onSearch = { navController.navigate(Screen.Search.route) },
                 onSettings = { navController.navigate(Screen.Settings.route) },
-                onResults = { navController.navigate(Screen.Results.route) })
+                onResults = { navController.navigate(Screen.Results.route) },
+                onRecent = {
+                    viewModel.openRecentPlayback(it)
+                    navController.navigate(Screen.Episodes.route)
+                })
         }
         composable(Screen.Search.route) {
             SearchScreen(viewModel, onResults = { navController.navigate(Screen.Results.route) })
@@ -77,8 +82,17 @@ internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostC
         composable(Screen.Episodes.route,
             exitTransition = { if (targetState.destination.route == Screen.Player.route) ExitTransition.None else null },
             popEnterTransition = { if (initialState.destination.route == Screen.Player.route) EnterTransition.None else null },
-            popExitTransition = { if (targetState.destination.route == Screen.Results.route) ExitTransition.None else null },
+            popExitTransition = { if (targetState.destination.route in listOf(Screen.Results.route, Screen.Player.route)) ExitTransition.None else null },
         ) {
+            val detailReady = !viewModel.isFetching && viewModel.fetchResponse != null
+            LaunchedEffect(detailReady) {
+                if (detailReady) viewModel.takeExactRecentEpisode()?.let { index ->
+                    viewModel.selectEpisode(index)
+                    navController.navigate(Screen.Player.route) {
+                        popUpTo(Screen.Episodes.route) { inclusive = true }
+                    }
+                }
+            }
             DetailScreen(
                 viewModel = viewModel,
                 onBack = {
@@ -96,9 +110,11 @@ internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostC
             enterTransition = { EnterTransition.None }, exitTransition = { ExitTransition.None },
             popEnterTransition = { EnterTransition.None }, popExitTransition = { ExitTransition.None }
         ) {
+            val directResume = remember { navController.previousBackStackEntry?.destination?.route == Screen.Home.route }
             PlayerScreen(
                 viewModel = viewModel,
                 onSettings = { navController.navigate(Screen.Settings.route) },
+                onExitCleanup = if (directResume) viewModel::leaveDetail else viewModel::clearPlayback,
                 onBack = { navController.popBackStack() }
             )
         }

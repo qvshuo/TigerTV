@@ -170,25 +170,51 @@ class CoreService(
         })
     }
 
-    suspend fun recordPlayback(workId: String, site: String, line: String, episode: String) = stateMutex.withLock {
+    suspend fun recentPlayback(): List<RecentPlayback> = stateMutex.withLock {
+        playedSources().byWork.mapNotNull { (id, work) ->
+            val recent = work.recent ?: return@mapNotNull null
+            val bookmark = work.resources[work.site] ?: return@mapNotNull null
+            RecentPlayback(id, recent.source, bookmark, work.positions[work.site].orEmpty(),
+                recent.progressPercent, recent.playedAt)
+        }.sortedByDescending { it.playedAt }.take(12)
+    }
+
+    suspend fun recordPlayback(workId: String, site: String, line: String, episode: String,
+        source: SearchResult? = null,
+    ) = stateMutex.withLock {
         require(workId.isNotBlank() && site.isNotBlank() && line.isNotBlank())
+        require(source == null || source.site == site)
         val saved = playedSources()
-        val resources = saved.byWork[workId]?.resources.orEmpty() + (site to PlaybackBookmark(line, episode))
+        val work = saved.byWork[workId]
+        val bookmark = PlaybackBookmark(line, episode)
+        val resources = work?.resources.orEmpty() + (site to bookmark)
+        val previous = work?.recent?.takeIf { work.site == site }
+        val progress = previous?.progressPercent?.takeIf { work?.resources?.get(site) == bookmark }
+        val recent = if (source != null) RecentPlaybackMetadata(source, clock(), progress)
+            else previous?.copy(progressPercent = progress)
         val updated = saved.copy(recentSite = site,
-            byWork = saved.byWork + (workId to WorkPlayback(site, resources, saved.byWork[workId]?.positions.orEmpty())))
+            byWork = saved.byWork + (workId to WorkPlayback(site, resources, work?.positions.orEmpty(), recent)))
         if (updated != saved) savePlayedSources(updated)
         Unit
     }
 
-    suspend fun recordPlaybackPosition(workId: String, site: String, line: String, episode: String, positionMillis: Long) = stateMutex.withLock {
+    suspend fun recordPlaybackPosition(workId: String, site: String, line: String, episode: String,
+        positionMillis: Long, progressPercent: Int? = null,
+    ) = stateMutex.withLock {
         require(workId.isNotBlank() && site.isNotBlank() && line.isNotBlank() && positionMillis >= 0)
         val saved = playedSources()
         val work = saved.byWork[workId] ?: return@withLock
         val sitePositions = work.positions[site].orEmpty()
-        if (sitePositions[line]?.get(episode) == positionMillis) return@withLock
+        val priorPosition = sitePositions[line]?.get(episode)
+        val recent = work.recent?.let {
+            if (work.site == site && work.resources[site] == PlaybackBookmark(line, episode)) {
+                it.copy(progressPercent = progressPercent ?: it.progressPercent.takeIf { positionMillis == priorPosition })
+            } else it
+        }
+        if (priorPosition == positionMillis && recent == work.recent) return@withLock
         val episodes = sitePositions[line].orEmpty() + (episode to positionMillis)
         val positions = work.positions + (site to (sitePositions + (line to episodes)))
-        val updated = saved.copy(byWork = saved.byWork + (workId to work.copy(positions = positions)))
+        val updated = saved.copy(byWork = saved.byWork + (workId to work.copy(positions = positions, recent = recent)))
         savePlayedSources(updated)
         Unit
     }
@@ -307,4 +333,8 @@ private data class PlayedSources(val recentSite: String? = null, val byWork: Map
 
 @Serializable
 private data class WorkPlayback(val site: String, val resources: Map<String, PlaybackBookmark>,
-    val positions: Map<String, Map<String, Map<String, Long>>> = emptyMap())
+    val positions: Map<String, Map<String, Map<String, Long>>> = emptyMap(),
+    val recent: RecentPlaybackMetadata? = null)
+
+@Serializable
+private data class RecentPlaybackMetadata(val source: SearchResult, val playedAt: Long, val progressPercent: Int? = null)

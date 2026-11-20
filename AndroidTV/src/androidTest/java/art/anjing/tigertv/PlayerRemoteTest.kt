@@ -429,7 +429,7 @@ class PlayerRemoteTest {
 
     @Test fun detailResourceLineAndEpisodeFocusRemainConnected() {
         compose.runOnIdle { detailShown.value = true }
-        compose.onNodeWithText("播放 · 第一集").assertIsFocused()
+        compose.onNode(hasText("播放 · 第一集", substring = true) and hasClickAction()).assertIsFocused()
         remote(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNode(hasText("🎬测试") and hasClickAction()).assertIsFocused()
         remote(KeyEvent.KEYCODE_DPAD_DOWN)
@@ -485,7 +485,7 @@ class PlayerRemoteTest {
                 assertNull(findPlayerView(rootView))
                 assertTrue(model.works.single().playbackPositions["🎬测试"]!!.getValue("0").getValue("第一集") > 0)
             }
-            compose.onNodeWithText("播放 · 第一集").assertExists()
+            compose.onNodeWithText("继续播放 · 第一集").assertExists()
         } finally {
             compose.runOnIdle { navigation.removeOnDestinationChangedListener(listener) }
         }

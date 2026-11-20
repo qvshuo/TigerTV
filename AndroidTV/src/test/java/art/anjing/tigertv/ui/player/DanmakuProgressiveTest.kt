@@ -68,6 +68,29 @@ class DanmakuProgressiveTest {
             state.close()
         } finally {http.close()}
     }
+    @Test fun exactManualEpisodeOverridesAnUnmatchedProviderLabelOnReplay() = runBlocking {
+        val calls = mutableListOf<String>()
+        val http = configureClient(HttpClient(MockEngine { request ->
+            val path = request.url.encodedPath
+            calls += path
+            respond(when {
+                path.endsWith("bangumi/3") -> """{"success":true,"bangumi":{"episodes":[{"episodeId":42,"episodeTitle":"第5集","episodeNumber":"5"}]}}"""
+                path.endsWith("comment/42") -> comments(3)
+                else -> error("Unexpected request $path")
+            })
+        }))
+        try {
+            val state = DanmakuState(this, { DanmakuClient(Network(http), it) },
+                episodeLabel = "正片", preferredEpisode = { 3L to 42L })
+            state.configure("https://example.test")
+            state.search("示例")
+            withTimeout(5_000) { while (state.busy) delay(10) }
+            assertEquals(42L, state.selectedEpisode?.id)
+            assertTrue(state.hasComments)
+            assertEquals(listOf("/api/v2/bangumi/3", "/api/v2/comment/42"), calls)
+            state.close()
+        } finally { http.close() }
+    }
     @Test fun rateLimitStopsComparisonAndKeepsTheFirstTrack() = runBlocking {
         val calls=mutableListOf<String>()
         val http=configureClient(HttpClient(MockEngine { r ->

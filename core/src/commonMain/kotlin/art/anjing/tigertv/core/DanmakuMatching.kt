@@ -60,6 +60,7 @@ fun danmakuTitleRank(query: String, candidate: String, year: String = "", season
     val expectedYear = expected.year ?: year.toIntOrNull()?.takeIf { it in 1900..2099 }
     val expectedSeason = season ?: expected.season
     if (expected.names.none { it in actual.names }) return null
+    if (specialEpisode.containsMatchIn(actual.main) && expected.main != actual.main) return null
     if (expectedYear != null && actual.year != null && expectedYear != actual.year) return null
     if ((expectedSeason ?: 1) != (actual.season ?: 1)) return null
     return when {
@@ -111,24 +112,32 @@ fun matchingDanmakuEpisode(episodes: List<DanmakuEpisode>, label: String, season
     if (target.season != null && season != null && target.season != season) return null
     val expectedSeason = target.season ?: season ?: 1
     val multipleSeasons = episodes.asSequence().map { it.seasonId }.filter { it.isNotBlank() }.distinct().take(2).count() > 1
-    return episodes.filter { episode ->
-        val title = episodeLabel(episode.title) ?: return@filter false
-        val number = episodeLabel(episode.number) ?: return@filter false
+    return episodes.mapNotNull { episode ->
+        val title = episodeLabel(episode.title) ?: return@mapNotNull null
+        val number = episodeLabel(episode.number) ?: return@mapNotNull null
         val explicitSeasons = listOfNotNull(episode.season, title.season, number.season)
-        if (explicitSeasons.any { it != expectedSeason } || multipleSeasons && explicitSeasons.isEmpty()) return@filter false
-        if (target.kind != null && title.kind != null && target.kind != title.kind) return@filter false
-        if (target.part != (title.part ?: number.part)) return@filter false
+        if (explicitSeasons.any { it != expectedSeason } || multipleSeasons && explicitSeasons.isEmpty()) return@mapNotNull null
+        if (target.kind != null && title.kind != null && target.kind != title.kind) return@mapNotNull null
+        if (title.part != null && number.part != null && title.part != number.part) return@mapNotNull null
+        if (target.part != (title.part ?: number.part)) return@mapNotNull null
+        if (title.date != null && number.date != null && title.date != number.date) return@mapNotNull null
         val date = title.date ?: number.date
-        if (target.date != null && target.date != date) return@filter false
+        if (target.date != null && target.date != date) return@mapNotNull null
         val dateAgrees = target.date != null && target.date == date
         // A split needs an explicit, corresponding title or date, never just the API list ordinal.
-        if (target.part != null && !dateAgrees && title.number != target.number) return@filter false
+        if (target.part != null && !dateAgrees && title.number != target.number) return@mapNotNull null
         // A numbered variety title plus a matching date can override an API list ordinal.
         val chosenNumber = title.number ?: number.number
         if (title.number != null && number.number != null && title.number != number.number &&
-            !(title.kind == EpisodeKind.Period && dateAgrees)) return@filter false
-        if (target.number != null) target.number == chosenNumber else dateAgrees
-    }.singleOrNull()
+            !(title.kind == EpisodeKind.Period && dateAgrees)) return@mapNotNull null
+        val matches = if (target.number != null) target.number == chosenNumber else dateAgrees
+        if (!matches) return@mapNotNull null
+        val explicitEpisode = dateAgrees || title.number != null
+        episode to explicitEpisode
+    }.let { matches ->
+        val explicit = matches.filter { it.second }
+        (explicit.ifEmpty { matches }).singleOrNull()?.first
+    }
 }
 
 fun matchingDanmakuEpisode(episodes: List<DanmakuEpisode>, number: Int?, season: Int?): DanmakuEpisode? =
