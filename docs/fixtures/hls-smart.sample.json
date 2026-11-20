@@ -28,5 +28,24 @@
     "name": "short-chapter-without-ad-evidence",
     "playlist": "#EXTM3U\n#EXT-X-VERSION:1\n#EXT-X-TARGETDURATION:20\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part100.ts\n#EXTINF:20,\ncontent/part101.ts\n#EXTINF:20,\ncontent/part102.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:4,\nchapter/part103.ts\n#EXTINF:4,\nchapter/part104.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:20,\ncontent/part105.ts\n#EXTINF:20,\ncontent/part106.ts\n#EXTINF:20,\ncontent/part107.ts\n#EXTINF:20,\ncontent/part108.ts\n#EXT-X-ENDLIST\n",
     "removed": []
+  },
+  {
+    "name": "repeated-clear-inserts-without-discontinuities",
+    "playlist": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:20\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part100.ts\n#EXTINF:20,\ncontent/part101.ts\n#EXTINF:20,\ncontent/part102.ts\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:4,\ncontent/asset700.ts\n#EXTINF:4,\ncontent/asset701.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part105.ts\n#EXTINF:20,\ncontent/part106.ts\n#EXTINF:20,\ncontent/part107.ts\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:4,\ncontent/asset700.ts\n#EXTINF:4,\ncontent/asset701.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part110.ts\n#EXTINF:20,\ncontent/part111.ts\n#EXTINF:20,\ncontent/part112.ts\n#EXTINF:20,\ncontent/part113.ts\n#EXT-X-ENDLIST\n",
+    "removed": [
+      [
+        60000,
+        68000
+      ],
+      [
+        128000,
+        136000
+      ]
+    ]
+  },
+  {
+    "name": "same-clear-uris-with-unequal-durations",
+    "playlist": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:20\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part100.ts\n#EXTINF:20,\ncontent/part101.ts\n#EXTINF:20,\ncontent/part102.ts\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:4,\ncontent/asset700.ts\n#EXTINF:4,\ncontent/asset701.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part105.ts\n#EXTINF:20,\ncontent/part106.ts\n#EXTINF:20,\ncontent/part107.ts\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:3,\ncontent/asset700.ts\n#EXTINF:4,\ncontent/asset701.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part110.ts\n#EXTINF:20,\ncontent/part111.ts\n#EXTINF:20,\ncontent/part112.ts\n#EXTINF:20,\ncontent/part113.ts\n#EXT-X-ENDLIST\n",
+    "removed": []
   }
 ]

@@ -42,7 +42,7 @@ npm --prefix web ci
 npm --prefix web run dev
 ```
 
-运行 `npm --prefix web run build` 可将 `web/dist/` 部署到静态 HTTPS 站点。对于元数据受 CORS 限制的来源，也可通过 Docker Compose 部署可选 Gateway。浏览器支持时，可将 TigerTV 安装为 PWA。媒体由浏览器直连资源站 CDN。各来源的搜索、详情及媒体兼容性以实测为准。 [Web 开发与兼容性](docs/development/web.md)
+运行 `npm --prefix web run build` 可将 `web/dist/` 部署到静态 HTTPS 站点。对于元数据受 CORS 限制的来源，也可通过 Docker Compose 部署可选的 Go Gateway，单端口提供 Web 和元数据。浏览器支持时，可将 TigerTV 安装为 PWA。媒体由浏览器直连资源站 CDN。各来源的搜索、详情及媒体兼容性以实测为准。 [Web 开发与兼容性](docs/development/web.md)
 
 ### Android TV 应用
 

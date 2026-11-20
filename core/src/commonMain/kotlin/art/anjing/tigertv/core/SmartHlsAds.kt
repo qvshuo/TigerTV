@@ -15,7 +15,6 @@ private val numbersAtEnd = Regex("[0-9]+(?=\\.[^./]+$)")
 private val pathSeparator = Regex("[/._-]")
 
 fun filterSmartHlsAds(site: String, playlist: String): HlsFilterResult? {
-    if (!supportsHlsAdFiltering(site)) return null
     val vod = parseHlsVod(playlist) ?: return null
     return rewriteHlsVod(vod, smartAdIndices(vod, exactAdIndices(vod, knownHlsRules.filter { it.site == site })))
 }
@@ -70,15 +69,16 @@ internal fun smartAdIndices(vod: HlsVod, exact: Set<Int>): Set<Int> {
         start = end
     }
 
-    // Repeated short clear inserts between encrypted chapters require two discontinuity edges
-    // (or the final ENDLIST), the same URI sequence, and encrypted content on every available side.
-    val boundaries = (listOf(0) + segments.indices.filter { it > 0 && segments[it].discontinuity } + segments.size)
+    // A return to encrypted content can delimit a repeated clear insert without discontinuity tags.
+    val boundaries = listOf(0) + (1 until segments.size).filter {
+        segments[it].discontinuity || segments[it - 1].encrypted != segments[it].encrypted
+    } + segments.size
     val repeated = boundaries.zipWithNext().filter { (a, b) ->
         a >= flank && b - a >= 2 && (b == segments.size || b + flank <= segments.size) &&
             (a - flank until a).all { segments[it].encrypted } &&
             (b until minOf(b + flank, segments.size)).all { segments[it].encrypted } &&
             (a until b).none { segments[it].encrypted }
-    }.groupBy { (a, b) -> paths.subList(a, b) }
+    }.groupBy { (a, b) -> (a until b).map { paths[it] to segments[it].micros } }
     for (runs in repeated.values) if (runs.size > 1) {
         for ((a, b) in runs) propose(a, b)
     }

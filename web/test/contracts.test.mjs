@@ -101,9 +101,9 @@ test('work-wide speed, volume settings, separate episode progress and recent ded
   assert.deepEqual(getVolume(false), { volume: 1, muted: false })
 })
 
-test('the same heuristic cases keep key sequence and collapse a single interval', () => {
+test('unlisted sources share heuristic intervals and preserve the original key sequence', () => {
   for (const { name, playlist, removed } of json('hls-smart')) {
-    const result = filterPlaylist('🎬360 资源', playlist)
+    const result = filterPlaylist('🎬未收录来源', playlist)
     assert.deepEqual(result?.removed ?? [], removed.map(([start, end]) => ({ start: start / 1000, end: end / 1000 })), name)
     if (name === 'same-directory-without-evidence') {
       const fingerprints = ['e18860e8d17c825b', '27bcbb2440ca6534']
@@ -113,11 +113,16 @@ test('the same heuristic cases keep key sequence and collapse a single interval'
     }
     if (!result) continue
     assert.match(result.text, /IV=0x00000000000000000000000000000069/)
-    assert.match(result.text, /#EXT-X-VERSION:2/)
+    assert.ok(result.text.includes(`#EXT-X-VERSION:${removed.length === 2 ? 3 : 2}\n`))
     assert.match(result.text, /#EXT-X-DISCONTINUITY/)
     assert.doesNotMatch(result.text, /#EXT-X-CUE-/)
     assert.equal(originalTime(60, result.removed), 68)
     assert.equal(effectiveTime(65, result.removed), 60)
+    if (name === 'repeated-clear-inserts-without-discontinuities') {
+      assert.equal(originalTime(120, result.removed), 136)
+      assert.equal(effectiveTime(137, result.removed), 121)
+      assert.match(result.text, /IV=0x0000000000000000000000000000006e/)
+    }
   }
 })
 

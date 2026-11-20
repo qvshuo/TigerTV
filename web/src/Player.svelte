@@ -7,7 +7,7 @@
   import '@videojs/html/ui/fullscreen-button'
   import type { HlsJsVideoElement } from '@videojs/html/media/hlsjs-video'
   import { legacyWorkId, webUrl, type Episode } from './api.ts'
-  import { effectiveTime, originalTime, supportsFilter, type Interval } from './hls.ts'
+  import { effectiveTime, originalTime, type Interval } from './hls.ts'
   import { getPosition, getSpeed, getVolume, read, recordStarted, savePosition, saveSpeed, saveVolume, write, type PlaybackOptions, type Selection, type Settings } from './storage.ts'
   import { autoMatch, DanmakuClient, drawComments, type DanmakuEpisode, type Title, type Track } from './danmaku.ts'
 
@@ -230,18 +230,16 @@
       el.playbackRate = speed
       if (el instanceof HTMLVideoElement) el.src = url
       else {
-        const mayFilter = prefs.filterAds && supportsFilter(session.source.site.name)
         el.source = {
           src: url, type: 'application/vnd.apple.mpegurl', preferPlayback: 'mse',
-          engine: mayFilter && hlsLoader ? { hlsJs: { pLoader: hlsLoader(session.source.site.name, intervals => {
+          engine: hlsLoader ? { hlsJs: { pLoader: hlsLoader(session.source.site.name, intervals => {
             if (active && media === el) removed = intervals
           }) } } : undefined,
         }
       }
     }
     if (hls) {
-      const filter = prefs.filterAds && supportsFilter(session.source.site.name)
-      void Promise.all([import('@videojs/html/media/hlsjs-video'), filter ? import('./hls-loader.ts') : null])
+      void Promise.all([import('@videojs/html/media/hlsjs-video'), prefs.filterAds ? import('./hls-loader.ts') : null])
         .then(([, adapter]) => {
           if (!active) return
           hlsLoader = adapter?.playlistLoader

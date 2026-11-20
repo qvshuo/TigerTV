@@ -78,7 +78,7 @@ class Media3Controller(context: Context) {
             onError("无效播放地址")
             return
         }
-        val mayFilter = filterAds && mayFilterHls(site, uri)
+        val mayFilter = filterAds && mayFilterHls(uri)
         val currentSession = HlsPlaybackSession(uri, site, filterAds)
         player.setPlaybackSpeed(speed)
         hlsSession = currentSession

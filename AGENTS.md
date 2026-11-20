@@ -16,7 +16,7 @@ Kotlin Multiplatform `core` remains the business implementation for Android TV a
 
 ## Toolchain and validation
 
-Kotlin/Compose/serialization plugins 2.4.21, Gradle 9.8.2, AGP 9.5.1, JDK 21, Android SDK 37; Xcode and macOS SDK 27.2 for the native CLI; Node.js 24+ for Web.
+Kotlin/Compose/serialization plugins 2.4.21, Gradle 9.8.2, AGP 9.5.1, JDK 21, Android SDK 37. Xcode and macOS SDK 27.2 for the native CLI, Node.js 24+ for Web, and Go 1.27 for the optional Gateway.
 
 ```bash
 ./gradlew :core:jvmTest :core:macosArm64Test
@@ -99,4 +99,4 @@ Hot searches independently use six official Douban collection APIs in core: Chin
 Android TV search has no clear icon. Clear history is a plain text button. TV uses the official TV Material 3 components with a neutral dark palette, default typography and shapes; use native IconButton/Button/Card/FilterChip/InputChip/ListItem/Surface and Foundation input/layout. Keep choice labels intrinsically sized. Progress indicators use explicit TV theme colors because TV has no progress component. Hot categories and detail resource/line/episode choices share SelectionChip, a native FilterChip wrapper distinguishing remote focus (white outline) from the active choice (primary fill / onPrimary text). Moving focus does not change selections; retain native scale and press feedback. Module state crossfades use 180ms; preserve the native TV component focus and press animations.
 Playback settings default to auto-next, per-work speed memory and ad filtering enabled. Web also defaults to remembering global volume and mute. Natural end can continue within the same source and line; errors, manual navigation and the last episode never auto-switch. Show the ad status only when a playlist is actually rewritten. Use direct HTTPS browser requests and keep media, segments and keys off TigerTV infrastructure.
 
-The optional Web metadata Gateway lives in `gateway/`. Keep source IDs and allowed upstream routes fixed by configuration. Static mode remains available. Native clients always call their original sources directly. Keep HLS heuristics and expected intervals in shared data and fixtures.
+The optional Web metadata Gateway lives in `gateway/` and uses the Go standard library. Keep source IDs and allowed upstream routes fixed by configuration. Static mode remains available. Native clients always call their original sources directly. Keep HLS heuristics and expected intervals in shared data and fixtures. Exact HLS fingerprints are site-scoped. Generic heuristics run on supported VOD playlists regardless of site.

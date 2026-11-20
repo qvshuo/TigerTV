@@ -5,8 +5,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /** Reviewed sources for the playlist adapter. */
-fun supportsHlsAdFiltering(site: String): Boolean = knownHlsRules.any { it.site == site }
-
 internal val knownHlsRules: List<KnownHlsAdGroup> by lazy { Json.decodeFromString(hlsAdRulesJson) }
 
 /** A known asset's URI fingerprints, not hashes of the downloaded media bytes. */

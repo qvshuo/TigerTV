@@ -223,10 +223,15 @@ jobs:
           npm run check
           npm test
           npm run build
+      - uses: actions/setup-go@v7.1.0
+        with:
+          go-version: '1.27.4'
+          cache: false
       - name: Check optional metadata Gateway
         run: |
+          (cd gateway && go test -race ./... && go vet ./...)
           docker compose -f gateway/compose.yaml config --quiet
-          node --test gateway/server.test.mjs
+          docker compose -f gateway/compose.yaml build
       - name: Package Web/PWA
         run: |
           mkdir -p artifacts

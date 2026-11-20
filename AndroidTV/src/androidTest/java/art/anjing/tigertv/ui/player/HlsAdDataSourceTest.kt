@@ -96,15 +96,23 @@ class HlsAdDataSourceTest {
         assertNull(session.timeline)
     }
 
-    @Test fun moduAnimeRemainsUnfilteredEvenWithMatchingCandidate() {
+    @Test fun moduAnimeUsesOnlyGenericEvidence() {
         val session = HlsPlaybackSession(uri, "🎬魔都动漫")
-        var invoked = false
-        assertEquals(playlist(), read(HlsAdDataSource(Fake(playlist().toByteArray(), uri), session) { _, text ->
-            invoked = true
-            filterHlsAds(text) { it.startsWith("/video/adjump/time/") }
-        }))
-        assertFalse(invoked)
+        assertEquals(playlist(), read(HlsAdDataSource(Fake(playlist().toByteArray(), uri), session)))
         assertNull(session.timeline)
+
+        val tagged = "#EXTM3U\n" + (0..10).joinToString("") { index ->
+            when (index) {
+                3 -> "#EXT-X-CUE-OUT:8\n#EXTINF:4,\npart3.ts\n"
+                4 -> "#EXTINF:4,\npart4.ts\n"
+                5 -> "#EXT-X-CUE-IN\n#EXTINF:20,\npart5.ts\n"
+                else -> "#EXTINF:20,\npart$index.ts\n"
+            }
+        } + "#EXT-X-ENDLIST\n"
+        val filtered = read(HlsAdDataSource(Fake(tagged.toByteArray(), uri), session))
+        assertFalse(filtered.contains("part3.ts"))
+        assertTrue(filtered.contains("part5.ts"))
+        assertEquals(68_000L, session.timeline!!.effectiveToVideo(60_000))
     }
 
 }

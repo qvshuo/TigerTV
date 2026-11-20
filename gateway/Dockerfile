@@ -8,11 +8,17 @@ COPY skills/references/LunaTV-config.json skills/references/
 ENV VITE_TIGERTV_GATEWAY=./api/metadata/
 RUN npm --prefix web run build
 
-FROM node:24-alpine
+FROM golang:1.27.4-alpine AS go-build
+WORKDIR /source
+COPY gateway/go.mod gateway/main.go ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /tigertv-gateway .
+
+FROM scratch
 WORKDIR /app
+COPY --from=go-build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=go-build /tigertv-gateway /tigertv-gateway
 COPY --from=build /source/web/dist/ web/
 COPY skills/references/LunaTV-config.json sources.json
-COPY gateway/server.mjs .
-USER node
+USER 65532:65532
 EXPOSE 8080
-CMD ["node", "server.mjs"]
+ENTRYPOINT ["/tigertv-gateway"]

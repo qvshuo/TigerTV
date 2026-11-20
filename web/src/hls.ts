@@ -3,7 +3,6 @@ import heuristics from '../../shared/hls-heuristics.json' with { type: 'json' }
 
 export type Interval = { start: number; end: number }
 type Segment = { uri: string; duration: string; micros: number; discontinuity: boolean; key: string; implicitIv: boolean; tags: string[] }
-export const supportsFilter = (site: string) => rules.some(rule => rule.site === site)
 
 function fingerprint(uri: string) {
   let hash = 14695981039346656037n
@@ -123,14 +122,14 @@ function smartAdIndices(segments: Segment[], exact: Set<number>) {
     start = end
   }
 
-  const boundaries = [0, ...segments.flatMap((s, i) => i && s.discontinuity ? [i] : []), segments.length]
+  const boundaries = [0, ...segments.flatMap((s, i) => i && (s.discontinuity || encrypted(segments[i - 1]) !== encrypted(s)) ? [i] : []), segments.length]
   const repeated = new Map<string, [number, number][]>()
   for (const [i, start] of boundaries.slice(0, -1).entries()) {
     const end = boundaries[i + 1]
     if (start < flank || end - start < 2 || (end !== segments.length && end + flank > segments.length) ||
       !segments.slice(start - flank, start).every(encrypted) || !segments.slice(end, end + flank).every(encrypted) ||
       segments.slice(start, end).some(encrypted)) continue
-    const signature = JSON.stringify(paths.slice(start, end))
+    const signature = JSON.stringify(range(start, end).map(index => [paths[index], segments[index].micros]))
     const runs = repeated.get(signature) ?? []
     runs.push([start, end])
     repeated.set(signature, runs)
@@ -145,7 +144,6 @@ type Rule = { site: string; uriFingerprints: string[]; durations: number[]; path
 
 export function filterPlaylist(site: string, text: string, definitions: Rule[] = rules): { text: string; removed: Interval[] } | undefined {
   const applicable = definitions.filter(rule => rule.site === site)
-  if (!applicable.length) return
   const playlist = vod(text)
   if (!playlist) return
   const { segments } = playlist

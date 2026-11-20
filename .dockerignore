@@ -11,4 +11,5 @@ web/.env*
 !skills/references/LunaTV-config.json
 !gateway/
 !gateway/Dockerfile
-!gateway/server.mjs
+!gateway/go.mod
+!gateway/main.go

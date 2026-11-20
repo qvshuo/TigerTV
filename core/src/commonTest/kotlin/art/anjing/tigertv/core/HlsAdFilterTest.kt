@@ -25,7 +25,7 @@ class HlsAdFilterTest {
             val removed = fixture.getValue("removed").jsonArray.map {
                 MediaInterval(it.jsonArray[0].jsonPrimitive.long, it.jsonArray[1].jsonPrimitive.long)
             }
-            val result = filterSmartHlsAds("🎬360 资源", input)
+            val result = filterSmartHlsAds("🎬未收录来源", input)
             assertEquals(removed, result?.removed.orEmpty(), name)
             if (name == "same-directory-without-evidence") {
                 val exact = KnownHlsAdGroup("fixture",
@@ -35,11 +35,16 @@ class HlsAdFilterTest {
             }
             if (result == null) continue
             assertTrue("IV=0x00000000000000000000000000000069" in result.playlist, name)
-            assertTrue("#EXT-X-VERSION:2" in result.playlist, name)
+            assertTrue("#EXT-X-VERSION:${if (removed.size == 2) 3 else 2}" in result.playlist, name)
             assertTrue("#EXT-X-DISCONTINUITY" in result.playlist, name)
             assertFalse("#EXT-X-CUE-" in result.playlist, name)
             assertEquals(68000L, result.timeline.effectiveToVideo(60000))
             assertEquals(60000L, result.timeline.videoToEffective(65000).timeMs)
+            if (name == "repeated-clear-inserts-without-discontinuities") {
+                assertEquals(136000L, result.timeline.effectiveToVideo(120000))
+                assertEquals(121000L, result.timeline.videoToEffective(137000).timeMs)
+                assertTrue("IV=0x0000000000000000000000000000006e" in result.playlist)
+            }
         }
     }
 
