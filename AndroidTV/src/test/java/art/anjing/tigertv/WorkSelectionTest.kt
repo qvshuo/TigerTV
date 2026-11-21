@@ -35,7 +35,7 @@ class WorkSelectionTest {
         repository = mockk(relaxed = true)
         coEvery { repository.loadConfig() } returns Result.Success(SourceConfig())
         coEvery { repository.loadHistory() } returns emptyList()
-        coEvery { repository.hotSearches(any()) } returns emptyList()
+        coEvery { repository.hotSearches(any(), any()) } returns emptyList()
         coEvery { repository.search(any(), any()) } returns Result.Success(SearchResponse("逐玉", aggregateWorks(listOf(a, b))))
         coEvery { repository.fetch("A", 1) } returns Result.Success(detail(a))
         coEvery { repository.fetch("B", 99) } returns Result.Success(detail(b))
@@ -101,13 +101,13 @@ class WorkSelectionTest {
         viewModel.loadHotSearches()
         runCurrent()
         coVerify(exactly = 0) { repository.warmHotSearches(any()) }
-        coEvery { repository.hotSearches("chinese") } returns listOf(hotItem("国产甲"))
+        coEvery { repository.hotSearches("chinese", any()) } returns listOf(hotItem("国产甲"))
         viewModel.loadHotSearches()
         runCurrent()
         assertEquals(listOf("国产甲"), viewModel.hotSearches.map { it.title })
         assertFalse(viewModel.isLoadingHotSearches)
         coVerify(exactly = 1) { repository.warmHotSearches("chinese") }
-        coEvery { repository.hotSearches("korean") } returns listOf(hotItem("韩剧甲"))
+        coEvery { repository.hotSearches("korean", any()) } returns listOf(hotItem("韩剧甲"))
         viewModel.selectHotSearchCategory("korean")
         viewModel.loadHotSearches()
         runCurrent()
@@ -126,8 +126,8 @@ class WorkSelectionTest {
         every { repository.hotSearchCategories() } returns listOf(
             HotSearchCategory("chinese", "国产剧"), HotSearchCategory("korean", "韩剧")
         )
-        coEvery { repository.hotSearches("chinese") } coAnswers { awaitCancellation() }
-        coEvery { repository.hotSearches("korean") } returns listOf(hotItem("韩剧甲"))
+        coEvery { repository.hotSearches("chinese", any()) } coAnswers { awaitCancellation() }
+        coEvery { repository.hotSearches("korean", any()) } returns listOf(hotItem("韩剧甲"))
         viewModel.loadHotSearchCategories()
         assertEquals("chinese", viewModel.selectedHotCategory)
         val old = launch { viewModel.loadHotSearches() }
@@ -194,7 +194,7 @@ class WorkSelectionTest {
         viewModel.savePlaybackPosition(original, 755_000)
         viewModel.playbackDidStart(original) // A stale start cannot change the current bookmark.
         advanceUntilIdle()
-        coVerify(exactly = 1) { repository.recordPlayback(any(), "A", "0", second.name, any()) }
+        coVerify(exactly = 1) { repository.recordPlayback(any(), "A", "0", second.name, any(), any(), matchNullable { true }) }
         coVerify(exactly = 1) { repository.recordPlaybackPosition(original.workId, "A", "0", second.name, 755_000) }
         assertNull(viewModel.works.single().playbackPositions["B"])
         viewModel.selectResult(a)
@@ -219,18 +219,18 @@ class WorkSelectionTest {
         val work = viewModel.works.single()
         viewModel.selectResult(b)
         advanceUntilIdle()
-        coVerify(exactly = 0) { repository.recordPlayback(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { repository.recordPlayback(any(), any(), any(), any(), any(), any(), matchNullable { true }) }
         viewModel.playbackDidStart(TigerTVViewModel.PlaybackSession(work.id, "B", "0", first.name, 0, -1))
         viewModel.selectEpisode(0)
         advanceUntilIdle()
-        coVerify(exactly = 0) { repository.recordPlayback(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { repository.recordPlayback(any(), any(), any(), any(), any(), any(), matchNullable { true }) }
         viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         assertEquals(b, viewModel.works.single().defaultSource)
-        coVerify(exactly = 1) { repository.recordPlayback(work.id, "B", "0", first.name, any()) }
+        coVerify(exactly = 1) { repository.recordPlayback(work.id, "B", "0", first.name, any(), any(), matchNullable { true }) }
         viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession)) // Resume must not append duplicate history.
         advanceUntilIdle()
-        coVerify(exactly = 1) { repository.recordPlayback(work.id, "B", "0", first.name, any()) }
+        coVerify(exactly = 1) { repository.recordPlayback(work.id, "B", "0", first.name, any(), any(), matchNullable { true }) }
         viewModel.selectResult(a)
         advanceUntilIdle()
         viewModel.selectEpisode(0)
@@ -238,7 +238,7 @@ class WorkSelectionTest {
         viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         assertEquals(a.site, viewModel.works.single().lastPlayedSite)
-        coVerify(exactly = 1) { repository.recordPlayback(work.id, "A", "0", first.name, any()) }
+        coVerify(exactly = 1) { repository.recordPlayback(work.id, "A", "0", first.name, any(), any(), matchNullable { true }) }
     }
 
     @Test fun replayingTheSameEpisodeStartsANewPersistenceSession() = runTest(dispatcher) {
@@ -255,7 +255,7 @@ class WorkSelectionTest {
         viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         // Core checks persistent state; a local bookmark cannot suppress another session's start.
-        coVerify(exactly = 2) { repository.recordPlayback(viewModel.works.single().id, "A", "0", first.name, any()) }
+        coVerify(exactly = 2) { repository.recordPlayback(viewModel.works.single().id, "A", "0", first.name, any(), any(), matchNullable { true }) }
     }
 
     @Test fun lateSearchSnapshotsKeepLocalProgressAndStillMergeNewResources() = runTest(dispatcher) {
@@ -416,7 +416,7 @@ class WorkSelectionTest {
         assertEquals(1, viewModel.resumeEpisodeIndex)
         assertEquals(bSecond.name, viewModel.episodes[viewModel.resumeEpisodeIndex].name)
         assertEquals(mapOf("A" to PlaybackBookmark("0", second.name), "B" to PlaybackBookmark("7", bSecond.name)), viewModel.works.single().playback)
-        coVerify(exactly = 2) { repository.recordPlayback(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 2) { repository.recordPlayback(any(), any(), any(), any(), any(), any(), matchNullable { true }) }
     }
 
     @Test fun unavailableBookmarksFallBackWithoutBorrowingAnotherLinesEpisode() = runTest(dispatcher) {
@@ -451,7 +451,7 @@ class WorkSelectionTest {
         advanceUntilIdle()
         assertEquals("A", viewModel.works.single().lastPlayedSite)
         assertEquals(PlaybackBookmark("0", second.name), viewModel.works.single().playback["B"])
-        coVerify(exactly = 1) { repository.recordPlayback(work.id, "A", "0", first.name, any()) }
+        coVerify(exactly = 1) { repository.recordPlayback(work.id, "A", "0", first.name, any(), any(), matchNullable { true }) }
     }
 
     @Test fun aNewWorkInheritsTheRecentSiteWithoutSavingItsOwnHistory() = runTest(dispatcher) {
@@ -471,7 +471,7 @@ class WorkSelectionTest {
         assertNull(unwatched.lastPlayedSite)
         assertEquals("B", unwatched.defaultSource.site)
         assertEquals(otherA, unwatched.orderedSources.first { it.vodPic.isNotBlank() })
-        coVerify(exactly = 0) { repository.recordPlayback(unwatched.id, any(), any(), any(), any()) }
+        coVerify(exactly = 0) { repository.recordPlayback(unwatched.id, any(), any(), any(), any(), any(), matchNullable { true }) }
     }
 
     @Test fun rawPlaybackSelectionAndRetryNeverCallRepository() = runTest(dispatcher) {

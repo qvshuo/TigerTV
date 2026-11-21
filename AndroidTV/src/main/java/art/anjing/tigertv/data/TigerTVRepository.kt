@@ -19,15 +19,18 @@ class TigerTVRepository(private val core: CoreService) {
     suspend fun fetch(siteName: String, vodId: Int): Result<FetchResponse> = result { core.fetch(siteName, vodId) }
     suspend fun resolveCoverFallback(siteName: String, vodId: Int): String? = withContext(Dispatchers.IO) { core.resolveCoverFallback(siteName, vodId) }
     suspend fun recentPlayback(): List<RecentPlayback> = withContext(Dispatchers.IO) { core.recentPlayback() }
-    suspend fun recordPlayback(workId: String, site: String, line: String, episode: String, source: SearchResult? = null) = withContext(Dispatchers.IO) {
-        core.recordPlayback(workId, site, line, episode, source)
+    suspend fun recordPlayback(workId: String, site: String, line: String, episode: String,
+        source: SearchResult? = null, cardSource: SearchResult? = null, cardPoster: String? = null,
+    ) = withContext(Dispatchers.IO) {
+        core.recordPlayback(workId, site, line, episode, source, cardSource, cardPoster)
     }
     suspend fun recordPlaybackPosition(workId: String, site: String, line: String, episode: String, positionMillis: Long, percent: Int? = null) = withContext(Dispatchers.IO) {
         core.recordPlaybackPosition(workId, site, line, episode, positionMillis, percent)
     }
     suspend fun warmHotSearches(category: String) = withContext(Dispatchers.IO) { core.warmHotSearches(category) }
     fun hotSearchCategories(): List<HotSearchCategory> = core.hotSearchCategories()
-    suspend fun hotSearches(category: String): List<art.anjing.tigertv.domain.HotSearchItem> = withContext(Dispatchers.IO) { core.hotSearches(category) }
+    suspend fun hotSearches(category: String, onUpdate: (suspend (List<HotSearchItem>) -> Unit)? = null): List<HotSearchItem> =
+        withContext(Dispatchers.IO) { core.hotSearches(category, onUpdate) }
     suspend fun loadHistory(): List<String> = withContext(Dispatchers.IO) { core.history() }
     suspend fun addHistory(item: String) = withContext(Dispatchers.IO) { core.addHistory(item) }
     suspend fun removeHistory(item: String) = withContext(Dispatchers.IO) { core.removeHistory(item) }

@@ -1,0 +1,13 @@
+services:
+  tigertv:
+    image: "${TIGERTV_IMAGE:-tigertv-web:local}"
+    build:
+      context: ..
+      dockerfile: web/Dockerfile
+    ports:
+      - "${TIGERTV_LISTEN:-0.0.0.0}:${TIGERTV_PORT:-18811}:8080"
+    environment:
+      TIGERTV_SITES: "${TIGERTV_SITES:-}"
+      TIGERTV_WEB_ORIGIN: "${TIGERTV_WEB_ORIGIN:-}"
+    read_only: true
+    restart: unless-stopped

@@ -39,7 +39,7 @@ class DanmakuRenderTest {
                 media=Media3Controller(context)
                 media.load(file.toURI().toString(),0,"时钟测试",site="fixture",onStarted={},onPosition={},onError={error(it)})
             }
-            compose.setContent { AndroidView(factory={DanmakuView(it).also { v -> view=v;v.bind(media.player,data,true,0){null} }},modifier=Modifier.fillMaxSize()) }
+            compose.setContent { AndroidView(factory={DanmakuView(it).also { v -> view=v;v.bind(media.player,data,true){null} }},modifier=Modifier.fillMaxSize()) }
             compose.waitUntil(10_000){main{media.player.playbackState==androidx.media3.common.Player.STATE_READY}}
             main{media.player.seekTo(0);media.player.play()}
             Thread.sleep(300)
@@ -55,14 +55,12 @@ class DanmakuRenderTest {
             Thread.sleep(500)
             assertEquals(frozen,main{view.lastClockMs})
             assertTrue(main{view.drawCount}-paints<=1)
-            main{view.bind(media.player,data,true,1000){null}}
-            compose.waitUntil(2_000){main{kotlin.math.abs(view.lastClockMs-media.player.currentPosition-1000)<100}}
-            main{view.bind(media.player,DanmakuTrack(120_000,emptyList()),true,0){null}}
+            main{view.bind(media.player,DanmakuTrack(120_000,emptyList()),true){null}}
             compose.waitUntil(2_000){main{view.drawnCount==0&&view.commentCount==0}}
-            main { view.bind(media.player, null, true, 0, loading = true) { null } }
+            main { view.bind(media.player, null, true, loading = DanmakuLoadingStep.Track) { null } }
             assertEquals(View.VISIBLE, main { view.visibility })
-            assertEquals("弹幕加载中...", main { view.contentDescription })
-            main { view.bind(media.player, null, false, 0, loading = true) { null } }
+            assertEquals(DanmakuLoadingStep.Track.label, main { view.contentDescription })
+            main { view.bind(media.player, null, false, loading = DanmakuLoadingStep.Track) { null } }
             assertEquals(View.GONE, main { view.visibility })
             assertNull(main { view.contentDescription })
         } finally { main{view.release();media.close()};file.delete() }
@@ -111,7 +109,7 @@ class DanmakuRenderTest {
                 media.play()
             }
             compose.waitUntil(10_000) {
-                compose.runOnIdle { media.hasVideoFrame && overlay(root)?.contentDescription == "弹幕加载中..." }
+                compose.runOnIdle { media.hasVideoFrame && overlay(root)?.contentDescription == DanmakuLoadingStep.Track.label }
             }
             response.complete(Unit)
             compose.waitUntil(5_000) { compose.runOnIdle { overlay(root)?.contentDescription == null } }

@@ -30,6 +30,7 @@ import art.anjing.tigertv.ui.Screen
 import art.anjing.tigertv.ui.TigerTVNavHost
 import art.anjing.tigertv.ui.settings.SettingsScreen
 import art.anjing.tigertv.ui.player.Media3Controller
+import art.anjing.tigertv.ui.player.PlaybackPreferences
 import art.anjing.tigertv.ui.player.PlayerScreen
 import art.anjing.tigertv.ui.theme.TigerTVTheme
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
@@ -43,11 +44,13 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.rules.TestName
 
 /** A real ExoPlayer, Compose focus tree and Kotlin core, with deterministic API fixtures. */
 @RunWith(AndroidJUnit4::class)
 class PlayerRemoteTest {
     @get:Rule val compose = createComposeRule()
+    @get:Rule val testName = TestName()
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val shown = mutableStateOf(true)
     private val detailShown = mutableStateOf(false)
@@ -65,10 +68,14 @@ class PlayerRemoteTest {
     @Before fun preparePlayer() {
         val context = instrumentation.targetContext
         context.getSharedPreferences("danmaku", 0).edit().clear().commit()
+        context.getSharedPreferences("playback", 0).edit().clear().commit()
         video = File(context.cacheDir, "remote-control-test.mp4")
         instrumentation.context.assets.open("player-test.mp4").use { input -> video.outputStream().use(input::copyTo) }
+        val alternate = if (testName.methodName == "speedIsRestoredForTheSameWorkAfterSwitchingSource") {
+            ""","alternate":{"name":"🎬备用资源","api":"https://fixture.test/alternate"}"""
+        } else ""
         val files = ConcurrentHashMap<String, String>().apply {
-            put("source", """{"api_site":{"test":{"name":"🎬测试","api":"https://fixture.test/api"}}}""")
+            put("source", """{"api_site":{"test":{"name":"🎬测试","api":"https://fixture.test/api"}$alternate}}""")
         }
         val storage = object : Storage {
             override fun read(path: String) = files[path]
@@ -97,7 +104,7 @@ class PlayerRemoteTest {
             model.search()
         }
         compose.waitUntil(10_000) { model.works.isNotEmpty() && !model.isSearching }
-        compose.runOnIdle { model.selectResult(model.works.single().sources.single()) }
+        compose.runOnIdle { model.selectResult(model.works.single().sources.first { it.site == "🎬测试" }) }
         compose.waitUntil(10_000) { model.fetchResponse != null && !model.isFetching }
         compose.runOnIdle { model.selectEpisode(0) }
         compose.waitUntil(10_000) { model.playbackUrl != null }
@@ -142,6 +149,52 @@ class PlayerRemoteTest {
     }
 
 
+    @Test fun naturalEndAutoAdvancesAndKeepsPlaybackOptions() {
+        val prefs = instrumentation.targetContext.getSharedPreferences("playback", 0)
+        compose.runOnIdle {
+            val player = findPlayerView(rootView)!!.player!!
+            player.setPlaybackSpeed(1.5f)
+            player.seekTo(player.duration - 300)
+        }
+        compose.waitUntil(10_000) { model.selectedEpisodeIndex == 1 }
+        compose.waitUntil(10_000) { model.works.single().playback.values.singleOrNull()?.episode == "第二集" }
+        compose.runOnIdle {
+            val player = findPlayerView(rootView)!!.player!!
+            assertEquals(1.5f, player.playbackParameters.speed)
+            prefs.edit().putBoolean("autoNext", false).putBoolean("rememberSpeed", false).apply()
+            model.selectEpisode(0)
+        }
+        compose.waitUntil(10_000) { model.works.single().playback.values.singleOrNull()?.episode == "第一集" }
+        compose.runOnIdle {
+            val player = findPlayerView(rootView)!!.player!!
+            assertEquals(1f, player.playbackParameters.speed)
+            player.seekTo(player.duration - 300)
+        }
+        compose.waitUntil(10_000) {
+            var ended = false
+            instrumentation.runOnMainSync {
+                ended = findPlayerView(rootView)?.player?.playbackState == androidx.media3.common.Player.STATE_ENDED
+            }
+            ended
+        }
+        compose.runOnIdle { assertEquals(0, model.selectedEpisodeIndex) }
+    }
+
+    @Test fun speedIsRestoredForTheSameWorkAfterSwitchingSource() {
+        val prefs = PlaybackPreferences(instrumentation.targetContext)
+        compose.runOnIdle {
+            val work = model.works.single()
+            prefs.saveSpeed(work.id, 1.5f)
+            model.selectResult(work.sources.single { it.site == "🎬备用资源" })
+        }
+        compose.waitUntil(10_000) { model.fetchResponse != null && !model.isFetching }
+        compose.runOnIdle { model.selectEpisode(0) }
+        compose.waitUntil(10_000) { model.works.single().lastPlayedSite == "🎬备用资源" }
+        compose.runOnIdle {
+            assertEquals(1.5f, findPlayerView(rootView)!!.player!!.playbackParameters.speed)
+        }
+    }
+
     @Test fun danmakuMenuAndPerEpisodePreference() {
         compose.runOnIdle { findPlayerView(rootView)!!.player!!.pause() }
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("player-speed").fetchSemanticsNodes().isNotEmpty() }
@@ -149,23 +202,12 @@ class PlayerRemoteTest {
         remote(KeyEvent.KEYCODE_DPAD_RIGHT)
         compose.onNodeWithTag("player-danmaku").assertIsFocused()
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithText("提前 1 秒").assertExists()
-        compose.onNodeWithText("延后 1 秒").assertExists()
+        compose.onNodeWithText("提前 1 秒").assertDoesNotExist()
+        compose.onNodeWithText("延后 1 秒").assertDoesNotExist()
         compose.onNodeWithText("选择弹幕").assertExists()
         compose.onNodeWithText("关闭弹幕").assertExists()
         compose.onNodeWithTag("danmaku-action-4").assertIsFocused()
-        compose.onNodeWithTag("danmaku-offset").assertTextEquals("当前偏移 0 秒")
-        repeat(2) { remote(KeyEvent.KEYCODE_DPAD_UP) }
-        compose.onNodeWithTag("danmaku-action-1").assertIsFocused()
-        remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag("danmaku-offset").assertTextEquals("当前偏移 +1 秒")
-        remote(KeyEvent.KEYCODE_DPAD_UP)
-        compose.onNodeWithTag("danmaku-action-2").assertIsFocused()
-        remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag("danmaku-offset").assertTextEquals("当前偏移 0 秒")
-        repeat(3) { remote(KeyEvent.KEYCODE_DPAD_UP) }
+        remote(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNodeWithTag("danmaku-action-0").assertIsFocused()
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag("player-danmaku").assertContentDescriptionEquals("弹幕已关闭")
@@ -276,10 +318,12 @@ class PlayerRemoteTest {
         val requestsBeforeToggle = danmakuRequests.get()
         compose.onNodeWithTag("player-danmaku").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag("danmaku-action-0").assertIsFocused()
+        compose.onNodeWithTag("danmaku-action-4").assertIsFocused()
+        remote(KeyEvent.KEYCODE_DPAD_DOWN)
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag("player-danmaku").assertContentDescriptionEquals("弹幕已关闭")
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        remote(KeyEvent.KEYCODE_DPAD_DOWN)
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag("player-danmaku").assertContentDescriptionEquals("弹幕已开启")
         assertEquals("Reopening a loaded track must not request another source", requestsBeforeToggle, danmakuRequests.get())
@@ -300,7 +344,7 @@ class PlayerRemoteTest {
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag("danmaku-action-4").assertIsFocused()
         remote(KeyEvent.KEYCODE_DPAD_DOWN)
-        compose.onNodeWithTag("player-danmaku").assertIsFocused()
+        compose.onNodeWithTag("danmaku-action-0").assertIsFocused()
         remote(KeyEvent.KEYCODE_DPAD_UP)
         compose.onNodeWithTag("danmaku-action-4").assertIsFocused()
         remote(KeyEvent.KEYCODE_BACK)
@@ -427,24 +471,19 @@ class PlayerRemoteTest {
         assertEquals(1, exits)
     }
 
-    @Test fun detailResourceLineAndEpisodeFocusRemainConnected() {
+    @Test fun detailResourceAndEpisodeFocusRemainConnected() {
         compose.runOnIdle { detailShown.value = true }
         compose.onNode(hasText("播放 · 第一集", substring = true) and hasClickAction()).assertIsFocused()
         remote(KeyEvent.KEYCODE_DPAD_DOWN)
-        compose.onNode(hasText("🎬测试") and hasClickAction()).assertIsFocused()
-        remote(KeyEvent.KEYCODE_DPAD_DOWN)
-        compose.onNodeWithText("主线").assertIsFocused()
-        remote(KeyEvent.KEYCODE_DPAD_RIGHT)
-        compose.onNodeWithText("备用线路").assertIsFocused().assertIsNotSelected()
-        compose.onNodeWithText("主线").assertIsSelected()
-        captureWhenRequested("detail")
-        remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithText("备用线路").assertIsSelected()
-        compose.onNodeWithText("主线").assertIsDisplayed().assertIsNotSelected()
+        compose.onNode(hasText("测试") and hasClickAction()).assertIsFocused()
+        compose.onNodeWithText("线路").assertDoesNotExist()
         remote(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNodeWithText("第一集").assertIsFocused()
-        assertEquals(1, model.selectedPlaybackSourceIndex)
-        assertNull("Changing line must not start playback", model.playbackUrl)
+        captureWhenRequested("detail")
+        remote(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithText("第二集").assertIsFocused()
+        assertEquals(0, model.selectedPlaybackSourceIndex)
+        assertNull("Moving focus must not start playback", model.playbackUrl)
     }
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)

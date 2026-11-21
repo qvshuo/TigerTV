@@ -1,12 +1,11 @@
 package art.anjing.tigertv.ui.detail
 
-import art.anjing.tigertv.core.supportsHlsAdFiltering
 import androidx.activity.compose.BackHandler
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
-import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -23,13 +22,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -65,6 +59,7 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
     val episodes = viewModel.episodes
     val preferredSource = sources.indexOfFirst { it.coverKey == result?.coverKey }.coerceAtLeast(0)
     val preferredLine = viewModel.selectedPlaybackSourceIndex
+    val choices = remember(response, preferredLine) { episodeChoices(response, preferredLine) }
     val preferredEpisode = viewModel.resumeEpisodeIndex
     val currentEpisode = episodes.getOrNull(preferredEpisode)
     val episodeLabelHeight = with(LocalDensity.current) { MaterialTheme.typography.labelLarge.lineHeight.toDp() * 2 }
@@ -82,29 +77,11 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
     val overviewDetail = response ?: retainedDetail
     val overviewEpisode = if (response != null) currentEpisode else retainedEpisode
     val gridState = rememberLazyGridState()
-    val scope = rememberCoroutineScope()
     val playFocus = remember { FocusRequester() }
     val sourceFocus = remember { FocusRequester() }
-    val lineFocus = remember { FocusRequester() }
-    val episodeFocus = remember { FocusRequester() }
     var entryFocusRequested by remember { mutableStateOf(false) }
     var restoreRetryFocus by remember { mutableStateOf(false) }
     var sourceViewport by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    val sourceRowIndex = if (result != null) 2 else 1
-    val hasLines = response?.playSources?.isNotEmpty() == true
-
-    var focusJump by remember { mutableStateOf<Job?>(null) }
-    fun jump(index: Int, target: FocusRequester) {
-        focusJump?.cancel()
-        focusJump = scope.launch {
-            gridState.scrollToItem(index)
-            requestFocusSafely(target)
-        }
-    }
-
-    fun focusPlay() = jump(0, playFocus)
-    fun focusSources() { if (sources.isNotEmpty()) jump(sourceRowIndex - 1, sourceFocus) }
-    fun focusLines() = jump(sourceRowIndex + 1, lineFocus)
 
     // Only re-anchor when a new response changes the content below the focused resource.
     LaunchedEffect(viewModel.isFetching, response) {
@@ -116,8 +93,8 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
     LaunchedEffect(viewModel.isFetching, response?.site, response?.vodId, episodes.isNotEmpty()) {
         if (!entryFocusRequested && !viewModel.isFetching && viewModel.fetchErrorMessage == null) {
             entryFocusRequested = true
-            if (episodes.isNotEmpty()) focusPlay()
-            else if (sources.isNotEmpty()) focusSources()
+            if (episodes.isNotEmpty()) requestFocusSafely(playFocus)
+            else if (sources.isNotEmpty()) requestFocusSafely(sourceFocus)
         }
     }
 
@@ -135,50 +112,33 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
         }.padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding)) {
             BoxWithConstraints(Modifier.weight(1f)) {
                 val viewportHeight = maxHeight
-                fun focusEpisodes() = jump(sourceRowIndex + 4 + preferredEpisode, episodeFocus)
                 LazyVerticalGrid(
                     state = gridState,
                     columns = GridCells.Adaptive(minSize = EpisodeMinWidth),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = ChoiceInset, vertical = UiSpacing.sm),
                     horizontalArrangement = Arrangement.spacedBy(ChoiceGap),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(UiSpacing.sm)
                 ) {
                     if (result != null) {
                         item(key = "overview", span = { GridItemSpan(maxLineSpan) }) {
                             DetailOverview(result, overviewDetail, response?.vodPic, viewModel.coverFallbacks[result.coverKey],
                                 overviewEpisode, !viewModel.isFetching && response != null && currentEpisode != null,
-                                hasResumePosition, { onPlay(preferredEpisode) },
-                                { if (gridState.firstVisibleItemIndex != 0 || gridState.firstVisibleItemScrollOffset != 0) {
-                                    scope.launch { gridState.scrollToItem(0) }
-                                } }, playFocus,
-                                ::focusSources)
+                                hasResumePosition, { onPlay(preferredEpisode) }, playFocus)
                         }
                     }
                     item(key = "source-label", span = { GridItemSpan(maxLineSpan) }) { SectionTitle("资源") }
                     item(key = "sources", span = { GridItemSpan(maxLineSpan) }) {
                         FlowRow(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = UiSpacing.sm)
-                                .focusProperties {
-                                    onExit = {
-                                        val destination = when (requestedFocusDirection) {
-                                            FocusDirection.Up -> if (episodes.isNotEmpty()) ::focusPlay else null
-                                            FocusDirection.Down -> if (hasLines) ::focusLines else if (episodes.isNotEmpty()) ::focusEpisodes else null
-                                            else -> null
-                                        }
-                                        if (requestedFocusDirection == FocusDirection.Up || destination != null) {
-                                            cancelFocusChange()
-                                            destination?.invoke()
-                                        }
-                                    }
-                                }
-                                .focusGroup(),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = UiSpacing.sm),
                             horizontalArrangement = Arrangement.spacedBy(ChoiceGap),
                             verticalArrangement = Arrangement.spacedBy(ChoiceGap)
                         ) {
                             sources.forEachIndexed { index, source ->
                                 key(source.coverKey) {
-                                    DetailChoice(source.site, source.coverKey == result?.coverKey, adFiltering = supportsHlsAdFiltering(source.site),
+                                    val name = source.site.trimStart().removePrefix("🎬").trim()
+                                    DetailChoice(name, source.coverKey == result?.coverKey,
+                                        badge = "去广告".takeIf { name in verifiedAdSources },
                                         modifier = if (index == preferredSource) Modifier.focusRequester(sourceFocus) else Modifier) {
                                         if (source.coverKey != result?.coverKey) {
                                             restoreRetryFocus = false
@@ -191,64 +151,30 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                             }
                         }
                     }
-                    item(key = "line-label", span = { GridItemSpan(maxLineSpan) }) { SectionTitle("线路") }
-                    item(key = "lines", span = { GridItemSpan(maxLineSpan) }) {
-                        if (viewModel.isFetching) {
-                            LoadingOverlay(stringResource(R.string.loading), Modifier.fillMaxWidth().height(UiMetrics.controlHeight + UiSpacing.sm * 2))
-                        } else if (viewModel.fetchErrorMessage != null) {
-                            ErrorMessage(message = viewModel.fetchErrorMessage ?: stringResource(R.string.error_generic),
-                                onRetry = {
-                                    restoreRetryFocus = true
-                                    viewModel.retryFetch()
-                                    focusSources()
-                                }, compact = true, focusRetry = !entryFocusRequested || restoreRetryFocus)
-                        } else if (response != null && hasLines) {
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = UiSpacing.sm)
-                                    .focusProperties {
-                                        onExit = {
-                                            val destination = when (requestedFocusDirection) {
-                                                FocusDirection.Up -> ::focusSources
-                                                FocusDirection.Down -> if (episodes.isNotEmpty()) ::focusEpisodes else null
-                                                else -> null
-                                            }
-                                            if (destination != null) {
-                                                cancelFocusChange()
-                                                destination()
-                                            }
-                                        }
-                                    }
-                                    .focusGroup(),
-                                horizontalArrangement = Arrangement.spacedBy(ChoiceGap),
-                                verticalArrangement = Arrangement.spacedBy(ChoiceGap),
-                            ) {
-                                response.playSources.forEachIndexed { index, source ->
-                                    key(source.id) {
-                                        DetailChoice(source.name, index == preferredLine,
-                                            modifier = if (index == preferredLine) Modifier.focusRequester(lineFocus) else Modifier) {
-                                            viewModel.selectPlaybackSource(index)
-                                        }
-                                    }
+                    item(key = "episode-label", span = { GridItemSpan(maxLineSpan) }) { SectionTitle("选集") }
+                    if (viewModel.isFetching || viewModel.fetchErrorMessage != null || choices.isEmpty()) {
+                        item(key = "episode-status", span = { GridItemSpan(maxLineSpan) }) {
+                            // Keep the focused resource at its current viewport position during a request.
+                            Box(Modifier.fillMaxWidth().heightIn(min = viewportHeight)) {
+                                when {
+                                    viewModel.isFetching -> LoadingOverlay(stringResource(R.string.loading),
+                                        Modifier.fillMaxWidth().height(UiMetrics.controlHeight))
+                                    viewModel.fetchErrorMessage != null -> ErrorMessage(
+                                        message = viewModel.fetchErrorMessage ?: stringResource(R.string.error_generic),
+                                        onRetry = {
+                                            restoreRetryFocus = true
+                                            viewModel.retryFetch()
+                                        }, compact = true, focusRetry = !entryFocusRequested || restoreRetryFocus)
+                                    else -> Text("暂无播放内容")
                                 }
-                            }
-                        } else {
-                            Box(Modifier.fillMaxWidth().height(UiMetrics.controlHeight + UiSpacing.sm * 2), contentAlignment = Alignment.CenterStart) {
-                                if (viewModel.fetchErrorMessage == null) Text("暂无线路")
                             }
                         }
-                    }
-                    item(key = "episode-label", span = { GridItemSpan(maxLineSpan) }) { SectionTitle("选集") }
-                    when {
-                        viewModel.isFetching || viewModel.fetchErrorMessage != null || episodes.isEmpty() ->
-                            item(key = "episode-status", span = { GridItemSpan(maxLineSpan) }) {
-                                // Retain scroll room when loading or empty content replaces the episodes.
-                                Box(Modifier.fillMaxWidth().heightIn(min = maxOf(UiMetrics.loadingRegion, viewportHeight))) {
-                                    if (!viewModel.isFetching && viewModel.fetchErrorMessage == null) Text("暂无播放内容")
-                                }
+                    } else {
+                        itemsIndexed(choices, key = { _, choice -> "episode-${choice.line}-${choice.index}" }) { _, choice ->
+                            EpisodeCard(choice.label, choice.line == preferredLine && choice.index == selectedEpisode, episodeCellHeight) {
+                                viewModel.selectPlaybackSource(choice.line)
+                                onPlay(choice.index)
                             }
-                        else -> itemsIndexed(episodes, key = { index, _ -> "episode-$index" }) { index, episode ->
-                            EpisodeCard(episode, index == selectedEpisode, episodeCellHeight,
-                                modifier = if (index == preferredEpisode) Modifier.focusRequester(episodeFocus) else Modifier) { onPlay(index) }
                         }
                     }
                 }
@@ -257,19 +183,11 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
     }
 }
 
-private fun Modifier.onDpad(key: Key, action: (() -> Unit)?): Modifier = onPreviewKeyEvent {
-    if (action != null && it.type == KeyEventType.KeyDown && it.key == key) {
-        action()
-        true
-    } else false
-}
-
 @Composable
 private fun DetailOverview(result: SearchResult, detail: FetchResponse?, poster: String?, fallback: String?,
-    episode: EpisodeLink?, canPlay: Boolean, hasResumePosition: Boolean, onPlay: () -> Unit, onPlayFocus: () -> Unit,
-    playFocus: FocusRequester, onPlayDown: () -> Unit) {
+    episode: EpisodeLink?, canPlay: Boolean, hasResumePosition: Boolean, onPlay: () -> Unit, playFocus: FocusRequester) {
     Row(
-        Modifier.fillMaxWidth().padding(bottom = UiSpacing.lg),
+        Modifier.fillMaxWidth().padding(bottom = UiSpacing.sm),
         horizontalArrangement = Arrangement.spacedBy(UiSpacing.lg),
         verticalAlignment = Alignment.Top
     ) {
@@ -279,15 +197,17 @@ private fun DetailOverview(result: SearchResult, detail: FetchResponse?, poster:
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(UiSpacing.sm)) {
             Text(detail?.vodName?.ifBlank { result.vodName } ?: result.vodName,
                 style = MaterialTheme.typography.headlineMedium)
-            val metadata = listOf(detail?.vodYear ?: result.vodYear, detail?.typeName ?: result.typeName, detail?.vodArea.orEmpty()).filter { it.isNotBlank() }
+            val year = detail?.vodYear?.takeIf { it.isNotBlank() && it != "0" } ?: result.vodYear
+            val metadata = listOf(year.takeUnless { it == "0" }.orEmpty(),
+                detail?.typeName?.ifBlank { result.typeName } ?: result.typeName,
+                detail?.vodArea.orEmpty()).filter { it.isNotBlank() }
             if (metadata.isNotEmpty()) Text(metadata.joinToString(" · "), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             ActionButton(onClick = onPlay, enabled = canPlay,
                 height = 64.dp,
                 colors = ButtonDefaults.colors(containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary),
                 contentPadding = PaddingValues(horizontal = UiSpacing.lg, vertical = 0.dp),
-                modifier = Modifier.padding(vertical = UiSpacing.sm).focusRequester(playFocus).onDpad(Key.DirectionDown, onPlayDown)
-                    .onFocusChanged { if (it.isFocused) onPlayFocus() }) {
+                modifier = Modifier.padding(vertical = UiSpacing.sm).focusRequester(playFocus)) {
                 Icon(painterResource(R.drawable.player_play_arrow), contentDescription = null, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.width(UiSpacing.sm))
                 val action = if (hasResumePosition) "继续播放" else "播放"
@@ -312,17 +232,17 @@ private fun SectionTitle(title: String) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier = Modifier, maxLines: Int = 1, adFiltering: Boolean = false, onClick: () -> Unit) {
+internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier = Modifier, maxLines: Int = 1, badge: String? = null, onClick: () -> Unit) {
     SelectionChip(selected = selected, onClick = onClick,
-        modifier = modifier.width(IntrinsicSize.Max).heightIn(min = UiMetrics.controlHeight)) {
-        Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.controlHeight - 16.dp),
+        modifier = modifier.width(IntrinsicSize.Max).heightIn(min = UiMetrics.chipHeight)) {
+        Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.chipHeight - 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically) {
             Text(title, modifier = Modifier.weight(1f, fill = false), textAlign = TextAlign.Center,
                 maxLines = maxLines, overflow = TextOverflow.Ellipsis)
-            if (adFiltering) {
-                Text("去广告", style = MaterialTheme.typography.labelMedium)
-            }
+            if (badge != null) Text(badge, style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.border(1.dp, LocalContentColor.current.copy(alpha = .55f), MaterialTheme.shapes.extraSmall)
+                    .padding(horizontal = UiSpacing.xs))
         }
     }
 }
@@ -349,19 +269,39 @@ private fun PosterPlaceholder(title: String) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun EpisodeCard(episode: EpisodeLink, isSelected: Boolean, height: Dp, modifier: Modifier = Modifier, onPlay: () -> Unit) {
+private fun EpisodeCard(label: String, isSelected: Boolean, height: Dp, modifier: Modifier = Modifier, onPlay: () -> Unit) {
     SelectionChip(selected = isSelected, onClick = onPlay,
         modifier = modifier.fillMaxWidth().height(height)) {
         Box(Modifier.fillMaxWidth().height(height - UiSpacing.md), contentAlignment = Alignment.Center) {
-            Text(episode.name.ifBlank { "未命名剧集" }, textAlign = TextAlign.Center,
+            Text(label, textAlign = TextAlign.Center,
                 maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
+private data class EpisodeChoice(val line: Int, val index: Int, val label: String)
+
+private fun episodeChoices(detail: FetchResponse?, preferredLine: Int): List<EpisodeChoice> {
+    val lines = detail?.playSources.orEmpty()
+    val seen = mutableSetOf<Pair<String, String>>()
+    val ordered = lines.indices.sortedBy { it != preferredLine }.flatMap { line ->
+        lines[line].episodes.mapIndexedNotNull { index, episode ->
+            val name = episode.name.trim().ifBlank { "未命名剧集" }
+            EpisodeChoice(line, index, name).takeIf { seen.add(name to episode.url) }
+        }
+    }
+    val repeatedLabels = ordered.groupingBy { it.label }.eachCount()
+    return ordered.map { choice ->
+        if (choice.line != preferredLine && repeatedLabels.getValue(choice.label) > 1) {
+            choice.copy(label = "${choice.label} · ${lines[choice.line].name}")
+        } else choice
+    }
+}
+
+private val verifiedAdSources = setOf("360 资源", "-爱奇艺-", "魔都资源", "优质资源", "非凡资源")
 private val EpisodeMinWidth = 120.dp
 private val ChoiceInset = UiSpacing.md
-private val ChoiceGap = 20.dp
+private val ChoiceGap = 12.dp
 
 // Source updates must not re-center controls that are already visible.
 @OptIn(ExperimentalFoundationApi::class)

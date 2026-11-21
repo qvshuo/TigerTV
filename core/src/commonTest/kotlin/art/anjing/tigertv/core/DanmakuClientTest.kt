@@ -24,4 +24,25 @@ class DanmakuClientTest {
         assertEquals(0xFFFFFF, track.comments.first().color)
         assertNull(parseDanmakuTrack("""{"videoDuration":0,"comments":[]}""").referenceDurationMs)
     }
+
+    @Test fun recentTrackIsReusedOnlyForTheSameServerAndEpisode() = runTest {
+        val requests = mutableListOf<String>()
+        var now = 0L
+        val http = configureClient(HttpClient(testEngine { request ->
+            requests += request.url.encodedPath
+            respond("""{"comments":[{"p":"1,1,0","m":"测试"}]}""")
+        }))
+        try {
+            val cache = DanmakuTrackCache { now }
+            val network = Network(http)
+            fun client(path: String) = DanmakuClient(network, "https://example.test/$path", cache)
+            val first = client("a").comments(7)
+            assertSame(first, client("a").comments(7))
+            assertNotSame(first, client("b").comments(7))
+            assertNotSame(first, client("a").comments(8))
+            now = 600_000
+            assertNotSame(first, client("a").comments(7))
+            assertEquals(listOf("/a/api/v2/comment/7", "/b/api/v2/comment/7", "/a/api/v2/comment/8", "/a/api/v2/comment/7"), requests)
+        } finally { http.close() }
+    }
 }

@@ -45,7 +45,7 @@ class HlsAdDataSourceTest {
     @Test fun filtersSameResponseAndBindsTimelineToSession() {
         val old = HlsPlaybackSession(uri, "🎬暴风资源")
         val next = HlsPlaybackSession(uri, "🎬暴风资源")
-        val filtered = read(HlsAdDataSource(Fake(playlist().toByteArray(), uri), old) { _, text ->
+        val filtered = read(HlsAdDataSource(Fake(playlist().toByteArray(), uri), old) { text ->
             filterHlsAds(text) { it.startsWith("/video/adjump/time/") }
         })
         assertFalse(filtered.contains("/video/adjump/time/"))
@@ -53,12 +53,23 @@ class HlsAdDataSourceTest {
         assertEquals(28_760L, old.timeline!!.effectiveToVideo(3_000))
         assertNull(next.timeline)
         val changed = playlist().replace("/video/adjump/time/", "/new-content/")
-        val refreshed = read(HlsAdDataSource(Fake(changed.toByteArray(), uri), old) { _, text ->
+        val refreshed = read(HlsAdDataSource(Fake(changed.toByteArray(), uri), old) { text ->
             filterHlsAds(text) { it.startsWith("/video/adjump/time/") }
         })
         assertEquals(changed, refreshed)
         assertNull(old.timeline)
     }
+    @Test fun switchingFilteringOffKeepsOriginalBytesAndTimeline() {
+        val session = HlsPlaybackSession(uri, "🎬暴风资源", filterAds = false)
+        val input = playlist()
+        val source = HlsAdDataSource(Fake(input.toByteArray(), uri), session) { _ ->
+            fail("Disabled filtering must not invoke the parser")
+            null
+        }
+        assertEquals(input, read(source))
+        assertNull(session.timeline)
+    }
+
     @Test fun unsupportedTagsAndOtherSourcesReturnOriginal() {
         val input = playlist().replace("#EXTM3U", "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\"")
         val session = HlsPlaybackSession(uri, "🎬暴风资源")
@@ -74,7 +85,7 @@ class HlsAdDataSourceTest {
         assertEquals(master, read(HlsAdDataSource(Fake(master.toByteArray(), uri), session)))
         val child = Uri.parse("https://example.test/child/index.m3u8")
         assertEquals(child, session.childPlaylist)
-        val filtered = read(HlsAdDataSource(Fake(playlist().toByteArray(), child), session) { _, text ->
+        val filtered = read(HlsAdDataSource(Fake(playlist().toByteArray(), child), session) { text ->
             filterHlsAds(text) { it.startsWith("/video/adjump/time/") }
         }, child)
         assertFalse(filtered.contains("/video/adjump/time/"))
@@ -85,15 +96,23 @@ class HlsAdDataSourceTest {
         assertNull(session.timeline)
     }
 
-    @Test fun moduAnimeRemainsUnfilteredEvenWithMatchingCandidate() {
+    @Test fun usesGenericEvidenceForAnySource() {
         val session = HlsPlaybackSession(uri, "🎬魔都动漫")
-        var invoked = false
-        assertEquals(playlist(), read(HlsAdDataSource(Fake(playlist().toByteArray(), uri), session) { _, text ->
-            invoked = true
-            filterHlsAds(text) { it.startsWith("/video/adjump/time/") }
-        }))
-        assertFalse(invoked)
+        assertEquals(playlist(), read(HlsAdDataSource(Fake(playlist().toByteArray(), uri), session)))
         assertNull(session.timeline)
+
+        val tagged = "#EXTM3U\n" + (0..10).joinToString("") { index ->
+            when (index) {
+                3 -> "#EXT-X-CUE-OUT:8\n#EXTINF:4,\npart3.ts\n"
+                4 -> "#EXTINF:4,\npart4.ts\n"
+                5 -> "#EXT-X-CUE-IN\n#EXTINF:20,\npart5.ts\n"
+                else -> "#EXTINF:20,\npart$index.ts\n"
+            }
+        } + "#EXT-X-ENDLIST\n"
+        val filtered = read(HlsAdDataSource(Fake(tagged.toByteArray(), uri), session))
+        assertFalse(filtered.contains("part3.ts"))
+        assertTrue(filtered.contains("part5.ts"))
+        assertEquals(68_000L, session.timeline!!.effectiveToVideo(60_000))
     }
 
 }

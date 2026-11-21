@@ -8,7 +8,10 @@ import kotlinx.serialization.SerialName
 internal data class HotSearchCache(val fetchedAtMillis: Long, val titles: List<HotSearchItem>)
 
 @Serializable
-internal data class HotSearchPage(@SerialName("subject_collection_items") val items: List<DoubanItem>)
+internal data class HotSearchPage(
+    @SerialName("subject_collection_items") val items: List<DoubanItem>,
+    val total: Int? = null,
+)
 
 @Serializable
 internal data class DoubanItem(

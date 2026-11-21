@@ -1,0 +1,10 @@
+services:
+  tigertv:
+    ports: !reset []
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: "${TIGERTV_PROXY_NETWORK:-proxy}"

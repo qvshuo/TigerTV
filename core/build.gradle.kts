@@ -15,6 +15,21 @@ val generateContractFixtures = tasks.register("generateContractFixtures") {
         }
     }
 }
+val generatePlaybackRules = tasks.register("generatePlaybackRules") {
+    val heuristics = project.file("../shared/hls-heuristics.json")
+    val danmakuSelection = project.file("../shared/danmaku-selection.json")
+    val output = layout.buildDirectory.file("generated/playback/PlaybackRules.kt")
+    inputs.files(heuristics, danmakuSelection)
+    outputs.file(output)
+    doLast {
+        output.get().asFile.apply {
+            parentFile.mkdirs()
+            writeText("package art.anjing.tigertv.core\n" +
+                "internal const val hlsHeuristicsJson = \"\"\"" + heuristics.readText().trim() + "\"\"\"\n" +
+                "internal const val danmakuSelectionJson = \"\"\"" + danmakuSelection.readText().trim() + "\"\"\"\n")
+        }
+    }
+}
 if (providers.gradleProperty("android").orNull == "true") {
     layout.buildDirectory.set(rootProject.layout.buildDirectory.dir("core"))
     apply(plugin = "com.android.kotlin.multiplatform.library")
@@ -36,6 +51,7 @@ kotlin {
     applyDefaultHierarchyTemplate()
     sourceSets {
         commonTest { kotlin.srcDir(generateContractFixtures.map { layout.buildDirectory.dir("generated/fixtures").get() }) }
+        commonMain { kotlin.srcDir(generatePlaybackRules.map { layout.buildDirectory.dir("generated/playback").get() }) }
         commonMain.dependencies {
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
             api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")

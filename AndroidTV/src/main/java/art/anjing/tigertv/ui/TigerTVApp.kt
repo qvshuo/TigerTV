@@ -46,7 +46,12 @@ fun TigerTVApp(
 
 @Composable
 internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostController) {
-    NavHost(navController = navController, startDestination = Screen.Home.route) {
+    NavHost(
+        navController = navController,
+        startDestination = Screen.Home.route,
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+    ) {
         composable(Screen.Home.route) {
             HomeScreen(viewModel,
                 onSearch = { navController.navigate(Screen.Search.route) },
@@ -64,11 +69,18 @@ internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostC
         dialog(Screen.Settings.route, dialogProperties = DialogProperties(usePlatformDefaultWidth = false)) {
             SettingsScreen()
         }
-        composable(Screen.Results.route,
-            popEnterTransition = { if (initialState.destination.route == Screen.Episodes.route) EnterTransition.None else null },
-        ) {
+        composable(Screen.Results.route) {
             ResultsScreen(
                 viewModel = viewModel,
+                onSearch = {
+                    if (!viewModel.isSearching) {
+                        viewModel.clearResults()
+                        navController.popBackStack()
+                        if (navController.currentDestination?.route != Screen.Search.route) {
+                            navController.navigate(Screen.Search.route)
+                        }
+                    }
+                },
                 onBack = {
                     viewModel.clearResults()
                     navController.popBackStack()
@@ -79,11 +91,7 @@ internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostC
                 }
             )
         }
-        composable(Screen.Episodes.route,
-            exitTransition = { if (targetState.destination.route == Screen.Player.route) ExitTransition.None else null },
-            popEnterTransition = { if (initialState.destination.route == Screen.Player.route) EnterTransition.None else null },
-            popExitTransition = { if (targetState.destination.route in listOf(Screen.Results.route, Screen.Player.route)) ExitTransition.None else null },
-        ) {
+        composable(Screen.Episodes.route) {
             val detailReady = !viewModel.isFetching && viewModel.fetchResponse != null
             LaunchedEffect(detailReady) {
                 if (detailReady) viewModel.takeExactRecentEpisode()?.let { index ->
@@ -105,11 +113,7 @@ internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostC
                 }
             )
         }
-        // Video uses its own Surface; alpha transitions expose an empty frame on teardown.
-        composable(Screen.Player.route,
-            enterTransition = { EnterTransition.None }, exitTransition = { ExitTransition.None },
-            popEnterTransition = { EnterTransition.None }, popExitTransition = { ExitTransition.None }
-        ) {
+        composable(Screen.Player.route) {
             val directResume = remember { navController.previousBackStackEntry?.destination?.route == Screen.Home.route }
             PlayerScreen(
                 viewModel = viewModel,

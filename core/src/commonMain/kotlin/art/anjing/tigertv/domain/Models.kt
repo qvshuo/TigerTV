@@ -86,15 +86,47 @@ data class PlaybackSource(val id: String, val name: String, val episodes: List<E
         if (bookmark?.line == id) episodes.indexOfFirst { it.name == bookmark.episode }.coerceAtLeast(0) else 0
 }
 
-fun aggregateWorks(results: List<SearchResult>): List<VideoWork> = results.distinctBy { it.coverKey }.groupBy { result ->
-    val title = result.vodName.filterNot { it.isWhitespace() }.lowercase()
-    val year = result.vodYear.trim().takeUnless { it == "0" }.orEmpty()
-    // Empty titles use a separate namespace from real titles, including source-like titles.
-    val identity = if (title.isEmpty()) listOf(kotlinx.serialization.json.JsonNull,
-        kotlinx.serialization.json.JsonPrimitive(result.coverKey))
-    else listOf(kotlinx.serialization.json.JsonPrimitive(title), kotlinx.serialization.json.JsonPrimitive(year))
-    kotlinx.serialization.json.JsonArray(identity).toString()
-}.map { (id, sources) -> VideoWork(id, sources.first().vodName, sources, sources.first().coverKey) }
+private val taggedAlias = Regex("[（(【](?:又名|别名|原名|英文名|aka)\\s*[:：]\\s*[^)）】]+[)）】]\\s*$", RegexOption.IGNORE_CASE)
+private val taggedYear = Regex("[（(【]((?:19|20)[0-9]{2})[)）】]\\s*$")
+private val yearWithUnit = Regex("((?:19|20)[0-9]{2})\\s*年?")
+
+internal fun foldWidth(text: String): String {
+    if (text.none { it == '\u3000' || it in '\uFF01'..'\uFF5E' }) return text
+    return buildString(text.length) {
+        for (char in text) append(when (char) {
+            '\u3000' -> ' '
+            in '\uFF01'..'\uFF5E' -> char - 0xFEE0
+            else -> char
+        })
+    }
+}
+
+private fun workIdentity(title: String, year: String, coverKey: String): String {
+    val normalizedTitle = title.filterNot { it.isWhitespace() }.lowercase()
+    val identity = if (normalizedTitle.isEmpty()) listOf(kotlinx.serialization.json.JsonNull,
+        kotlinx.serialization.json.JsonPrimitive(coverKey))
+    else listOf(kotlinx.serialization.json.JsonPrimitive(normalizedTitle), kotlinx.serialization.json.JsonPrimitive(year))
+    return kotlinx.serialization.json.JsonArray(identity).toString()
+}
+
+fun legacyWorkId(source: SearchResult): String =
+    workIdentity(source.vodName, source.vodYear.trim().takeUnless { it == "0" }.orEmpty(), source.coverKey)
+
+fun workId(source: SearchResult): String {
+    val title = foldWidth(source.vodName).trim()
+    val withoutAlias = taggedAlias.replace(title, "").ifBlank { title }
+    val rawYear = foldWidth(source.vodYear).trim().takeUnless { it == "0" }.orEmpty()
+    val year = yearWithUnit.matchEntire(rawYear)?.groupValues?.get(1) ?: rawYear
+    val tagged = taggedYear.find(withoutAlias)
+    if (tagged != null && (year.isEmpty() || year == tagged.groupValues[1])) {
+        val main = withoutAlias.substring(0, tagged.range.first).trimEnd()
+        if (main.isNotEmpty()) return workIdentity(main, tagged.groupValues[1], source.coverKey)
+    }
+    return workIdentity(withoutAlias, year, source.coverKey)
+}
+
+fun aggregateWorks(results: List<SearchResult>): List<VideoWork> = results.distinctBy { it.coverKey }.groupBy(::workId)
+    .map { (id, sources) -> VideoWork(id, sources.first().vodName, sources, sources.first().coverKey) }
 
 @Serializable
 data class PlaybackBookmark(val line: String, val episode: String)
@@ -102,6 +134,7 @@ data class PlaybackBookmark(val line: String, val episode: String)
 data class RecentPlayback(
     val workId: String, val source: SearchResult, val bookmark: PlaybackBookmark,
     val positions: Map<String, Map<String, Long>>, val progressPercent: Int?, val playedAt: Long,
+    val cardSource: SearchResult = source, val cardPoster: String? = null,
 ) {
     val positionMillis: Long get() = positions[bookmark.line]?.get(bookmark.episode) ?: 0
 }

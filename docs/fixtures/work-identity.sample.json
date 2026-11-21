@@ -1,0 +1,58 @@
+[
+  {
+    "site": "360",
+    "vod_id": 1,
+    "vod_name": "逐玉",
+    "vod_year": "2026",
+    "expected": "a"
+  },
+  {
+    "site": "爱奇艺",
+    "vod_id": 2,
+    "vod_name": "逐玉",
+    "vod_year": "2026",
+    "expected": "a"
+  },
+  {
+    "site": "改写边界",
+    "vod_id": 3,
+    "vod_name": "逐　玉（２０２６）【又名：Pursuit of Jade】",
+    "vod_year": "0",
+    "expected": "a"
+  },
+  {
+    "site": "年单位",
+    "vod_id": 4,
+    "vod_name": "逐玉",
+    "vod_year": "２０２６年",
+    "expected": "a"
+  },
+  {
+    "site": "未知年份",
+    "vod_id": 5,
+    "vod_name": "逐玉",
+    "vod_year": "",
+    "expected": "b"
+  },
+  {
+    "site": "跨年同名",
+    "vod_id": 6,
+    "vod_name": "逐玉",
+    "vod_year": "2024",
+    "expected": "c"
+  },
+  {
+    "site": "年份冲突",
+    "vod_id": 7,
+    "vod_name": "逐玉（2026）",
+    "vod_year": "2024",
+    "expected": "d"
+  },
+  {
+    "site": "续季",
+    "vod_id": 8,
+    "vod_name": "逐玉第二季（2026）",
+    "vod_year": "2026",
+    "expected": "e"
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "uris": [
+    "ad-0.ts",
+    "ad-1.ts",
+    "ad-2.ts",
+    "ad-3.ts"
+  ],
+  "playlist": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\",IV=0x00000000000000000000000000000001\n#EXTINF:5,\ncontent/intro0.ts\n#EXTINF:5,\ncontent/intro1.ts\n#EXTINF:5,\ncontent/intro2.ts\n#EXTINF:5,\ncontent/intro3.ts\n#EXTINF:5,\ncontent/intro4.ts\n#EXTINF:5,\ncontent/intro5.ts\n#EXTINF:5,\ncontent/intro6.ts\n#EXTINF:5,\ncontent/intro7.ts\n#EXTINF:5,\ncontent/intro8.ts\n#EXTINF:5,\ncontent/intro9.ts\n#EXTINF:3.123,\ncontent/0.ts\n#EXT-X-DISCONTINUITY\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:5,\nad-0.ts\n#EXTINF:5,\nad-1.ts\n#EXTINF:5,\nad-2.ts\n#EXTINF:2.567,\nad-3.ts\n#EXT-X-DISCONTINUITY\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\",IV=0x00000000000000000000000000000001\n#EXTINF:4.2,\ncontent/1.ts\n#EXTINF:5,\ncontent/outro0.ts\n#EXTINF:5,\ncontent/outro1.ts\n#EXTINF:5,\ncontent/outro2.ts\n#EXTINF:5,\ncontent/outro3.ts\n#EXTINF:5,\ncontent/outro4.ts\n#EXTINF:5,\ncontent/outro5.ts\n#EXTINF:5,\ncontent/outro6.ts\n#EXTINF:5,\ncontent/outro7.ts\n#EXTINF:5,\ncontent/outro8.ts\n#EXTINF:5,\ncontent/outro9.ts\n#EXT-X-ENDLIST\n",
+  "expected": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\",IV=0x00000000000000000000000000000001\n#EXTINF:5,\ncontent/intro0.ts\n#EXTINF:5,\ncontent/intro1.ts\n#EXTINF:5,\ncontent/intro2.ts\n#EXTINF:5,\ncontent/intro3.ts\n#EXTINF:5,\ncontent/intro4.ts\n#EXTINF:5,\ncontent/intro5.ts\n#EXTINF:5,\ncontent/intro6.ts\n#EXTINF:5,\ncontent/intro7.ts\n#EXTINF:5,\ncontent/intro8.ts\n#EXTINF:5,\ncontent/intro9.ts\n#EXTINF:3.123,\ncontent/0.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:4.2,\ncontent/1.ts\n#EXTINF:5,\ncontent/outro0.ts\n#EXTINF:5,\ncontent/outro1.ts\n#EXTINF:5,\ncontent/outro2.ts\n#EXTINF:5,\ncontent/outro3.ts\n#EXTINF:5,\ncontent/outro4.ts\n#EXTINF:5,\ncontent/outro5.ts\n#EXTINF:5,\ncontent/outro6.ts\n#EXTINF:5,\ncontent/outro7.ts\n#EXTINF:5,\ncontent/outro8.ts\n#EXTINF:5,\ncontent/outro9.ts\n#EXT-X-ENDLIST\n",
+  "startMs": 53123,
+  "endMs": 70690
+}

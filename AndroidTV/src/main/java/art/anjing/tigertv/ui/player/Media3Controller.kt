@@ -61,11 +61,11 @@ class Media3Controller(context: Context) {
     private var ended = false
     private var closed = false
 
-    fun load(url: String, positionMillis: Long, title: String, site: String, onStarted: () -> Unit, onPosition: (Long) -> Unit, onError: (String) -> Unit) {
+    fun load(url: String, positionMillis: Long, title: String, site: String, onStarted: () -> Unit, onPosition: (Long) -> Unit, onError: (String) -> Unit, filterAds: Boolean = true, speed: Float = 1f) {
         if (closed) return
         unload()
         if (inBackground) {
-            pendingLoad = { load(url, positionMillis, title, site, onStarted, onPosition, onError) }
+            pendingLoad = { load(url, positionMillis, title, site, onStarted, onPosition, onError, filterAds, speed) }
             return
         }
         val uri = normalizeUrl(url).toUri()
@@ -78,8 +78,9 @@ class Media3Controller(context: Context) {
             onError("无效播放地址")
             return
         }
-        val mayFilter = mayFilterHls(site, uri)
-        val currentSession = HlsPlaybackSession(uri, site)
+        val mayFilter = filterAds && mayFilterHls(uri)
+        val currentSession = HlsPlaybackSession(uri, site, filterAds)
+        player.setPlaybackSpeed(speed)
         hlsSession = currentSession
         this.onPosition = onPosition
         restoring = true
@@ -100,7 +101,7 @@ class Media3Controller(context: Context) {
                     } else if (duration != C.TIME_UNSET && positionMillis >= duration) player.seekTo(0)
                     restoring = false
                 }
-                if (state == Player.STATE_ENDED && didStart) {
+                if (state == Player.STATE_ENDED && didStart && !ended) {
                     ended = true
                     lastSavedPosition = 0
                     onPosition(0)

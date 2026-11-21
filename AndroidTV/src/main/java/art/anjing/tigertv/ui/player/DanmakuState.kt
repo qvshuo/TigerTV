@@ -16,14 +16,14 @@ internal class DanmakuState(
     private val preferredEpisode: (String) -> Pair<Long, Long>? = { null },
 ) {
     var enabled by mutableStateOf(initialEnabled); private set
-    var offsetMs by mutableLongStateOf(0)
     var titles by mutableStateOf<List<DanmakuTitle>>(emptyList()); private set
     var episodes by mutableStateOf<List<DanmakuEpisode>>(emptyList()); private set
     var selectedTitle by mutableStateOf<DanmakuTitle?>(null); private set
     var selectedEpisode by mutableStateOf<DanmakuEpisode?>(null); private set
     var track by mutableStateOf<DanmakuTrack?>(null, referentialEqualityPolicy()); private set
     val hasComments: Boolean get() = track?.comments?.isNotEmpty() == true
-    var busy by mutableStateOf(false); private set
+    var loadingStep by mutableStateOf<DanmakuLoadingStep?>(null); private set
+    val busy: Boolean get() = loadingStep != null
     var error by mutableStateOf<String?>(null); private set
     private var job: Job? = null
     private var automaticRequest = false
@@ -35,16 +35,16 @@ internal class DanmakuState(
     private data class Loaded(val title: DanmakuTitle, val episodes: List<DanmakuEpisode>, val episode: DanmakuEpisode, val track: DanmakuTrack)
 
     private fun cancelRequest() {
-        ++generation; job?.cancel(); job = null; automaticRequest = false; busy = false
+        ++generation; job?.cancel(); job = null; automaticRequest = false; loadingStep = null
     }
     fun toggleEnabled() {
         enabled = !enabled
         if (!enabled && automaticRequest) cancelRequest()
     }
-    private fun request(message: String, automatic: Boolean = false, block: suspend () -> Unit) {
+    private fun request(message: String, step: DanmakuLoadingStep, automatic: Boolean = false, block: suspend () -> Unit) {
         cancelRequest()
         val ticket = generation
-        automaticRequest = automatic; busy = true; error = null
+        automaticRequest = automatic; loadingStep = step; error = null
         job = scope.launch {
             try { block() }
             catch (e: CancellationException) { throw e }
@@ -52,7 +52,7 @@ internal class DanmakuState(
                 if (ticket == generation && track == null) error = serviceError(e) ?: message
                 android.util.Log.w("TigerTVDanmaku", "request failed: ${e.javaClass.simpleName}")
             }
-            finally { if (ticket == generation) { busy = false; automaticRequest = false } }
+            finally { if (ticket == generation) { loadingStep = null; automaticRequest = false } }
         }
     }
     private fun serviceError(e: Exception): String? = when {
@@ -65,6 +65,7 @@ internal class DanmakuState(
 
     private suspend fun comments(id: Long): DanmakuTrack {
         tracks[id]?.let { return it }
+        loadingStep = DanmakuLoadingStep.Track
         val loaded = withContext(Dispatchers.IO) {
             val response = client(base).comments(id)
             response.copy(comments = response.comments.filter { it.mode == 1 })
@@ -88,14 +89,15 @@ internal class DanmakuState(
         val query = keyword.trim()
         workSeason = danmakuSeason(query) ?: danmakuSeason(episodeLabel)
         selectedTitle = null; selectedEpisode = null; episodes = emptyList(); titles = emptyList(); track = null
-        request("弹幕匹配失败，请手动选择", automatic = true) {
+        request("弹幕匹配失败，请手动选择", DanmakuLoadingStep.Search, automatic = true) {
             var failure: String? = null
-            withTimeoutOrNull(60_000) overall@ {
+            withTimeoutOrNull(90_000) overall@ {
                 var requests = 0
-                suspend fun load(candidate: DanmakuTitle, manualEpisode: Long? = null): Loaded? = withTimeoutOrNull(20_000) {
+                suspend fun load(candidate: DanmakuTitle, manualEpisode: Long? = null): Loaded? = withTimeoutOrNull(65_000) {
                     try {
                         if (requests >= 12) return@withTimeoutOrNull null
                         requests++
+                        loadingStep = DanmakuLoadingStep.Episodes
                         val (list, episode) = withContext(Dispatchers.IO) {
                             val list = client(base).episodes(candidate.id)
                             val episode = if (manualEpisode != null) list.singleOrNull { it.id == manualEpisode }
@@ -130,6 +132,7 @@ internal class DanmakuState(
                 suspend fun probe(keyword: String) {
                     if (requests >= 12) return
                     requests++
+                    loadingStep = DanmakuLoadingStep.Search
                     val results = withContext(Dispatchers.IO) { client(base).search(keyword) }
                     val seen = titles.mapTo(mutableSetOf()) { it.id }
                     titles = (titles + results).distinctBy { it.id }
@@ -166,7 +169,7 @@ internal class DanmakuState(
     }
     fun select(title: DanmakuTitle) {
         selectedTitle = title; selectedEpisode = null; episodes = emptyList(); track = null
-        request("弹幕选集加载失败，请重试") {
+        request("弹幕选集加载失败，请重试", DanmakuLoadingStep.Episodes) {
             episodes = withContext(Dispatchers.IO) { client(base).episodes(title.id) }
             val episode = matchingDanmakuEpisode(episodes, episodeLabel, workSeason)
             if (episode == null) { error = "请选择对应剧集"; return@request }
@@ -176,10 +179,16 @@ internal class DanmakuState(
     }
     fun select(episode: DanmakuEpisode) {
         selectedEpisode = episode; track = null
-        request("弹幕加载失败，请重新选择集数") {
+        request("弹幕加载失败，请重新选择集数", DanmakuLoadingStep.Track) {
             track = comments(episode.id)
             rememberIfValid(track!!)
         }
     }
     fun close() { cancelRequest() }
+}
+
+internal enum class DanmakuLoadingStep(val label: String) {
+    Search("正在查找弹幕来源…"),
+    Episodes("正在匹配本集弹幕…"),
+    Track("正在接收弹幕…"),
 }

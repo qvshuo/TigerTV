@@ -1,0 +1,60 @@
+[
+  {
+    "name": "same-directory-with-cues",
+    "playlist": "#EXTM3U\n#EXT-X-VERSION:1\n#EXT-X-TARGETDURATION:20\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part100.ts\n#EXTINF:20,\ncontent/part101.ts\n#EXTINF:20,\ncontent/part102.ts\n#EXT-X-CUE-OUT:8\n#EXTINF:4,\ncontent/part103.ts\n#EXTINF:4,\ncontent/part104.ts\n#EXT-X-CUE-IN\n#EXTINF:20,\ncontent/part105.ts\n#EXTINF:20,\ncontent/part106.ts\n#EXTINF:20,\ncontent/part107.ts\n#EXTINF:20,\ncontent/part108.ts\n#EXT-X-ENDLIST\n",
+    "removed": [
+      [
+        60000,
+        68000
+      ]
+    ]
+  },
+  {
+    "name": "different-explicit-ad-path",
+    "playlist": "#EXTM3U\n#EXT-X-VERSION:1\n#EXT-X-TARGETDURATION:20\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part100.ts\n#EXTINF:20,\ncontent/part101.ts\n#EXTINF:20,\ncontent/part102.ts\n#EXTINF:4,\nvideo/adjump/part103.ts\n#EXTINF:4,\nvideo/adjump/part104.ts\n#EXTINF:20,\ncontent/part105.ts\n#EXTINF:20,\ncontent/part106.ts\n#EXTINF:20,\ncontent/part107.ts\n#EXTINF:20,\ncontent/part108.ts\n#EXT-X-ENDLIST\n",
+    "removed": [
+      [
+        60000,
+        68000
+      ]
+    ]
+  },
+  {
+    "name": "same-directory-without-evidence",
+    "playlist": "#EXTM3U\n#EXT-X-VERSION:1\n#EXT-X-TARGETDURATION:20\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part100.ts\n#EXTINF:20,\ncontent/part101.ts\n#EXTINF:20,\ncontent/part102.ts\n#EXTINF:4,\ncontent/part103.ts\n#EXTINF:4,\ncontent/part104.ts\n#EXTINF:20,\ncontent/part105.ts\n#EXTINF:20,\ncontent/part106.ts\n#EXTINF:20,\ncontent/part107.ts\n#EXTINF:20,\ncontent/part108.ts\n#EXT-X-ENDLIST\n",
+    "removed": []
+  },
+  {
+    "name": "short-chapter-without-ad-evidence",
+    "playlist": "#EXTM3U\n#EXT-X-VERSION:1\n#EXT-X-TARGETDURATION:20\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part100.ts\n#EXTINF:20,\ncontent/part101.ts\n#EXTINF:20,\ncontent/part102.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:4,\nchapter/part103.ts\n#EXTINF:4,\nchapter/part104.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:20,\ncontent/part105.ts\n#EXTINF:20,\ncontent/part106.ts\n#EXTINF:20,\ncontent/part107.ts\n#EXTINF:20,\ncontent/part108.ts\n#EXT-X-ENDLIST\n",
+    "removed": []
+  },
+  {
+    "name": "repeated-clear-inserts-without-discontinuities",
+    "playlist": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:20\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part100.ts\n#EXTINF:20,\ncontent/part101.ts\n#EXTINF:20,\ncontent/part102.ts\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:4,\ncontent/asset700.ts\n#EXTINF:4,\ncontent/asset701.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part105.ts\n#EXTINF:20,\ncontent/part106.ts\n#EXTINF:20,\ncontent/part107.ts\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:4,\ncontent/asset700.ts\n#EXTINF:4,\ncontent/asset701.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part110.ts\n#EXTINF:20,\ncontent/part111.ts\n#EXTINF:20,\ncontent/part112.ts\n#EXTINF:20,\ncontent/part113.ts\n#EXT-X-ENDLIST\n",
+    "removed": [
+      [
+        60000,
+        68000
+      ],
+      [
+        128000,
+        136000
+      ]
+    ]
+  },
+  {
+    "name": "same-clear-uris-with-unequal-durations",
+    "playlist": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:20\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part100.ts\n#EXTINF:20,\ncontent/part101.ts\n#EXTINF:20,\ncontent/part102.ts\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:4,\ncontent/asset700.ts\n#EXTINF:4,\ncontent/asset701.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part105.ts\n#EXTINF:20,\ncontent/part106.ts\n#EXTINF:20,\ncontent/part107.ts\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:3,\ncontent/asset700.ts\n#EXTINF:4,\ncontent/asset701.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:20,\ncontent/part110.ts\n#EXTINF:20,\ncontent/part111.ts\n#EXTINF:20,\ncontent/part112.ts\n#EXTINF:20,\ncontent/part113.ts\n#EXT-X-ENDLIST\n",
+    "removed": []
+  },
+  {
+    "name": "archived-unmarked-insert-with-continuous-encryption",
+    "playlist": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:5\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\",IV=0x00000000000000000000000000000001\n#EXTINF:1.56,\n/content/part1.ts\n#EXTINF:1.56,\n/content/part2.ts\n#EXTINF:2,\n/content/part3.ts\n#EXTINF:2,\n/content/part4.ts\n#EXTINF:3.04,\n/content/part5.ts\n#EXTINF:2.48,\n/content/part6.ts\n#EXTINF:2,\n/content/part7.ts\n#EXTINF:0.32,\n/content/part8.ts\n#EXTINF:2,\n/content/part9.ts\n#EXTINF:3.56,\n/content/part10.ts\n#EXTINF:2,\n/content/part11.ts\n#EXTINF:1.68,\n/content/part12.ts\n#EXTINF:1.88,\n/content/part13.ts\n#EXTINF:1.44,\n/content/part14.ts\n#EXTINF:2,\n/content/part15.ts\n#EXTINF:2,\n/content/part16.ts\n#EXTINF:2,\n/content/part17.ts\n#EXTINF:2,\n/content/part18.ts\n#EXTINF:2,\n/content/part19.ts\n#EXTINF:1.96,\n/content/part20.ts\n#EXTINF:2,\n/content/part21.ts\n#EXTINF:2,\n/content/part22.ts\n#EXTINF:2,\n/content/part23.ts\n#EXTINF:2,\n/content/part24.ts\n#EXTINF:2,\n/content/part25.ts\n#EXTINF:2,\n/content/part26.ts\n#EXTINF:2,\n/content/part27.ts\n#EXTINF:2,\n/content/part28.ts\n#EXTINF:2,\n/content/part29.ts\n#EXTINF:1.72,\n/content/part30.ts\n#EXTINF:2,\n/content/part31.ts\n#EXTINF:2,\n/content/part32.ts\n#EXTINF:2,\n/content/part33.ts\n#EXTINF:2,\n/content/part34.ts\n#EXTINF:2,\n/content/part35.ts\n#EXTINF:3.08,\n/content/part36.ts\n#EXTINF:2,\n/content/part37.ts\n#EXTINF:2,\n/content/part38.ts\n#EXTINF:2,\n/content/part39.ts\n#EXTINF:2,\n/content/part40.ts\n#EXTINF:2,\n/content/part41.ts\n#EXTINF:0.6,\n/content/part42.ts\n#EXTINF:2,\n/content/part43.ts\n#EXTINF:3.32,\n/content/part44.ts\n#EXTINF:0.76,\n/content/part45.ts\n#EXTINF:2.08,\n/content/part46.ts\n#EXTINF:2.52,\n/content/part47.ts\n#EXTINF:1.36,\n/content/part48.ts\n#EXTINF:2.72,\n/content/part49.ts\n#EXTINF:1.52,\n/content/part50.ts\n#EXTINF:2,\n/content/part51.ts\n#EXTINF:3.12,\n/content/part52.ts\n#EXTINF:2.4,\n/content/part53.ts\n#EXTINF:2,\n/content/part54.ts\n#EXTINF:1.04,\n/content/part55.ts\n#EXTINF:2,\n/content/part56.ts\n#EXTINF:2,\n/content/part57.ts\n#EXTINF:1.64,\n/content/part58.ts\n#EXTINF:2,\n/content/part59.ts\n#EXTINF:2,\n/content/part60.ts\n#EXTINF:2.4,\n/content/part61.ts\n#EXTINF:2,\n/content/part62.ts\n#EXTINF:2,\n/content/part63.ts\n#EXTINF:1.6,\n/content/part64.ts\n#EXTINF:1.56,\n/content/part65.ts\n#EXTINF:2,\n/content/part66.ts\n#EXTINF:3.56,\n/content/part67.ts\n#EXTINF:2,\n/content/part68.ts\n#EXTINF:0.4,\n/content/part69.ts\n#EXTINF:2,\n/content/part70.ts\n#EXTINF:2,\n/content/part71.ts\n#EXTINF:3.76,\n/content/part72.ts\n#EXTINF:1.64,\n/content/part73.ts\n#EXTINF:1.96,\n/content/part74.ts\n#EXTINF:0.96,\n/content/part75.ts\n#EXTINF:1.6,\n/content/part76.ts\n#EXTINF:2,\n/content/part77.ts\n#EXTINF:2.88,\n/content/part78.ts\n#EXTINF:2,\n/content/part79.ts\n#EXTINF:2,\n/content/part80.ts\n#EXTINF:2,\n/content/part81.ts\n#EXTINF:2,\n/content/part82.ts\n#EXTINF:1.12,\n/content/part83.ts\n#EXTINF:2,\n/content/part84.ts\n#EXTINF:3.08,\n/content/part85.ts\n#EXTINF:2,\n/content/part86.ts\n#EXTINF:2,\n/content/part87.ts\n#EXTINF:2,\n/content/part88.ts\n#EXTINF:2,\n/content/part89.ts\n#EXTINF:2,\n/content/part90.ts\n#EXTINF:1.44,\n/content/part91.ts\n#EXTINF:1.8,\n/content/part92.ts\n#EXTINF:1.92,\n/content/part93.ts\n#EXTINF:2,\n/content/part94.ts\n#EXTINF:2,\n/content/part95.ts\n#EXTINF:2,\n/content/part96.ts\n#EXTINF:1.96,\n/content/part97.ts\n#EXTINF:2,\n/content/part98.ts\n#EXTINF:2.48,\n/content/part99.ts\n#EXT-X-ENDLIST\n",
+    "observedAd": [
+      88960,
+      115360
+    ],
+    "removed": []
+  }
+]

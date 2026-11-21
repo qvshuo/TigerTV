@@ -4,30 +4,19 @@
 
 # 小老虎爱看剧（TigerTV）
 
-小老虎爱看剧现专注 Android TV。现有 macOS 应用与命令行工具继续保留。
+TigerTV 是支持多来源搜索、影视播放、智能弹幕匹配和 HLS 去广告的开源项目。长期维护 Android TV、Web/PWA 和原生命令行。macOS SwiftUI 原生客户端已停止开发与维护，原代码留作参考。macOS、Windows 和 Linux 的图形界面统一使用 Web/PWA。
 
-## 特性
-
-- **Android TV 应用**：豆瓣热门首页、遥控器搜索、已验证来源去广告、自建 danmu_api 弹幕。在设置中保存服务地址后自动匹配弹幕
-- **macOS 应用**：多源并发搜索与聚合，支持液态玻璃与明暗模式
-- **命令行工具**：搜索、获取链接、生成 Quantumult X 直连规则、查看日志
-- **Agent Skill**：影视搜索、链接获取、直连规则与下载流程指引
-- **浏览播放**：支持豆瓣热门与记住播放进度
+| 功能 | Android TV | Web/PWA | CLI |
+|---|---|---|---|
+| 多源搜索、聚合、详情 | 支持 | 内置 Gateway | 支持 |
+| 豆瓣推荐 | 直连 | 实时集合，附带离线快照 | — |
+| 选集、自动下一集、最近播放、分集续播、记忆倍速 | 支持 | 支持 | — |
+| 智能弹幕和手动选择 | 配置弹幕 API | 配置支持 CORS 的弹幕 API | — |
+| HLS 去广告 | Media3，通用识别 | hls.js，通用识别 | — |
+| 音量记忆、键盘快捷键、画中画 | 系统音量和遥控器 | 支持，画中画按浏览器能力显示 | — |
+| 获取链接、生成 Quantumult X 规则、日志 | — | — | 支持 |
 
 ## 截图
-
-### macOS
-
-<table>
-  <tr>
-    <td width="50%"><img src="screenshots/macos-1.png" alt="macOS 首页" width="100%"></td>
-    <td width="50%"><img src="screenshots/macos-2.png" alt="macOS 小城良方搜索结果" width="100%"></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="screenshots/macos-3.png" alt="macOS 嫁金钗作品详情" width="100%"></td>
-    <td width="50%"><img src="screenshots/macos-4.png" alt="macOS 嫁金钗播放界面" width="100%"></td>
-  </tr>
-</table>
 
 ### Android TV
 
@@ -44,18 +33,15 @@
 
 ## 快速开始
 
-### macOS 应用
+### Web/PWA
 
-1. 从 [Releases](https://github.com/qvshuo/TigerTV/releases) 下载 `TigerTV-macOS-arm64.zip`。
-2. 解压并将「小老虎爱看剧」拖入「应用程序」文件夹。
-
-**系统要求：** macOS 26+（Apple Silicon）。
-
-应用目前未签名。如果 macOS 阻止打开，可在终端执行：
+安装 Docker Compose 后，在仓库根目录运行：
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/小老虎爱看剧.app"
+docker compose -f web/compose.yaml up -d --build
 ```
+
+打开 `http://localhost:18811`。一个 Bun 服务提供 Web 和元数据，浏览器直接播放资源站 CDN 的媒体。弹幕服务单独部署，其地址在设置中填写。浏览器支持时可通过 HTTPS 安装为 PWA。 [共享网络反代、环境变量与兼容性](docs/development/web.md)
 
 ### Android TV 应用
 
