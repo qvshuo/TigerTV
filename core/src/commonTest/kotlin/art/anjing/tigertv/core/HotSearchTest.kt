@@ -21,6 +21,25 @@ class HotSearchTest {
         } finally { core.close() }
     }
 
+    @Test fun readsAllRecommendationPagesAndKeepsFirstOccurrence() = runTest {
+        val starts = mutableListOf<String>()
+        val core = CoreService("cache", storage = MemoryStorage(), client = configureClient(HttpClient(testEngine { request ->
+            val start = requireNotNull(request.url.parameters["start"])
+            starts += start
+            val items = if (start == "0") (1..50).joinToString(",") { """{"id":"$it","title":"剧$it"}""" }
+                else """{"id":"50","title":"重复"},{"id":"51","title":"剧51"}"""
+            respond("""{"total":52,"subject_collection_items":[$items]}""")
+        })))
+        try {
+            val batches = mutableListOf<Int>()
+            val titles = core.hotSearches("chinese") { batches += it.size }
+            assertEquals(listOf(50), batches)
+            assertEquals(listOf("0", "50"), starts)
+            assertEquals(51, titles.size)
+            assertEquals(listOf("剧50", "剧51"), titles.takeLast(2).map { it.title })
+        } finally { core.close() }
+    }
+
     @Test fun missingPostersAndInvalidScoresKeepUsableCards() = runTest {
         val core = CoreService("cache", storage = MemoryStorage(), client = configureClient(HttpClient(testEngine {
             respond("""{"subject_collection_items":[
@@ -36,7 +55,7 @@ class HotSearchTest {
         } finally { core.close() }
     }
 
-    @Test fun hotTitlesAreBoundedCachedAndDoNotRequireSourceConfig() = runTest {
+    @Test fun hotTitlesAreCachedAndDoNotRequireSourceConfig() = runTest {
         val store = MemoryStorage()
         var now = 0L
         var requests = 0
@@ -52,7 +71,7 @@ class HotSearchTest {
         })), clock = { now })
         try {
             val titles = core.hotSearches("chinese")
-            assertEquals(12, titles.size)
+            assertEquals(16, titles.size)
             assertEquals(listOf("热门甲", "剧1"), titles.take(2).map { it.title })
             assertEquals(titles, core.hotSearches("chinese"))
             assertEquals(1, requests)
@@ -139,8 +158,8 @@ class HotSearchTest {
             assertEquals(5, started)
             job.cancelAndJoin()
             assertEquals(5, cancelled)
-            assertTrue(store.files.containsKey("cache/hot-cards-chinese.json"))
-            assertFalse(store.files.containsKey("cache/hot-cards-korean.json"))
+            assertTrue(store.files.containsKey("cache/hot-cards-v2-chinese.json"))
+            assertFalse(store.files.containsKey("cache/hot-cards-v2-korean.json"))
         } finally { core.close() }
     }
 
@@ -154,7 +173,7 @@ class HotSearchTest {
             runCurrent()
             job.cancelAndJoin()
             assertTrue(job.isCancelled)
-            assertFalse(store.files.containsKey("cache/hot-cards-chinese.json"))
+            assertFalse(store.files.containsKey("cache/hot-cards-v2-chinese.json"))
         } finally { core.close() }
     }
 

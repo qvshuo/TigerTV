@@ -10,7 +10,7 @@ import org.junit.Test
 
 class DanmakuProgressiveTest {
     private fun comments(n:Int) = """{"videoDuration":2800,"comments":[${(0 until n).joinToString(",") { """{"p":"$it,1,16777215","m":"评论$it"}""" }}]}"""
-    @Test fun firstTrackDisplaysBeforeSequentialUpgradeAndKeepsOffset() = runBlocking {
+    @Test fun firstTrackDisplaysBeforeSequentialUpgrade() = runBlocking {
         val gate=CompletableDeferred<Unit>(); val calls=mutableListOf<String>();val writes=mutableListOf<Long>()
         val http=configureClient(HttpClient(MockEngine { r ->
             val p=r.url.encodedPath;calls+=p
@@ -24,12 +24,12 @@ class DanmakuProgressiveTest {
         }))
         try {
             val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,"1",{_,id->writes+=id}, workYear = "2026")
-            state.configure("https://example.test");state.offsetMs=3000;state.search("示例")
+            state.configure("https://example.test");state.search("示例")
             withTimeout(5_000){while(state.track==null)delay(10)}
             assertEquals(1L,state.selectedTitle?.id);assertTrue(state.busy)
             gate.complete(Unit)
             withTimeout(5_000){while(state.busy)delay(10)}
-            assertEquals(2L,state.selectedTitle?.id);assertEquals(3000L,state.offsetMs);assertTrue(writes.isEmpty())
+            assertEquals(2L,state.selectedTitle?.id);assertTrue(writes.isEmpty())
             assertEquals(listOf("/api/v2/comment/10","/api/v2/comment/20","/api/v2/comment/30"),calls.filter{it.contains("comment")})
             assertFalse(calls.any { it.endsWith("bangumi/4") || it.endsWith("bangumi/5") })
             state.close()

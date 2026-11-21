@@ -3,5 +3,100 @@
   "maxSeconds": 60,
   "maxFraction": 0.15,
   "flankSegments": 3,
-  "pathTokens": ["ad", "ads", "adjump", "advert", "advertising", "preroll", "midroll"]
+  "pathTokens": [
+    "ad",
+    "ads",
+    "adjump",
+    "advert",
+    "advertising",
+    "preroll",
+    "midroll"
+  ],
+  "sourceGroups": [
+    {
+      "manifestHost": "play\\.ly166\\.com",
+      "segmentUri": "/stream/[^?#]+\\.jpeg",
+      "durationsMicros": [
+        [
+          4000000,
+          4000000,
+          4000000,
+          4000000,
+          1566667
+        ]
+      ],
+      "contentUri": "/videos/[^?#]+\\.jpeg"
+    },
+    {
+      "manifestHost": "(?:play|bf)\\.modujx\\d+\\.com",
+      "segmentUri": "(?:https://(?:play|bf)\\.modujx\\d+\\.com)?/[^?#]+/10137kb/hls/[^/?#]+\\.ts",
+      "durationsMicros": [
+        [
+          3333000,
+          1667000,
+          1667000,
+          2933000,
+          1667000,
+          1667000,
+          1667000,
+          1667000,
+          1300000
+        ],
+        [
+          3000000,
+          3000000,
+          5000000,
+          3000000,
+          3000000,
+          640000
+        ]
+      ],
+      "repeated": true,
+      "allowEnd": true
+    },
+    {
+      "manifestHost": "vod\\.360zyx\\.vip",
+      "segmentUri": "https://vod\\.360zyx\\.vip/[^?#]+/hls/[^/?#]+\\.ts",
+      "contentUri": "/[^?#]+/hls/[^/?#]+\\.ts",
+      "durationsMicros": [
+        [
+          5000000,
+          5000000,
+          5000000,
+          2567000
+        ]
+      ],
+      "repeated": true,
+      "allowEnd": true
+    },
+    {
+      "manifestHost": "(?:(?:cdn|svip)\\.yzzy(?:vip-\\d+|\\d+-play)\\.(?:com|vip)|vvip\\.high26-playback\\.com)",
+      "segmentUri": "[0-9a-f]{32}\\.ts",
+      "contentUri": "[0-9a-f]{32}\\.ts",
+      "durationsMicros": [
+        [
+          6633333,
+          3333333,
+          4800000,
+          1700000
+        ],
+        [
+          5933333,
+          3333333,
+          2800000,
+          5300000,
+          300000
+        ]
+      ],
+      "allowEnd": true,
+      "requireAllDurations": true
+    },
+    {
+      "manifestHost": "vip\\.ffzy-plays\\.com",
+      "segmentUri": "[0-9a-f]{32}\\.ts",
+      "contentUri": "[0-9a-f]{32}\\.ts",
+      "durationsMicros": [[4867000, 3333000, 5600000, 2867000, 2967000]],
+      "innerDiscontinuityOffsets": [2, 3]
+    }
+  ]
 }

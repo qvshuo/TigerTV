@@ -1,0 +1,7 @@
+{
+  "platformPriority": [["iqiyi", "qiyi"], ["youku"], ["tencent", "qq"], ["mgtv", "imgo", "mango"]],
+  "durationDivisor": 100,
+  "minimumToleranceMs": 1000,
+  "maximumToleranceMs": 10000,
+  "minimumCountRatio": 2
+}

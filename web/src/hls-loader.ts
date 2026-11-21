@@ -9,7 +9,7 @@ function singleVariant(text: string, base: string) {
   try { return new URL(variants[0], base).href } catch { return undefined }
 }
 
-export function playlistLoader(site: string, publish: (intervals: Interval[]) => void): HlsConfig['pLoader'] {
+export function playlistLoader(publish: (intervals: Interval[]) => void): HlsConfig['pLoader'] {
   let child: string | undefined
   // The stock loader also handles the playlist-specific context fields.
   const Base = Hls.DefaultConfig.loader as NonNullable<HlsConfig['pLoader']>
@@ -23,7 +23,7 @@ export function playlistLoader(site: string, publish: (intervals: Interval[]) =>
           if (typeof raw === 'string' && raw.length <= 10 * 1024 * 1024) {
             if (type === 'manifest') child = singleVariant(raw, response.url || ctx.url)
             if ((type === 'manifest' && !child) || (type === 'level' && ctx.url === child)) {
-              const filtered = filterPlaylist(site, raw)
+              const filtered = filterPlaylist(raw, new URL(response.url || ctx.url).hostname)
               publish(filtered?.removed ?? [])
               if (filtered) response = { ...response, data: filtered.text }
             }

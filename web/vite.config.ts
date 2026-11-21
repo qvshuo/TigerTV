@@ -4,6 +4,30 @@ import { defineConfig, type Plugin } from 'vite'
 import { svelte, vitePreprocess } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
 
+function developmentMetadata(): Plugin {
+  return {
+    name: 'tigertv-development-metadata',
+    apply: 'serve',
+    async configureServer(server) {
+      const { configuredMetadata, metadataPrefix } = await import('./server/metadata.ts')
+      const metadata = await configuredMetadata()
+      server.middlewares.use(async (request, response, next) => {
+        if (!request.url?.startsWith(metadataPrefix)) return next()
+        const cancel = new AbortController()
+        response.once('close', () => cancel.abort())
+        try {
+          const result = await metadata(new Request(new URL(request.url, 'http://localhost'), {
+            method: request.method, headers: request.headers.origin ? { Origin: request.headers.origin } : undefined,
+            signal: cancel.signal,
+          }))
+          response.writeHead(result.status, Object.fromEntries(result.headers))
+          response.end(Buffer.from(await result.arrayBuffer()))
+        } catch (error) { next(error) }
+      })
+    },
+  }
+}
+
 function appShell(): Plugin {
   return {
     name: 'tigertv-app-shell',
@@ -58,5 +82,5 @@ self.addEventListener('fetch', event => {
 
 export default defineConfig({
   base: './',
-  plugins: [svelte({ preprocess: vitePreprocess() }), tailwindcss(), appShell()],
+  plugins: [svelte({ preprocess: vitePreprocess() }), tailwindcss(), appShell(), developmentMetadata()],
 })

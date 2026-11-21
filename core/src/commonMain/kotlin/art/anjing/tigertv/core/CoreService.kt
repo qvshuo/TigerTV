@@ -23,8 +23,9 @@ class CoreService(
     historyDirectory: String = directory
 ) {
     private val network = Network(client)
+    private val danmakuTracks = DanmakuTrackCache(clock)
 
-    fun danmakuClient(baseUrl: String): DanmakuClient = DanmakuClient(network, baseUrl)
+    fun danmakuClient(baseUrl: String): DanmakuClient = DanmakuClient(network, baseUrl, danmakuTracks)
     private val configMutex = Mutex()
     private val hotSearchLocks = HOT_SEARCH_COLLECTIONS.associate { it.id to Mutex() }
     private val logMutex = Mutex()
@@ -83,23 +84,35 @@ class CoreService(
         }
     }
 
-    suspend fun hotSearches(category: String): List<HotSearchItem> {
+    suspend fun hotSearches(category: String, onUpdate: (suspend (List<HotSearchItem>) -> Unit)? = null): List<HotSearchItem> {
         val collection = HOT_SEARCH_COLLECTIONS.firstOrNull { it.id == category } ?: error("未知热门分类")
         return hotSearchLocks.getValue(category).withLock {
-            val path = "$directory/hot-cards-${collection.id}.json"
+            val path = "$directory/hot-cards-v2-${collection.id}.json"
             val cached = cacheRead { wireJson.decodeFromString<HotSearchCache>(storage.read(path) ?: "") }
             val age = cached?.let { clock() - it.fetchedAtMillis }
             if (cached != null && age != null && age in 0 until 6 * 60 * 60 * 1000L) return@withLock cached.titles
             try {
-                val raw = network.get(
-                    "https://m.douban.com/rexxar/api/v2/subject_collection/${collection.collection}/items?start=0&count=12",
-                    8_000, mapOf("Referer" to "https://m.douban.com/tv/${collection.id}")
-                )
-                val titles = wireJson.decodeFromString<HotSearchPage>(raw).items
-                    .filter { it.id.isNotBlank() && it.title.isNotBlank() }.distinctBy { it.id }.take(12).map {
-                        HotSearchItem(it.id, it.title.trim(), it.year.trim(), it.pic?.large.orEmpty().trim(),
-                            it.rating?.value?.takeIf { score -> score > 0 && score <= 10 }, (it.rating?.count ?: 0).coerceAtLeast(0), it.status)
+                val pageSize = 50
+                val items = linkedMapOf<String, HotSearchItem>()
+                var start = 0
+                do {
+                    val raw = network.get(
+                        "https://m.douban.com/rexxar/api/v2/subject_collection/${collection.collection}/items?start=$start&count=$pageSize",
+                        8_000, mapOf("Referer" to "https://m.douban.com/tv/${collection.id}")
+                    )
+                    val page = wireJson.decodeFromString<HotSearchPage>(raw)
+                    val previousSize = items.size
+                    for (item in page.items) {
+                        if (item.id.isBlank() || item.title.isBlank() || item.id in items) continue
+                        items[item.id] = HotSearchItem(item.id, item.title.trim(), item.year.trim(), item.pic?.large.orEmpty().trim(),
+                            item.rating?.value?.takeIf { it > 0 && it <= 10 }, (item.rating?.count ?: 0).coerceAtLeast(0), item.status)
                     }
+                    start += page.items.size
+                    val hasMore = page.total?.let { start < it } ?: (page.items.size >= pageSize)
+                    val advanced = items.size > previousSize
+                    if (advanced && hasMore) onUpdate?.invoke(items.values.toList())
+                } while (advanced && hasMore)
+                val titles = items.values.toList()
                 check(titles.isNotEmpty()) { "热门剧集为空" }
                 cacheRead { storage.writeAtomic(path, wireJson.encodeToString(HotSearchCache(clock(), titles))) }
                 titles
@@ -201,12 +214,12 @@ class CoreService(
             val recent = work.recent ?: return@mapNotNull null
             val bookmark = work.resources[work.site] ?: return@mapNotNull null
             RecentPlayback(id, recent.source, bookmark, work.positions[work.site].orEmpty(),
-                recent.progressPercent, recent.playedAt)
+                recent.progressPercent, recent.playedAt, recent.cardSource ?: recent.source, recent.cardPoster)
         }.sortedByDescending { it.playedAt }.take(12)
     }
 
     suspend fun recordPlayback(workId: String, site: String, line: String, episode: String,
-        source: SearchResult? = null,
+        source: SearchResult? = null, cardSource: SearchResult? = null, cardPoster: String? = null,
     ) = stateMutex.withLock {
         require(workId.isNotBlank() && site.isNotBlank() && line.isNotBlank())
         require(source == null || source.site == site)
@@ -219,7 +232,8 @@ class CoreService(
         val resources = work?.resources.orEmpty() + (site to bookmark)
         val previous = work?.recent?.takeIf { work.site == site }
         val progress = previous?.progressPercent?.takeIf { work?.resources?.get(site) == bookmark }
-        val recent = if (source != null) RecentPlaybackMetadata(source, clock(), progress)
+        val recent = if (source != null) RecentPlaybackMetadata(source, clock(), progress,
+            work?.recent?.cardSource ?: cardSource, cardPoster ?: work?.recent?.cardPoster)
             else previous?.copy(progressPercent = progress)
         val updated = saved.copy(recentSite = site,
             byWork = (saved.byWork - listOfNotNull(legacy)) + (workId to WorkPlayback(site, resources, work?.positions.orEmpty(), recent)))
@@ -366,4 +380,7 @@ private data class WorkPlayback(val site: String, val resources: Map<String, Pla
     val recent: RecentPlaybackMetadata? = null)
 
 @Serializable
-private data class RecentPlaybackMetadata(val source: SearchResult, val playedAt: Long, val progressPercent: Int? = null)
+private data class RecentPlaybackMetadata(
+    val source: SearchResult, val playedAt: Long, val progressPercent: Int? = null,
+    val cardSource: SearchResult? = null, val cardPoster: String? = null,
+)

@@ -6,11 +6,8 @@ import kotlinx.serialization.json.*
 class HlsAdFilterTest {
     @Test fun sharedWebFixturePreservesTheOriginalKeyAndRemovesTheSameInterval() {
         val fixture = Json.parseToJsonElement(contractFixtures.getValue("hls-filter.sample.json")).jsonObject
-        val site = fixture.getValue("site").jsonPrimitive.content
-        val hashes = fixture.getValue("uris").jsonArray.map { uriHash(it.jsonPrimitive.content) }
-        val durations = fixture.getValue("durations").jsonArray.map { it.jsonPrimitive.double }
         val input = fixture.getValue("playlist").jsonPrimitive.content
-        val result = filterKnownHlsAd(site, input, KnownHlsAdGroup(site, hashes, durations))!!
+        val result = filterSmartHlsAds(input)!!
         assertEquals(fixture.getValue("expected").jsonPrimitive.content, result.playlist)
         assertEquals(listOf(MediaInterval(fixture.getValue("startMs").jsonPrimitive.long,
             fixture.getValue("endMs").jsonPrimitive.long)), result.removed)
@@ -25,14 +22,8 @@ class HlsAdFilterTest {
             val removed = fixture.getValue("removed").jsonArray.map {
                 MediaInterval(it.jsonArray[0].jsonPrimitive.long, it.jsonArray[1].jsonPrimitive.long)
             }
-            val result = filterSmartHlsAds("🎬未收录来源", input)
+            val result = filterSmartHlsAds(input)
             assertEquals(removed, result?.removed.orEmpty(), name)
-            if (name == "same-directory-without-evidence") {
-                val exact = KnownHlsAdGroup("fixture",
-                    listOf("content/part103.ts", "content/part104.ts").map(::uriHash), listOf(4.0, 4.0), continuous = true)
-                assertEquals(listOf(MediaInterval(60000, 68000)), filterKnownHlsAd("fixture", input, exact)?.removed)
-                assertNull(filterKnownHlsAd("fixture", input.replace("part103.ts", "part333.ts"), exact))
-            }
             if (result == null) continue
             assertTrue("IV=0x00000000000000000000000000000069" in result.playlist, name)
             assertTrue("#EXT-X-VERSION:${if (removed.size == 2) 3 else 2}" in result.playlist, name)
@@ -44,6 +35,22 @@ class HlsAdFilterTest {
                 assertEquals(136000L, result.timeline.effectiveToVideo(120000))
                 assertEquals(121000L, result.timeline.videoToEffective(137000).timeMs)
                 assertTrue("IV=0x0000000000000000000000000000006e" in result.playlist)
+            }
+        }
+    }
+
+    @Test fun sharedSourceProfilesKeepUnknownAndOrdinaryContent() {
+        for (item in Json.parseToJsonElement(contractFixtures.getValue("hls-source-groups.sample.json")).jsonArray) {
+            val fixture = item.jsonObject
+            val name = fixture.getValue("name").jsonPrimitive.content
+            val result = filterSmartHlsAds(fixture.getValue("playlist").jsonPrimitive.content,
+                fixture.getValue("host").jsonPrimitive.content)
+            val intervals = fixture.getValue("removed").jsonArray.map {
+                MediaInterval(it.jsonArray[0].jsonPrimitive.long, it.jsonArray[1].jsonPrimitive.long)
+            }
+            assertEquals(intervals, result?.removed.orEmpty(), name)
+            if (result != null) {
+                assertEquals(intervals.first().endMs, result.timeline.effectiveToVideo(intervals.first().startMs), name)
             }
         }
     }
@@ -64,28 +71,22 @@ class HlsAdFilterTest {
         assertNull(filterHlsAds(s.replace("#EXT-X-KEY:METHOD=AES-128,URI=\"key\"\n", "")) { false })
     }
     @Test fun sanitizedRealPlaylistRemovesRepeatedAds() {
-        val result = filterHlsAds(realHlsFixture) { it.startsWith("/video/adjump/time/") }!!
+        val result = filterSmartHlsAds(realHlsFixture)!!
         assertEquals(listOf(MediaInterval(300880, 326640), MediaInterval(2428640, 2454400)), result.removed)
         assertEquals(2454400L, result.timeline.effectiveToVideo(2402880))
         assertFalse(result.playlist.contains("/video/adjump/time/"))
     }
 
-    @Test fun baofengRuleRequiresSourceAndCompleteBoundedGroup() {
-        val fingerprints = (100..108).map { uriHash("/video/adjump/time/$it.ts") }
-        val rule = KnownHlsAdGroup("🎬暴风资源", fingerprints, List(8) { 3.0 } + 1.76, "/video/adjump/time/")
-        val result = filterKnownHlsAd("🎬暴风资源", realHlsFixture, rule)!!
-        assertEquals(2, result.removed.size)
-        assertNull(filterKnownHlsAd("other", realHlsFixture, rule))
-        assertNull(filterKnownHlsAd("🎬暴风资源", realHlsFixture.replaceFirst("#EXTINF:1.76,", "#EXTINF:1.75,"), rule))
-    }
-
-    @Test fun capturedCrossWorkGroupsAndAdjacentContent() {
+    @Test fun adPathBetweenDistinctContentChaptersNeedsBothSpliceEdges() {
+        val padBefore = (1..3).joinToString("") { "#EXTINF:30,\nleft/$it.ts\n" }
+        val padAfter = (1..3).joinToString("") { "#EXTINF:30,\nright/$it.ts\n" }
         for (fixture in crossWorkHlsFixtures) {
-            val rule = KnownHlsAdGroup("🎬暴风资源", (0..8).map { uriHash("/video/adjump/time/$it.ts") }, List(8) { 3.0 } + 1.76, "/video/adjump/time/")
-            val result = filterKnownHlsAd("🎬暴风资源", fixture, rule)!!
-            assertEquals(listOf(MediaInterval(1000, 26760)), result.removed)
-            assertTrue(result.playlist.contains("before.ts"))
-            assertTrue(result.playlist.contains("after.ts"))
+            val input = fixture.replace("#EXTINF:1,\nbefore.ts", padBefore + "#EXTINF:1,\nbefore.ts")
+                .replace("#EXT-X-ENDLIST", padAfter + "#EXT-X-ENDLIST")
+            val filtered = filterSmartHlsAds(input)!!
+            assertEquals(listOf(MediaInterval(91000, 116760)), filtered.removed)
+            assertTrue("before.ts" in filtered.playlist && "after.ts" in filtered.playlist)
+            assertNull(filterSmartHlsAds(input.replaceFirst("#EXT-X-DISCONTINUITY\n", "")))
         }
     }
 
@@ -95,26 +96,8 @@ class HlsAdFilterTest {
         assertEquals(listOf(MediaInterval(1567, 3133)), result.removed)
     }
 
-    @Test fun iqiyiRequiresAllFiveKnownUrisAndPreservesContent() {
-        val uris = (0 until 5).map { "known-$it" }
-        val group = uris.mapIndexed { i, uri -> "#EXTINF:${if (i == 4) "1.566667" else "4.0"},\n$uri\n" }.joinToString("")
-        val playlist = "#EXTM3U\n#EXTINF:5,\nbefore\n#EXT-X-DISCONTINUITY\n" + group + "#EXT-X-DISCONTINUITY\n#EXTINF:5,\nafter\n#EXT-X-ENDLIST\n"
-        val fingerprints = uris.map(::uriHash)
-        val rule = KnownHlsAdGroup("🎬-爱奇艺-", fingerprints, List(4) { 4.0 } + 1.566667)
-        val result = filterKnownHlsAd("🎬-爱奇艺-", playlist, rule)!!
-        assertEquals(listOf(MediaInterval(5000, 22567)), result.removed)
-        assertTrue(result.playlist.contains("before"))
-        assertTrue(result.playlist.contains("after"))
-        assertNull(filterKnownHlsAd("other", playlist, rule))
-        assertNull(filterKnownHlsAd("🎬-爱奇艺-", playlist.replace("known-2", "unknown"), rule))
-        assertNull(filterKnownHlsAd("🎬-爱奇艺-", playlist.replace("after\n", "known-0\n"), rule))
-    }
-
-    @Test fun capturedIqiyiPlaylistPreservesFractionalTiming() {
-        val rule = KnownHlsAdGroup("🎬-爱奇艺-", (0 until 5).map { uriHash("known-$it") }, List(4) { 4.0 } + 1.566667)
-        val result = filterKnownHlsAd("🎬-爱奇艺-", iqiyiHlsFixture, rule)!!
-        assertEquals(listOf(MediaInterval(1_108_800, 1_126_367)), result.removed)
-        assertTrue(result.playlist.contains("content-0.ts"))
+    @Test fun archivedSingleUnlabelledSpliceRemainsIntactWithoutCorroboration() {
+        assertNull(filterSmartHlsAds(iqiyiHlsFixture))
     }
 
     @Test fun explicitIvKeyStateSurvivesRemovedNoneGroup() {
@@ -129,23 +112,21 @@ class HlsAdFilterTest {
         assertNull(filterHlsAds(input.replace("AES-128", "SAMPLE-AES")) { it == "ad.ts" })
     }
 
-    @Test fun knownPlainAssetCanEndEncryptedVodWithoutChangingKeptKey() {
+    @Test fun selectedFinalPlainAssetDoesNotChangeKeptKey() {
         val key = "#EXT-X-KEY:METHOD=AES-128,URI=\"key\",IV=0x00000000000000000000000000000001"
         val input = "#EXTM3U\n$key\n#EXTINF:3,\ncontent\n#EXT-X-DISCONTINUITY\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:5,\nad\n#EXT-X-ENDLIST\n"
-        val rule = KnownHlsAdGroup("test", listOf(uriHash("ad")), listOf(5.0), allowEnd = true)
-        val result = filterKnownHlsAd("test", input, rule)!!
+        val result = filterHlsAds(input) { it == "ad" }!!
         assertEquals(listOf(MediaInterval(3000, 8000)), result.removed)
         assertTrue(result.playlist.contains(key))
         assertFalse(result.playlist.contains("METHOD=NONE"))
         assertFalse(result.playlist.contains("\nad\n"))
-        assertNull(filterKnownHlsAd("test", input, rule.copy(allowEnd = false)))
+        assertNull(filterSmartHlsAds(input))
         assertEquals("https://media.test/a/stream.m3u8", singleHlsVariant("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100\nstream.m3u8\n", "https://media.test/a/master.m3u8"))
         assertNull(singleHlsVariant("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100\na.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=200\nb.m3u8\n", "https://media.test/master.m3u8"))
     }
 
     @Test fun capturedEncryptedVodPreservesEveryNormalSegmentAndKey() {
-        val rule = KnownHlsAdGroup("360", (0..3).map { uriHash("ad-$it.ts") }, listOf(5.0, 5.0, 5.0, 2.567), allowEnd = true)
-        val result = filterKnownHlsAd("360", encryptedHlsFixture, rule)!!
+        val result = filterSmartHlsAds(encryptedHlsFixture)!!
         assertEquals(listOf(MediaInterval(851320, 868887), MediaInterval(1654727, 1672294), MediaInterval(2925254, 2942821)), result.removed)
         val original = parseHlsVod(encryptedHlsFixture)!!
         val filtered = parseHlsVod(result.playlist)!!
@@ -154,13 +135,12 @@ class HlsAdFilterTest {
         assertTrue(filtered.segments.all { it.encrypted })
         assertEquals(851320L, result.timeline.videoToEffective(868887).timeMs)
         assertEquals(1672294L, result.timeline.effectiveToVideo(1637160))
-        assertNull(filterKnownHlsAd("360", encryptedHlsFixture.replaceFirst("ad-2.ts", "changed.ts"), rule))
+        assertEquals(2, filterSmartHlsAds(encryptedHlsFixture.replaceFirst("ad-2.ts", "changed.ts"))?.removed?.size)
     }
 
     @Test fun trailingDiscontinuityOfRealVodIsPreserved() {
         val p = "#EXTM3U\n#EXTINF:2,\ncontent\n#EXT-X-DISCONTINUITY\n#EXTINF:3,\nad\n#EXT-X-DISCONTINUITY\n#EXT-X-ENDLIST\n"
-        val rule = KnownHlsAdGroup("source", listOf(uriHash("ad")), listOf(3.0), allowEnd = true)
-        val result = filterKnownHlsAd("source", p, rule)!!
+        val result = filterHlsAds(p) { it == "ad" }!!
         assertEquals(listOf(MediaInterval(2000, 5000)), result.removed)
         assertTrue(result.playlist.endsWith("#EXT-X-DISCONTINUITY\n#EXT-X-ENDLIST\n"))
         assertNotNull(parseHlsVod(result.playlist))

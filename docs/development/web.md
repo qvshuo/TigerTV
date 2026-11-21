@@ -1,62 +1,58 @@
 # Web/PWA 开发与兼容性
 
-Web 使用 Svelte 5 Runes、TypeScript、Vite、Tailwind CSS 4 和 Video.js 10 HTML 组件。播放器及 HLS 适配器按需加载，弹幕由独立 Canvas 按媒体时钟绘制。设置、最近播放、分集位置和弹幕手动选择保存在浏览器。Android TV 与 CLI 原地使用 Kotlin Core，Web 遵循同一 [契约](../contract.md)。
+`web/` 是 Bun + TypeScript 工程。Svelte 5 Runes、Vite 和 Tailwind CSS 4 构建静态 SPA。Video.js 10 与 HLS 适配器按需加载，弹幕由 Canvas 按媒体时钟绘制。Bun 同时提供应用和 `/api/metadata/`。Android TV 和 CLI 独立请求上游。 [数据与交互契约](../contract.md)
 
-## 本地运行与静态部署
-
-```sh
-npm --prefix web ci
-npm --prefix web run dev
-npm --prefix web run check
-npm --prefix web test
-npm --prefix web run build
-npm --prefix web run preview
-```
-
-使用静态 HTTPS 服务发布 `web/dist/`。子目录部署时以末尾含 `/` 的地址打开。PWA Service Worker 预缓存静态页面、脚本、样式和图标。离线可打开界面和本机记录。推荐的数据快照在 `web/src/douban-snapshot.json`，可用 `node web/scripts/update-douban.mjs` 更新后重新构建。
-
-默认读取仓库同步的资源站配置。若站点运营者有支持浏览器 CORS 的直连 MacCMS 源，可用构建环境变量 `VITE_TIGERTV_SOURCES=https://example.org/sources.json` 指定优先配置，结构见 [配置夹具](../fixtures/config.sample.json)。API 本身也必须允许该静态站点的 Origin。浏览器忽略已有包装式 `url=` 中转入口。弹幕 API 由用户在设置中指定，需同样支持浏览器直连。配置表单中的地址是示例。
-
-## 可选元数据 Gateway
+## 本地开发
 
 ```sh
-cp gateway/.env.example gateway/.env
-docker compose --env-file gateway/.env -f gateway/compose.yaml up -d --build
+cd web
+bun install --frozen-lockfile
+bun run dev
+bun run check
+bun test
+bun run build
+bun run start
 ```
 
-默认监听服务器的 `0.0.0.0:18811`，可通过服务器的 IPv4 地址访问。仅供本机反向代理或 SSH 转发时，可设置 `TIGERTV_LISTEN=127.0.0.1`。Go 标准库在同一容器、同一 HTTP 端口提供静态 Web 和 `/api/metadata/`。最终镜像包含 Go 二进制、Web 产物、源配置和根 CA 证书。Node.js 只运行在 Web 构建阶段。正式 PWA 的 HTTPS 由部署者配置。弹幕服务单独部署，Web 通过设置页配置其 API 地址。另行托管 Web 时，构建设置 `VITE_TIGERTV_GATEWAY`，并用 `TIGERTV_WEB_ORIGIN` 指定精确的允许 Origin。纯静态构建保持浏览器直连模式。
+使用 Bun 1.4.4。Vite 开发服务器挂载同一元数据处理器，生产入口是 `web/server/index.ts`。生产默认监听 8080。PWA 只预缓存应用外壳，离线可查看本机记录。豆瓣实时集合不可用时显示带日期的快照，运行 `bun web/scripts/update-douban.mjs` 可更新快照。
 
-可用 `TIGERTV_SITES` 从项目配置中选择固定站点键，默认启用所有符合条件的来源。Gateway 从构建时的项目配置建立 HTTPS 上游允许列表，按固定站点键接受推荐、搜索和详情。它拒绝自定义 URL、重定向、未知路由和重复参数，限制上游并发为 20、单次请求为 12 秒、响应为 10 MiB。搜索只传卡片字段，详情包含原始播放链接。媒体清单、分片、MP4 和密钥继续由浏览器直连第三方。Android TV、CLI 和用户配置的弹幕地址继续独立请求。
+## Docker Compose
 
-## 真实来源抽样
+从仓库根目录运行：
 
-2026-11-20 从 MacCMS 当前配置搜索《逐玉》，用静态站点的模拟 Origin 检查响应头，并用浏览器和原生播放器验证实际媒体播放。CORS 需要浏览器可读取整个请求链，服务端返回 HTTP 200 只能说明 HTTP 请求成功。
+```sh
+docker compose -f web/compose.yaml up -d --build
+```
 
-| 来源 | 元数据 | 清单与资源 |
-|---|---|---|
-| 360 | 搜索和详情返回 200，均缺少 `Access-Control-Allow-Origin`。Chrome fetch 被拦截 | 主、子清单开放 CORS。分片支持 206，AES-128 密钥开放 CORS。真实浏览器和 Media3 直连解码。复核后的有效时长为 2841.760 秒 |
-| 爱奇艺 | 搜索和详情返回 200，缺少 CORS 响应头 | HLS 和样本分片开放 CORS。分片 HTTP 类型为 `image/jpeg`，生产规则以清单内容匹配 |
-| 非凡 | 搜索和详情返回 200，缺少 CORS 响应头 | 主、子清单以及 TS 分片开放 CORS |
-| 光速、红牛 | 搜索和详情返回 200，缺少 CORS 响应头 | 清单、TS 和 AES-128 密钥开放 CORS。分片 Range 成功 |
-| 茅台 | 回显 Origin，但关键词搜索返回 `code=1002`，接口本身禁用关键词 | 本轮未取得测试媒体 |
-| 暴风、魔都 | 直连探测曾遇到 TLS 错误或超时，魔都随后通过 Gateway 返回过搜索条目 | 暴风用经过脱敏的真实清单验证，魔都留存清单未命中。本轮未验证两站最新播放接缝 |
-| 豆瓣推荐 | 直接请求返回 400，附带官方 Referer 返回 200，仍缺少 CORS 响应头 | Gateway 能读取实时推荐。静态模式显示注明日期的快照，拒绝外站 Referer 的海报以首字兜底 |
+默认发布到 `0.0.0.0:18811`。可复制 `web/.env.example`，用 `--env-file` 指定后修改端口、监听地址和固定来源。Linux x86_64 的发布归档可用 `docker load -i TigerTV-Web-Linux-x86_64.tar.gz` 导入，再用 Compose `up -d --no-build` 启动。
 
-当前 360 样本去掉四组共 79.101 秒。爱奇艺留存样本命中 17.567 秒，暴风脱敏清单识别两组各 25.760 秒，魔都留存样本没有命中。各站可用性与清单会变化。纯静态模式下，360 等来源仍缺少元数据 CORS 许可。实网页面经部署的 Gateway 获取元数据，媒体 CDN 请求由浏览器直接发出。 [FlowScan 研究与规则边界](flowscan.md)
+有共享 Docker 网络的反向代理可直接访问 `tigertv:8080`。将 `TIGERTV_PROXY_NETWORK` 设置为代理已加入的网络名称，运行：
 
-## 验收范围
+```sh
+docker compose -f web/compose.yaml -f web/compose.network.yaml up -d --build
+```
 
-- 测试机通过独立 Compose 项目及回环端口运行 Gateway。已验证真实首页推荐、搜索、详情和媒体路由拒绝。对默认站点列表和四站限定列表分别测试，360 有偶发搜索失败，重试后取得结果。Chrome 从真实豆瓣《嫁金钗》卡片打开该作品，验证播放、退出、续播、自动下一集、画中画和离线外壳。Firefox 与 WebKit 对真实《逐玉》跨越新广告接缝，完成续播和自然结束自动下一集。
-- 用户配置的真实弹幕 API 在 Chrome 中通过 CORS 读取，真实作品搜索返回四个候选，首集可自动匹配。Chrome 手动选择真实爱奇艺弹幕轨道，加载约 1.34 万条弹幕，保存选择与一秒偏移并续播。较大的真实轨道约 4 MB，单次完整读取实测约 35 秒，轨道请求预算调整为 50 秒。Android TV 模拟器同时连接真实弹幕 API 和 360 CDN，使用生产匹配器和渲染器验证暂停、Seek、1.5×、偏移以及 960.160 秒接缝后的有效时钟。已有赛季、日期与上下篇匹配行为由共享样本约束。
-- Chrome 158.0.8127.37、Firefox 159.0 测试版、WebKit 27.2 使用跨域的 MacCMS 和弹幕夹具测试推荐→搜索→详情→选集→播放→退出→续播→自动下一集，并解码夹具的 H.264/AAC MP4、TS HLS 和 fMP4 HLS。真实默认来源抽样解码了带 AES-128 的 TS HLS，本轮无可复测的默认 fMP4 或 MP4 样本。另验证分集独立进度、跨源倍率、关闭记忆后恢复默认、关闭自动下一集、快捷键、暂停与 Seek 后 Canvas 更新，以及下一集弹幕重新匹配。
-- Chrome 夹具注入媒体 404 后，可重试同一集并切换来源。三个浏览器环境解码后均报告官方画中画控件可用，Chrome 已实际进入和退出画中画，Firefox 与 WebKit 验证到入口显示。Chrome 常规配置通过 PWA 可安装性检查并验证离线外壳，系统安装操作未验收。
-- WebKit 在禁用 MSE 的测试中退回浏览器原生 HLS。Safari 27.2 的 WebDriver 会话因本机未启用远程自动化而未建立，Safari 应用本身和 iOS 真机尚未验收。
-- Chrome 核对桌面和手机宽度、PWA 安装资格及离线外壳。非无痕的临时配置返回零安装资格错误。系统安装流程、实体 Android TV 和 iOS 真机尚未复验。
+网络模式省略宿主机端口映射。HTTPS 和域名在用户的反代上配置。子目录发布时，反代剥离路径前缀，浏览器以带末尾斜杠的地址打开应用。
 
-### Go 迁移复验
+Gateway 按固定源键提供配置、搜索、详情和豆瓣推荐。豆瓣封面另有仅限固定 CDN 和路径的公开 JPEG 接口，响应最多 2 MiB。它拒绝自定义目标、上游重定向、非法参数和重复参数，限制上游并发 20、单请求 12 秒、响应 10 MiB。默认同源访问。API 客户端确需跨源时，可通过 `TIGERTV_WEB_ORIGIN` 允许一个精确 Origin。服务器详情响应包含第三方播放地址。清单、分片、MP4 和密钥由浏览器直接从 CDN 加载。弹幕服务单独运行，用户在设置中填写支持 CORS 的 API 地址。
 
-- 在测试机的独立 Compose 项目中构建并启动 Go 镜像，使用独立端口 `18813`。旧 Gateway 与弹幕服务持续运行。默认允许列表为 25 个源键，真实豆瓣返回 12 条推荐。通过 Go Gateway 查询真实《逐玉》搜索和详情，从 8 个源键取得前两集的 16 份 CDN 清单。部分源键返回 502 或未取得可用媒体。请求 Gateway 的清单、TS、fMP4、MP4 和密钥路径均返回 404。
-- Chrome 158 和 WebKit 27.2 通过 Go Gateway 完成真实 360 搜索、详情、选集、播放、退出、续播、自然结束自动下一集和离线外壳，浏览器直接请求第三方 CDN。两者均跨过首集三个有后续正片的广告接缝。Chrome 实际进入、退出画中画。Chrome 另用注入媒体 404 的夹具验证同集重试及切源，用静态夹具验证键盘、全屏、音量、倍速、续播和分集进度。WebKit 同样通过静态夹具回归。
-- 本机 Firefox ESR 153.7 通过 WebDriver BiDi 完成真实 360 搜索、播放、三处接缝、续播和自动下一集。另一个 Firefox 159 自动化配置下 360 曾在启动处卡顿，关闭过滤仍复现。Safari 应用的 WebDriver 因远程自动化未开启而无法建立会话，iOS 与实体 Android TV 本轮也未覆盖。
-- Chrome 使用用户配置的真实弹幕服务，自动搜索返回四个候选，手动选轨加载 13,378 条弹幕并保存选择与一秒偏移。Android TV 模拟器独立请求真实 CDN 和弹幕服务，验证去广告后暂停、定位、1.5×、偏移及切集时清除旧弹幕。旧记录与跨来源作品聚合继续通过共享夹具验证。
-- Android TV 模拟器重启后整套仪器回归零失败，两项需要真实服务参数的用例另行传参通过。macOS arm64 Kotlin/Native CLI 通过契约测试，独立查询真实 360 来源取得 40 集并生成 Quantumult X 规则。Linux 原生构建本轮未复验。
+## 兼容性
+
+真实来源有独立的 TLS、CORS、清单、分片和授权限制。360 和爱奇艺的搜索或详情曾缺少浏览器所需的 CORS 头，经 Gateway 可访问。部分默认来源出现上游失败，非凡部分媒体返回 403。验证到的 CDN 样本包含 AES-128 TS，客户端按浏览器能力选择 hls.js 或原生 HLS。 [去广告覆盖与真实样本](flowscan.md)
+
+## 弹幕性能
+
+4,035,786 字节、42,298 条弹幕的真实轨道，未压缩首字节 3.46 秒、总耗时 15.89 秒；gzip 样本首字节 2.40 秒、总耗时 9.34 秒，传输 828,219 字节。首字节包含上游处理和连接往返，客户端无法进一步拆分。历史约 35 秒的请求受网络和服务状态影响，本轮未复现同一耗时。
+
+Chrome 使用同一真实响应体隔离测试，移除大轨道 JSON reviver 后，纯解析中位数从约 39 毫秒降到 3.8 毫秒。Canvas 布局分帧后，本机最长单帧测得约 34 毫秒，整轨布局约 167 毫秒，保留开头、中段和结尾的绘制。两端在内存中按服务地址和剧集保存最近三条完整轨道，十分钟过期。Chrome 实际退出并续播时，缓存轨道约 36–39 毫秒可用，未再次发起轨道下载。Android TV 绘制滚动弹幕，Web 另绘制固定顶底弹幕。
+
+Chrome 实播 360《逐玉》，用选中的真实弹幕轨道核对有效播放时间 56、1213、2728 秒附近的 81 个已绘制弹幕位置。计入手动偏移后，样本中播放器与 Canvas 换算的时钟误差小于 1 毫秒。该测试检查渲染时钟，剧情和弹幕语义是否一致仍取决于素材版本和广告残留。
+
+## Bun 部署复验
+
+右上角的搜索图标展开输入和历史，提交后显示搜索结果。首页豆瓣各分类按上游 `total` 自动读取全部可用页，每页 36 条，按条目 ID 去重。`/api/metadata/hot/<category>?start=<offset>` 返回当页和总条目数。
+
+- 独立测试容器在 `192.168.5.118:18817` 提供首页和元数据，默认配置包含 25 个源键，豆瓣返回 12 条推荐。真实 360 搜索和详情通过。M3U8、TS、fMP4、MP4 和密钥路径在 Gateway 均返回 404。另用共享网络启动单服务，确认无宿主机端口绑定，网络内可访问 `tigertv:8080`。
+- Chrome 158 和 WebKit 27.2 实播 360，完成推荐、搜索、详情、选集、去广告接缝、退出、续播、自动下一集和离线外壳。Firefox ESR 153.7 实测搜索、360 播放、去广告接缝、退出、续播和自动下一集。Chrome 实际进入和退出画中画。Chrome、WebKit 的夹具回归另覆盖快捷键、全屏、倍速、音量和 TS、MP4、fMP4 播放。Chrome 媒体 404 夹具的同集重试与切源通过。
+- Android TV 模拟器 40 项常规仪器测试通过。另通过两项真实 360 与弹幕用例，覆盖过滤接缝、暂停、倍速、Seek、缓冲及切集清除旧轨，已校准时的渲染时钟与播放器误差断言为 200 毫秒以内。红牛真实清单原样播放验证通过。macOS arm64 Kotlin/Native CLI 构建与契约测试通过，独立搜索 360 并取得 40 集链接，生成 6 条 Quantumult X 输出并读取日志。
+- Safari 应用的远程自动化未开启。iOS、Android TV 实体设备和 Linux 原生 CLI 本轮未复验。内容版本差异和未识别广告会影响语义对齐，技术时钟一致无法消除这些偏移。

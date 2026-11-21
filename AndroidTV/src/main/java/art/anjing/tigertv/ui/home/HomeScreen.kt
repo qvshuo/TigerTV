@@ -1,7 +1,5 @@
 package art.anjing.tigertv.ui.home
 
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.rememberScrollState
@@ -25,6 +23,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.testTag
 import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
+import androidx.tv.material3.IconButtonDefaults
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -59,7 +58,7 @@ import androidx.tv.material3.Text
 import art.anjing.tigertv.ui.components.ErrorMessage
 import art.anjing.tigertv.ui.components.LoadingOverlay
 import art.anjing.tigertv.ui.components.ActionButton
-import art.anjing.tigertv.ui.components.UiMotion
+import art.anjing.tigertv.ui.components.ScreenTitle
 import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.components.SelectionChip
 import art.anjing.tigertv.ui.components.CardFocusScroll
@@ -83,7 +82,7 @@ fun HomeScreen(viewModel: TigerTVViewModel, onSearch: () -> Unit, onSettings: ()
     val active = lifecycle == Lifecycle.State.RESUMED && LocalWindowInfo.current.isWindowFocused
     var hotContentHeight by remember { mutableStateOf(72.dp) }
     var returningFromSearch by rememberSaveable { mutableStateOf(false) }
-    var initialCardFocus by rememberSaveable { mutableStateOf(!returningFromSearch) }
+    var entryFocusPending by rememberSaveable { mutableStateOf(true) }
     var returnCard by rememberSaveable { mutableStateOf<String?>(null) }
     var returnRecent by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -91,16 +90,15 @@ fun HomeScreen(viewModel: TigerTVViewModel, onSearch: () -> Unit, onSettings: ()
         if (active) viewModel.refreshRecentPlayback()
     }
     val recent = viewModel.recentPlayback
-    val desiredRecent = if (active) returnRecent ?: recent.firstOrNull()?.workId?.takeIf { initialCardFocus } else null
+    val desiredRecent = if (active) returnRecent else null
 
     LaunchedEffect(Unit) { viewModel.loadHotSearchCategories() }
     LaunchedEffect(active) {
         if (!active || returnCard != null || returnRecent != null) return@LaunchedEffect
-        if (returningFromSearch) {
+        if (entryFocusPending || returningFromSearch) {
             requestFocusSafely(searchFocus)
+            entryFocusPending = false
             returningFromSearch = false
-        } else if (initialCardFocus && recent.isEmpty() && viewModel.hotSearches.isEmpty()) {
-            requestFocusSafely(contentFocus)
         }
     }
     DisposableEffect(viewModel) {
@@ -110,20 +108,20 @@ fun HomeScreen(viewModel: TigerTVViewModel, onSearch: () -> Unit, onSettings: ()
         viewModel.loadHotSearches()
     }
     val desiredCard = if (active && desiredRecent == null && viewModel.recentPlaybackLoaded && !viewModel.isLoadingHotSearches) {
-        returnCard ?: viewModel.hotSearches.firstOrNull()?.id?.takeIf { initialCardFocus }
+        returnCard
     } else null
     LaunchedEffect(desiredCard, viewModel.hotSearches) {
         if (desiredCard != null && viewModel.hotSearches.none { it.id == desiredCard }) {
             requestFocusSafely(contentFocus)
             returnCard = null
-            initialCardFocus = false
+            entryFocusPending = false
         }
     }
 
     CompositionLocalProvider(LocalBringIntoViewSpec provides HomeFocusScroll) {
         Column(Modifier.fillMaxSize().onPreviewKeyEvent {
             if (it.type == KeyEventType.KeyDown && it.key in homeNavigationKeys) {
-                initialCardFocus = false
+                entryFocusPending = false
                 returnCard = null
                 returnRecent = null
             }
@@ -135,21 +133,21 @@ fun HomeScreen(viewModel: TigerTVViewModel, onSearch: () -> Unit, onSettings: ()
             ) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.app_name), Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium)
-                    IconButton(onClick = { returningFromSearch = true; onSearch() },
+                    ScreenTitle(stringResource(R.string.app_name), Modifier.weight(1f))
+                    IconButton(scale = IconButtonDefaults.scale(focusedScale = 1.02f), onClick = { returningFromSearch = true; onSearch() },
                         modifier = Modifier.size(UiMetrics.controlHeight).focusRequester(searchFocus).testTag("home-search")) {
                         Icon(Icons.Rounded.Search, contentDescription = "搜索")
                     }
-                    IconButton(onClick = { initialCardFocus = false; onSettings() },
+                    IconButton(scale = IconButtonDefaults.scale(focusedScale = 1.02f), onClick = { entryFocusPending = false; onSettings() },
                         modifier = Modifier.size(UiMetrics.controlHeight).testTag("home-settings")) {
                         Icon(Icons.Rounded.Settings, contentDescription = "设置")
                     }
                 }
                 if (recent.isNotEmpty()) {
                     Spacer(Modifier.height(UiMetrics.cardGap))
-                    RecentPlaybackRow(recent, desiredRecent, onFocusRestored = {
+                    RecentPlaybackRow(recent, viewModel::workCover, viewModel::rememberWorkCover, desiredRecent, onFocusRestored = {
                         returnRecent = null
-                        initialCardFocus = false
+                        entryFocusPending = false
                     }) {
                         returnRecent = it.workId
                         onRecent(it)
@@ -174,27 +172,21 @@ fun HomeScreen(viewModel: TigerTVViewModel, onSearch: () -> Unit, onSettings: ()
                             }
                         }
                         Box(Modifier.fillMaxWidth().heightIn(min = hotContentHeight), contentAlignment = Alignment.Center) {
-                            Crossfade(targetState = when {
-                                viewModel.isLoadingHotSearches -> 0
-                                viewModel.hotSearches.isEmpty() -> 1
-                                else -> 2
-                            }, animationSpec = tween(UiMotion.durationMillis), label = "hot content") { state ->
-                                if (state == 0) {
-                                    LoadingOverlay(message = "正在加载热门内容…", modifier = Modifier.fillMaxWidth().height(hotContentHeight))
-                                } else if (state == 1) {
-                                    ErrorMessage(message = "热门内容暂不可用，请重试", onRetry = viewModel::retryHotSearches, compact = true, focusRetry = false)
-                                } else {
-                                    HotSearchGrid(viewModel.hotSearches, Modifier.onSizeChanged {
-                                        hotContentHeight = with(density) { it.height.toDp() }.coerceAtLeast(72.dp)
-                                    }, restoreCardId = desiredCard, cardFocus = cardFocus, onFocusRestored = {
-                                        returnCard = null
-                                        initialCardFocus = false
-                                    }) { item ->
-                                        viewModel.onKeywordChange(item.title)
-                                        if (viewModel.search()) {
-                                            returnCard = item.id
-                                            onResults()
-                                        }
+                            if (viewModel.isLoadingHotSearches) {
+                                LoadingOverlay(message = "正在加载热门内容…", modifier = Modifier.fillMaxWidth().height(hotContentHeight))
+                            } else if (viewModel.hotSearches.isEmpty()) {
+                                ErrorMessage(message = "热门内容暂不可用，请重试", onRetry = viewModel::retryHotSearches, compact = true, focusRetry = false)
+                            } else {
+                                HotSearchGrid(viewModel.hotSearches, Modifier.onSizeChanged {
+                                    hotContentHeight = with(density) { it.height.toDp() }.coerceAtLeast(72.dp)
+                                }, restoreCardId = desiredCard, cardFocus = cardFocus, onFocusRestored = {
+                                    returnCard = null
+                                    entryFocusPending = false
+                                }) { item ->
+                                    viewModel.onKeywordChange(item.title)
+                                    if (viewModel.search()) {
+                                        returnCard = item.id
+                                        onResults()
                                     }
                                 }
                             }
@@ -225,8 +217,8 @@ internal fun SearchScreen(viewModel: TigerTVViewModel, onResults: () -> Unit) {
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
         .padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding),
-        verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        Text("搜索", style = MaterialTheme.typography.headlineMedium)
+        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        ScreenTitle("搜索")
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             TvTextInput(viewModel.keyword, viewModel::onKeywordChange, ::search, focus, Modifier.weight(1f),

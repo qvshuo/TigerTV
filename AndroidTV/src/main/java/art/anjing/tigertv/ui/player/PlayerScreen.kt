@@ -108,7 +108,7 @@ fun PlayerScreen(
                     val episodeId = stored.substringAfter(':', "").toLongOrNull()
                     if (titleId != null && episodeId != null) titleId to episodeId else null
                 }
-            }).also { it.offsetMs = preferences.getLong("offset:$identity", 0L) }
+            })
     }
     DisposableEffect(danmakuState) { onDispose { danmakuState.close() } }
     LaunchedEffect(danmakuState, danmakuState.enabled, configuredServer) {
@@ -367,15 +367,11 @@ fun PlayerScreen(
                 resource = listOfNotNull(viewModel.selectedResult?.site, line?.name).joinToString(" · "),
                 adFiltered = controller.playbackTimeline != null, snapshot = snapshot, controls = controls, timelineFocus = timelineFocus, playFocus = playFocus,
                 speedFocus = speedFocus, speedOptionFocus = speedOptionFocus, danmakuFocus = danmakuFocus,
-                danmakuOpen = danmakuQuick, danmakuEnabled = danmakuState.enabled, danmakuLoaded = danmakuState.hasComments, danmakuOffsetMs = danmakuState.offsetMs,
+                danmakuOpen = danmakuQuick, danmakuEnabled = danmakuState.enabled,
                 onDanmakuMenu = { controls = controls.copy(speedMenuOpen = false); danmakuQuick = !danmakuQuick; interact() },
                 onDanmakuAction = { action ->
                     when (action) {
                         4 -> danmakuMenu = true
-                        1, 2 -> {
-                            danmakuState.offsetMs += if (action == 1) 1_000 else -1_000
-                            preferences.edit().putLong("offset:$identity", danmakuState.offsetMs).apply()
-                        }
                         0 -> { danmakuState.toggleEnabled(); preferences.edit().putBoolean("enabled:$identity", danmakuState.enabled).apply() }
                     }
                     danmakuQuick = false; interact(); requestFocus(PlayerFocusArea.Danmaku)

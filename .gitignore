@@ -36,4 +36,6 @@ artifacts/
 /web/node_modules/
 /web/dist/
 
-/gateway/.env
+/web/.env
+/web/.env.*
+!/web/.env.example

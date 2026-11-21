@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,7 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
@@ -38,21 +38,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Search
+import androidx.tv.material3.Icon
+import androidx.tv.material3.IconButton
+import androidx.tv.material3.IconButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import coil3.compose.AsyncImage
 import art.anjing.tigertv.R
 import art.anjing.tigertv.domain.VideoWork
 import art.anjing.tigertv.domain.SearchResult
+import art.anjing.tigertv.ui.components.WorkPoster
+import art.anjing.tigertv.ui.components.ScreenTitle
 import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.components.CardFocusScroll
 import art.anjing.tigertv.ui.components.ErrorMessage
-import art.anjing.tigertv.ui.components.SearchButton
+import art.anjing.tigertv.ui.components.LoadingIndicator
 import art.anjing.tigertv.ui.requestFocusSafely
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
 import art.anjing.tigertv.data.normalizeCoverUrl
@@ -62,6 +67,7 @@ import art.anjing.tigertv.data.normalizeCoverUrl
 fun ResultsScreen(
     viewModel: TigerTVViewModel,
     onBack: () -> Unit,
+    onSearch: () -> Unit,
     onSelectResult: (SearchResult) -> Unit
 ) {
     BackHandler(onBack = onBack)
@@ -76,16 +82,14 @@ fun ResultsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = "${stringResource(R.string.results_title)}: ${viewModel.submittedKeyword}",
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                SearchButton(isSearching = viewModel.isSearching) { viewModel.search() }
+                ScreenTitle("${stringResource(R.string.results_title)}: ${viewModel.submittedKeyword}", Modifier.weight(1f))
+                IconButton(onClick = onSearch, enabled = !viewModel.isSearching, modifier = Modifier.size(UiMetrics.controlHeight),
+                    scale = IconButtonDefaults.scale(focusedScale = 1.02f)) {
+                    if (viewModel.isSearching) LoadingIndicator(Modifier.size(UiMetrics.compactLoadingIndicator))
+                    else Icon(Icons.Rounded.Search, contentDescription = "搜索")
+                }
             }
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             when {
                 viewModel.isSearching && viewModel.works.isEmpty() -> Spacer(Modifier.fillMaxSize())
@@ -107,6 +111,7 @@ fun ResultsScreen(
                 }
                 else -> ResultsGrid(
                     works = viewModel.works,
+                    viewModel = viewModel,
                     restoreSourceKey = viewModel.selectedResult?.coverKey,
                     coverFallbacks = viewModel.coverFallbacks,
                     onLoadCoverFallback = viewModel::loadCoverFallbackIfPossible,
@@ -122,6 +127,7 @@ fun ResultsScreen(
 @Composable
 private fun ResultsGrid(
     works: List<VideoWork>,
+    viewModel: TigerTVViewModel,
     restoreSourceKey: String?,
     coverFallbacks: Map<String, String>,
     onLoadCoverFallback: (SearchResult) -> Unit,
@@ -159,6 +165,9 @@ private fun ResultsGrid(
             itemsIndexed(works, key = { _, work -> work.id }) { _, work ->
                 WorkCard(
                     work = work,
+                    result = viewModel.cardSource(work),
+                    poster = viewModel.workCover(work.id),
+                    onPosterShown = { viewModel.rememberWorkCover(work.id, it) },
                     coverFallbacks = coverFallbacks,
                     onLoadCoverFallback = onLoadCoverFallback,
                     onSelectResult = onSelectResult,
@@ -173,24 +182,27 @@ private fun ResultsGrid(
 @Composable
 private fun WorkCard(
     work: VideoWork,
+    result: SearchResult,
+    poster: String?,
+    onPosterShown: (String) -> Unit,
     coverFallbacks: Map<String, String>,
     onLoadCoverFallback: (SearchResult) -> Unit,
     onSelectResult: (SearchResult) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val result = work.displaySource
     LaunchedEffect(work.sources) { work.orderedSources.forEach(onLoadCoverFallback) }
     MediaCard(onClick = { onSelectResult(work.defaultSource) }, modifier = modifier) {
-        CoverImage(
+        WorkPoster(
             workId = work.id,
-            urls = work.orderedSources.mapNotNull { source ->
-                normalizeCoverUrl(source.vodPic) ?: normalizeCoverUrl(coverFallbacks[source.coverKey].orEmpty())
-            }.distinct(),
+            urls = (listOfNotNull(poster) + (listOf(result) + work.orderedSources).flatMap { source ->
+                listOfNotNull(normalizeCoverUrl(source.vodPic), normalizeCoverUrl(coverFallbacks[source.coverKey].orEmpty()))
+            }).distinct(),
+            onShown = onPosterShown,
             title = result.vodName,
             modifier = Modifier.fillMaxWidth().aspectRatio(CoverAspectRatio).clip(MaterialTheme.shapes.small)
         )
         art.anjing.tigertv.ui.components.MediaCardDetails(
-            title = if (result.vodYear.isBlank()) result.vodName else "${result.vodName} (${result.vodYear})",
+            title = if (result.vodYear.isBlank() || result.vodYear == "0") result.vodName else "${result.vodName} (${result.vodYear})",
             footer = result.vodTime
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
@@ -209,51 +221,3 @@ private fun WorkCard(
 
 
 private const val CoverAspectRatio = 2f / 3f
-
-/** Retain the first successful cover as incremental sources arrive. */
-@Composable
-private fun CoverImage(
-    workId: String,
-    urls: List<String>,
-    title: String,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
-        contentAlignment = Alignment.Center
-    ) {
-        var loadedUrl by rememberSaveable(workId) { mutableStateOf<String?>(null) }
-        var failedUrls by remember(workId) { mutableStateOf(emptySet<String>()) }
-        val url = loadedUrl ?: urls.firstOrNull { it !in failedUrls }
-        var imageReady by remember(url) { mutableStateOf(false) }
-        if (!imageReady) CoverPlaceholder(title)
-        if (url != null) {
-            AsyncImage(
-                model = url,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-                onSuccess = { imageReady = true; loadedUrl = url },
-                onError = {
-                    imageReady = false
-                    failedUrls = failedUrls + url
-                    if (loadedUrl == url) loadedUrl = null
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun CoverPlaceholder(title: String) {
-    Box(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = title.take(1).ifEmpty { "?" },
-            style = MaterialTheme.typography.displayMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-        )
-    }
-}

@@ -2,28 +2,26 @@
   import { untrack } from 'svelte'
   import '@videojs/html/video/player'
   import type { VideoPlayerElement } from '@videojs/html/video'
-  import '@videojs/html/ui/container'
-  import '@videojs/html/ui/pip-button'
-  import '@videojs/html/ui/fullscreen-button'
+  import '@videojs/html/video/skin'
+  import '@videojs/html/i18n'
+  import '@videojs/html/i18n/locales/zh-CN/register'
   import type { HlsJsVideoElement } from '@videojs/html/media/hlsjs-video'
-  import { legacyWorkId, webUrl, type Episode } from './api.ts'
+  import { legacyWorkId, webUrl, type Episode, type Site } from './api.ts'
   import { effectiveTime, originalTime, type Interval } from './hls.ts'
   import { getPosition, getSpeed, getVolume, read, recordStarted, savePosition, saveSpeed, saveVolume, write, type PlaybackOptions, type Selection, type Settings } from './storage.ts'
-  import { autoMatch, DanmakuClient, drawComments, type DanmakuEpisode, type Title, type Track } from './danmaku.ts'
+  import { autoMatch, DanmakuClient, danmakuLoading, drawComments, type DanmakuEpisode, type Title, type Track } from './danmaku.ts'
 
   type Media = HTMLVideoElement | HlsJsVideoElement
-  let { selection, episode, settings, onBack, onNext, onPrevious, onSources, canNext, canPrevious, inherited }:
+  let { selection, episode, settings, onBack, onNext, onPrevious, onSources, canNext, canPrevious, inherited, onAdFilter }:
     { selection: Selection; episode: Episode; settings: Settings; onBack: () => void; onNext: (options?: PlaybackOptions) => void;
-      onPrevious: () => void; onSources: () => void; canNext: boolean; canPrevious: boolean; inherited?: PlaybackOptions } = $props()
-  let container = $state<HTMLElementTagNameMap["media-container"]>()
+      onPrevious: () => void; onAdFilter: (site: Site) => void; onSources: () => void; canNext: boolean; canPrevious: boolean; inherited?: PlaybackOptions } = $props()
+  let container = $state<HTMLElementTagNameMap["video-skin"]>()
   let player = $state<VideoPlayerElement>()
   let canvas = $state<HTMLCanvasElement>()
   let dialog = $state<HTMLDialogElement>()
   let media: Media | undefined
   let retry = $state(0)
   let loading = $state(true)
-  let paused = $state(true)
-  let position = $state(0)
   let duration = $state(0)
   let volume = $state(1)
   let muted = $state(false)
@@ -32,7 +30,6 @@
   let removed = $state.raw<Interval[]>([])
   let track = $state.raw<Track>()
   let enabled = $state(true)
-  let offset = $state(0)
   let keyword = $state('')
   let titles = $state.raw<Title[]>([])
   let episodes = $state.raw<DanmakuEpisode[]>([])
@@ -64,22 +61,17 @@
     muted = media.muted
     saveVolume(volume, muted, settings.rememberVolume)
   }
-  function changeSpeed(value: number) {
-    if (!media) return
-    media.playbackRate = value
-    speed = value
-    saveSpeed(selection.work.id, value, settings.rememberSpeed)
-  }
   function exit(action: () => void) {
     flush()
     media?.pause()
     action()
   }
   function shortcut(event: KeyboardEvent) {
-    if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || dialog?.open) return
+    if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || dialog?.open || document.querySelector(':popover-open')) return
     const target = event.composedPath()[0]
     if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return
     if (event.key === ' ' && target instanceof Element && target.closest('button, a, [role=button]')) return
+    if (event.key !== 'Escape' && container && event.composedPath().includes(container)) return
     const store = player?.store
     switch (event.key.toLowerCase()) {
       case ' ':
@@ -101,14 +93,6 @@
     }
     event.preventDefault()
   }
-  function clock(time: number) {
-    if (!Number.isFinite(time)) return '0:00'
-    const seconds = Math.max(0, Math.floor(time))
-    const rest = String(seconds % 60).padStart(2, '0')
-    return seconds >= 3600 ? `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds / 60) % 60).padStart(2, '0')}:${rest}`
-      : `${Math.floor(seconds / 60)}:${rest}`
-  }
-
   $effect(() => {
     const session = selection
     const link = episode.url
@@ -121,10 +105,8 @@
     const url = webUrl(link)
     loading = !!url
     error = url ? '' : '此线路的播放地址不可用，请切换来源。'
-    position = 0
     duration = 0
     removed = []
-    paused = true
     speed = priorOptions?.speed ?? getSpeed(session.work.id, prefs.rememberSpeed, session.work.sources)
     const volumeSettings = priorOptions ?? getVolume(prefs.rememberVolume)
     volume = volumeSettings.volume
@@ -158,7 +140,24 @@
       flush = save
       const on = (name: string, handler: EventListener) => el.addEventListener(name, handler, { signal: events.signal })
 
+      const placeDanmaku = () => {
+        const width = mount.clientWidth
+        const height = mount.clientHeight
+        const aspect = el.videoWidth > 0 && el.videoHeight > 0 ? el.videoWidth / el.videoHeight : width / height
+        if (!width || !height || !Number.isFinite(aspect) || aspect <= 0) return
+        const contentWidth = Math.min(width, height * aspect)
+        const contentHeight = Math.min(height, width / aspect)
+        overlay.style.width = `${contentWidth}px`
+        overlay.style.height = `${contentHeight / 4}px`
+        overlay.style.left = `${(width - contentWidth) / 2}px`
+        overlay.style.top = `${(height - contentHeight) / 2}px`
+      }
+      const layout = new ResizeObserver(placeDanmaku)
+      layout.observe(mount)
+      on('resize', placeDanmaku)
+
       on('loadedmetadata', () => {
+        placeDanmaku()
         const resume = effectiveTime(livePosition, removed)
         if (resume > 0 && (!Number.isFinite(el.duration) || resume < el.duration - 0.25)) el.currentTime = resume
         duration = Number.isFinite(el.duration) ? el.duration : 0
@@ -167,24 +166,29 @@
         attemptedPlay = true
       })
       on('durationchange', () => { duration = Number.isFinite(el.duration) ? el.duration : 0 })
-      on('timeupdate', () => { position = el.currentTime })
-      on('waiting', () => { loading = !el.paused })
       on('canplay', () => { loading = false })
-      on('play', () => { paused = false; ended = false })
+      on('play', () => { ended = false })
       on('playing', () => {
         playedHere = true
-        paused = false
         if (!started) { started = true; recordStarted(session) }
         loading = false
       })
-      on('pause', () => { paused = true; loading = false; save() })
-      on('seeked', () => { position = el.currentTime; save() })
+      on('pause', () => { loading = false; save() })
+      on('seeked', save)
+      on('ratechange', () => {
+        speed = el.playbackRate
+        saveSpeed(session.work.id, speed, prefs.rememberSpeed)
+      })
+      on('volumechange', () => {
+        volume = el.volume
+        muted = el.muted
+        saveVolume(volume, muted, prefs.rememberVolume)
+      })
       on('ended', () => {
         if (!active || !playedHere || ended || error) return
         ended = true
         savePosition(session, 0)
         lastSaved = 0
-        paused = true
         loading = false
         if (settings.autoNext && canNext) onNext({
           speed: el.playbackRate, volume: el.volume, muted: el.muted, danmakuEnabled: enabled,
@@ -213,6 +217,7 @@
       cleanupMedia = () => {
         save()
         events.abort()
+        layout.disconnect()
         window.clearInterval(timer)
         el.pause()
         if (el instanceof HTMLVideoElement) {
@@ -232,8 +237,11 @@
       else {
         el.source = {
           src: url, type: 'application/vnd.apple.mpegurl', preferPlayback: 'mse',
-          engine: hlsLoader ? { hlsJs: { pLoader: hlsLoader(session.source.site.name, intervals => {
-            if (active && media === el) removed = intervals
+          engine: hlsLoader ? { hlsJs: { pLoader: hlsLoader(intervals => {
+            if (active && media === el) {
+              removed = intervals
+              if (intervals.length) onAdFilter(session.source.site)
+            }
           }) } } : undefined,
         }
       }
@@ -265,21 +273,17 @@
   const episodeKey = $derived(danmakuEpisodeKey(titleKey))
   const legacyTitleKey = $derived(danmakuTitleKey(legacyWorkId(selection.source)))
   const legacyEpisodeKey = $derived(danmakuEpisodeKey(legacyTitleKey))
-  function changeOffset(seconds: number) {
-    offset += seconds
-    write('danmaku-offset:' + episodeKey, offset)
-  }
   $effect(() => {
     const key = episodeKey
     const name = selection.work.display.title
     enabled = inherited?.danmakuEnabled ?? read('danmaku-enabled:' + key, read('danmaku-enabled:' + legacyEpisodeKey, true))
-    offset = read('danmaku-offset:' + key, 0)
     keyword = name
     titles = []
     episodes = []
     manualTitle = 0
     manualEpisode = 0
     track = undefined
+    danmakuStatus = ''
   })
   $effect(() => {
     const server = settings.danmakuServer
@@ -290,8 +294,9 @@
     const controller = new AbortController()
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(90_000)])
     request = controller
-    danmakuStatus = '正在匹配弹幕…'
-    void autoMatch(new DanmakuClient(server, signal), s.work.display.title, s.work.display.year, s.episode,
+    void autoMatch(new DanmakuClient(server, signal, phase => {
+      if (!signal.aborted && !track) danmakuStatus = danmakuLoading[phase]
+    }), s.work.display.title, s.work.display.year, s.episode,
       { title: read<number | undefined>(title, undefined) ?? read<number | undefined>(legacyTitleKey, undefined),
         episode: read<{ title: number; id: number } | undefined>(episode, undefined)
           ?? read<{ title: number; id: number } | undefined>(legacyEpisodeKey, undefined) },
@@ -308,11 +313,12 @@
     let lastTrack: Track | undefined
     let lastWidth = 0
     let lastHeight = 0
+    let layoutPending = false
     function paint() {
       const selected = enabled ? track : undefined
-      const time = media && !media.seeking ? media.currentTime + offset : -1
-      if (time !== lastTime || selected !== lastTrack || element.clientWidth !== lastWidth || element.clientHeight !== lastHeight) {
-        drawComments(element, selected, time)
+      const time = media && !media.seeking ? media.currentTime : -1
+      if (layoutPending || time !== lastTime || selected !== lastTrack || element.clientWidth !== lastWidth || element.clientHeight !== lastHeight) {
+        layoutPending = drawComments(element, selected, time)
         lastTime = time
         lastTrack = selected
         lastWidth = element.clientWidth
@@ -328,9 +334,10 @@
     request?.abort()
     const controller = new AbortController()
     request = controller
-    danmakuStatus = '加载中…'
     try {
-      const result = await work(new DanmakuClient(settings.danmakuServer, controller.signal))
+      const result = await work(new DanmakuClient(settings.danmakuServer, controller.signal, phase => {
+        if (!controller.signal.aborted) danmakuStatus = danmakuLoading[phase]
+      }))
       if (!controller.signal.aborted) { danmakuStatus = ''; apply(result) }
     } catch {
       if (!controller.signal.aborted) danmakuStatus = '弹幕加载失败'
@@ -361,10 +368,11 @@
   <button class="quiet" onclick={() => exit(onBack)}>← 返回详情</button>
   <button class="quiet" onclick={() => exit(onSources)}>切换来源</button>
 </div>
-<video-player bind:this={player} content-title={selection.work.display.title}>
-  <media-container bind:this={container} class="video-surface">
+<media-i18n lang="zh-CN"><video-player bind:this={player}>
+  <video-skin bind:this={container} class="video-surface">
     <canvas bind:this={canvas} class="danmaku" aria-hidden="true"></canvas>
     {#if removed.length && !error}<span class="filter-label">去广告</span>{/if}
+    <p class="danmaku-status" role="status">{enabled ? danmakuStatus : ''}</p>
     {#if error}
       <div class="video-message" role="alert">
         <p>{error}</p>
@@ -373,24 +381,6 @@
     {:else if loading}
       <div class="video-message pointer-events-none" role="status">正在准备播放…</div>
     {/if}
-    <div class="transport">
-      <label class="sr-only" for="time">播放进度</label>
-      <input id="time" type="range" min="0" max={duration || 1} step="0.1" value={position} disabled={!duration}
-        aria-valuetext={clock(position)} oninput={event => seek(event.currentTarget.valueAsNumber)} />
-      <div class="transport-row">
-        <button class="transport-button" onclick={toggle} disabled={!!error} aria-label={paused ? '播放' : '暂停'}>{paused ? '▶' : 'Ⅱ'}</button>
-        <span class="time-display">{clock(position)} / {clock(duration)}</span>
-        <div class="grow"></div>
-        <button class="transport-button" aria-label={muted ? '取消静音' : '静音'} onclick={() => changeVolume(volume, !muted)}>{muted ? '静音' : '音量'}</button>
-        <input class="volume-slider" aria-label="音量" type="range" min="0" max="1" step="0.05" value={muted ? 0 : volume}
-          oninput={event => changeVolume(event.currentTarget.valueAsNumber)} />
-        <select aria-label="播放速度" class="transport-button" value={speed} onchange={event => changeSpeed(Number(event.currentTarget.value))}>
-          {#each [0.5, 0.75, 1, 1.25, 1.5, 2] as rate}<option value={rate}>{rate}×</option>{/each}
-        </select>
-        <media-pip-button class="transport-button" label="画中画">画中画</media-pip-button>
-        <media-fullscreen-button class="transport-button" label="全屏">全屏</media-fullscreen-button>
-      </div>
-    </div>
     <dialog bind:this={dialog} aria-labelledby="danmaku-heading">
       <form method="dialog" class="mb-5 flex items-center justify-between gap-3">
         <h2 id="danmaku-heading">选择弹幕</h2>
@@ -426,8 +416,8 @@
         <p class="muted">请在设置中填写弹幕 API 地址。</p>
       {/if}
     </dialog>
-  </media-container>
-</video-player>
+  </video-skin>
+</video-player></media-i18n>
 
 <div class="player-meta">
   <div>
@@ -443,9 +433,5 @@
       if (!enabled) track = undefined
     }}>弹幕</button>
     <button class="quiet" onclick={() => dialog?.showModal()}>选择弹幕</button>
-    {#if enabled && track}
-      <button class="quiet" aria-label="弹幕延后 1 秒" onclick={() => changeOffset(-1)}>−1 秒</button>
-      <button class="quiet" aria-label="弹幕提前 1 秒" onclick={() => changeOffset(1)}>+1 秒</button>
-    {/if}
   </div>
 </div>

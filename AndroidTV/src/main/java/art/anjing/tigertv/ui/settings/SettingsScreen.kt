@@ -13,10 +13,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.ListItem
+import androidx.tv.material3.ListItemDefaults
 import art.anjing.tigertv.ui.player.PlaybackPreferences
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import art.anjing.tigertv.ui.components.ActionButton
+import art.anjing.tigertv.ui.components.ScreenTitle
 import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.components.TvTextInput
 import art.anjing.tigertv.ui.player.DEFAULT_DANMAKU_SERVER
@@ -36,12 +38,12 @@ internal fun SettingsScreen() {
     val focus = remember { FocusRequester() }
     val address = draft.trim().trimEnd('/')
     val valid = address.toHttpUrlOrNull()?.let { it.query == null && it.fragment == null } == true
-    LaunchedEffect(saved) { requestFocusSafely(focus) }
+    LaunchedEffect(Unit) { requestFocusSafely(focus) }
 
     Surface(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding),
-            verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            Text("设置", style = MaterialTheme.typography.headlineMedium)
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            ScreenTitle("设置")
             Column(Modifier.widthIn(max = 840.dp).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("播放", style = MaterialTheme.typography.titleMedium)
@@ -71,6 +73,7 @@ internal fun SettingsScreen() {
 private fun PlaybackSetting(label: String, enabled: Boolean, onChange: (Boolean) -> Unit) {
     ListItem(
         selected = enabled,
+        scale = ListItemDefaults.scale(focusedScale = 1f),
         onClick = { onChange(!enabled) },
         headlineContent = { Text(label) },
         trailingContent = { Text(if (enabled) "开启" else "关闭") },

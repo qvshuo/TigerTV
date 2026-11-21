@@ -1,18 +1,16 @@
-import rules from '../../shared/hls-ad-rules.json' with { type: 'json' }
 import heuristics from '../../shared/hls-heuristics.json' with { type: 'json' }
 
 export type Interval = { start: number; end: number }
 type Segment = { uri: string; duration: string; micros: number; discontinuity: boolean; key: string; implicitIv: boolean; tags: string[] }
 
-function fingerprint(uri: string) {
-  let hash = 14695981039346656037n
-  for (const byte of new TextEncoder().encode(uri)) hash = BigInt.asUintN(64, (hash ^ BigInt(byte)) * 1099511628211n)
-  return hash.toString(16).padStart(16, '0')
-}
-
 function vod(text: string) {
   const lines = text.split(/\r?\n/).filter(Boolean)
   if (lines[0] !== '#EXTM3U' || lines.at(-1) !== '#EXT-X-ENDLIST') return
+  const end = lines.indexOf('#EXT-X-ENDLIST')
+  // Some responses append a partial URI and an exact copy of the final discontinuity and segment.
+  if (end !== lines.length - 1 && (end < 4 || lines.length !== end + 6 ||
+    !/^[0-9a-f]+$/.test(lines[end + 1]) || lines[end - 3] !== '#EXT-X-DISCONTINUITY' ||
+    lines.slice(end - 3, end).some((line, index) => line !== lines[end + 2 + index]))) return
   const headers = ['#EXTM3U']
   const segments: Segment[] = []
   let duration = ''
@@ -22,7 +20,7 @@ function vod(text: string) {
   let implicitIv = false
   let tags: string[] = []
   let discontinuity = false
-  for (const line of lines.slice(1, -1)) {
+  for (const line of lines.slice(1, end)) {
     if (line.startsWith('#EXTINF:')) {
       if (duration || !line.includes(',')) return
       const seconds = Number(line.slice(8, line.indexOf(',')))
@@ -77,21 +75,55 @@ function parseKey(text: string) {
 const encrypted = (segment: Segment) => Boolean(segment.key && segment.key !== '#EXT-X-KEY:METHOD=NONE')
 const range = (start: number, end: number) => Array.from({ length: end - start }, (_, index) => start + index)
 
-function smartAdIndices(segments: Segment[], exact: Set<number>) {
+function smartAdIndices(segments: Segment[], playlistHost: string) {
   const { minSeconds, maxSeconds, maxFraction, flankSegments: flank, pathTokens } = heuristics
   const total = segments.reduce((sum, segment) => sum + segment.micros, 0)
-  const accepted = new Set(exact)
-  let removed = [...exact].reduce((sum, index) => sum + segments[index].micros, 0)
-  function propose(start: number, end: number, declared?: number) {
+  const accepted = new Set<number>()
+  let removed = 0
+  function propose(start: number, end: number, declared?: number, verified = false) {
     if (start >= end) return
     const indices = range(start, end)
     if (indices.some(index => accepted.has(index))) return
     const duration = indices.reduce((sum, index) => sum + segments[index].micros, 0)
     const seconds = duration / 1e6
-    if (seconds < minSeconds || seconds > maxSeconds || removed + duration > total * maxFraction ||
+    if (seconds < minSeconds || seconds > maxSeconds || (!verified && removed + duration > total * maxFraction) ||
       (declared !== undefined && Math.abs(seconds - declared) > 0.25)) return
     for (const index of indices) accepted.add(index)
     removed += duration
+  }
+
+  const paths = segments.map(segment => segment.uri.split(/[?#]/, 1)[0])
+  const spliceBoundaries = [...segments.flatMap((segment, index) => segment.discontinuity ? [index] : []), segments.length]
+  for (const profile of heuristics.sourceGroups) {
+    if (!new RegExp(`^(?:${profile.manifestHost})$`).test(playlistHost)) continue
+    const segmentPattern = new RegExp(`^(?:${profile.segmentUri})$`)
+    const contentPattern = profile.contentUri ? new RegExp(`^(?:${profile.contentUri})$`) : undefined
+    const contentSide = (uri: string) => contentPattern ? contentPattern.test(uri) : !segmentPattern.test(uri)
+    const matches = new Map<string, [number, number][]>()
+    const seenDurations = new Set<number>()
+    const innerOffsets = profile.innerDiscontinuityOffsets
+    const boundaryStep = innerOffsets?.length ? 2 : 1
+    for (let index = 0; index + boundaryStep < spliceBoundaries.length; index++) {
+      const start = spliceBoundaries[index]
+      const end = spliceBoundaries[index + boundaryStep]
+      if (innerOffsets?.length && !innerOffsets.includes(spliceBoundaries[index + 1] - start)) continue
+      if (!start || (end === segments.length && !profile.allowEnd) || !contentSide(paths[start - 1]) ||
+        (end !== segments.length && !contentSide(paths[end]))) continue
+      const group = segments.slice(start, end)
+      const durationIndex = profile.durationsMicros.findIndex(durations => durations.length === group.length &&
+        group.every((segment, index) => segment.micros === durations[index] && !encrypted(segment) &&
+          segmentPattern.test(paths[start + index])))
+      if (durationIndex < 0) continue
+      seenDurations.add(durationIndex)
+      const key = JSON.stringify(paths.slice(start, end))
+      const runs = matches.get(key) ?? []
+      runs.push([start, end])
+      matches.set(key, runs)
+    }
+    if (profile.requireAllDurations && seenDurations.size !== profile.durationsMicros.length) continue
+    for (const runs of matches.values()) if (!profile.repeated || runs.length > 1) {
+      for (const [start, end] of runs) propose(start, end, undefined, true)
+    }
   }
 
   let cueStart = -1
@@ -109,16 +141,18 @@ function smartAdIndices(segments: Segment[], exact: Set<number>) {
     }
   }
 
-  const paths = segments.map(segment => segment.uri.split(/[?#]/, 1)[0])
   const families = paths.map(path => path.replace(/[0-9]+(?=\.[^./]+$)/, ''))
-  const hasAdToken = (path: string) => path.toLowerCase().split(/[/._-]/).some(part => pathTokens.includes(part))
+  const adPaths = paths.map(path => path.toLowerCase().split(/[/._-]/).some(part => pathTokens.includes(part)))
   for (let start = 0; start < segments.length;) {
+    if (!adPaths[start]) { start++; continue }
     let end = start + 1
-    while (end < segments.length && families[end] === families[start]) end++
+    while (end < segments.length && adPaths[end]) end++
     if (start >= flank && end + flank <= segments.length &&
-      families.slice(start - flank, start).every(family => family === families[start - 1]) &&
-      families.slice(end, end + flank).every(family => family === families[start - 1]) &&
-      hasAdToken(paths[start]) && !hasAdToken(paths[start - 1])) propose(start, end)
+      !adPaths.slice(start - flank, start).some(Boolean) && !adPaths.slice(end, end + flank).some(Boolean)) {
+      const sameFamily = families.slice(start - flank, start).every(family => family === families[start - 1]) &&
+        families.slice(end, end + flank).every(family => family === families[start - 1])
+      if (sameFamily || (segments[start].discontinuity && segments[end].discontinuity)) propose(start, end)
+    }
     start = end
   }
 
@@ -140,38 +174,11 @@ function smartAdIndices(segments: Segment[], exact: Set<number>) {
   return accepted
 }
 
-type Rule = { site: string; uriFingerprints: string[]; durations: number[]; pathPrefix?: string; allowEnd?: boolean; continuous?: boolean }
-
-export function filterPlaylist(site: string, text: string, definitions: Rule[] = rules): { text: string; removed: Interval[] } | undefined {
-  const applicable = definitions.filter(rule => rule.site === site)
+export function filterPlaylist(text: string, playlistHost = ''): { text: string; removed: Interval[] } | undefined {
   const playlist = vod(text)
   if (!playlist) return
   const { segments } = playlist
-  const exact = new Set<number>()
-  const removedUris = new Set<string>()
-  let matched = 0
-  for (const [index, segment] of segments.entries()) {
-    for (const rule of applicable) {
-      const count = rule.uriFingerprints.length
-      const end = index + count
-      if (end > segments.length) continue
-      if (rule.continuous) {
-        if (!index || end === segments.length || segment.discontinuity || segments[end].discontinuity ||
-          !encrypted(segment) || segments[index - 1].key !== segment.key || segments[end].key !== segment.key) continue
-      } else if (!segment.discontinuity || (end === segments.length ? !rule.allowEnd : !segments[end].discontinuity)) continue
-      const group = segments.slice(index, end)
-      if (!group.every((item, i) => (!i || !item.discontinuity) &&
-        (rule.continuous ? item.key === segment.key : !encrypted(item)) &&
-        item.micros === Math.round(rule.durations[i] * 1e6) && !/[?#]/.test(item.uri) &&
-        (!rule.pathPrefix || item.uri.startsWith(rule.pathPrefix)) && fingerprint(item.uri) === rule.uriFingerprints[i])) continue
-      for (const item of group) removedUris.add(item.uri)
-      for (const i of range(index, end)) exact.add(i)
-      matched += count
-      break
-    }
-  }
-  if (segments.filter(segment => removedUris.has(segment.uri)).length !== matched) exact.clear()
-  const dropped = smartAdIndices(segments, exact)
+  const dropped = smartAdIndices(segments, playlistHost)
   if (!dropped.size || dropped.size === segments.length) return
   const output = [...playlist.headers]
   const removed: Interval[] = []

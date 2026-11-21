@@ -1,6 +1,8 @@
 package art.anjing.tigertv.core
 
 import io.ktor.http.URLBuilder
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
 import kotlin.math.roundToLong
 
@@ -10,7 +12,8 @@ data class DanmakuComment(val timeMs: Long, val text: String, val mode: Int, val
 data class DanmakuTrack(val referenceDurationMs: Long?, val comments: List<DanmakuComment>)
 
 /** Explicit title/episode selection: matching a title does not establish timeline alignment. */
-class DanmakuClient(private val network: Network, baseUrl: String) {
+class DanmakuClient internal constructor(private val network: Network, baseUrl: String, private val tracks: DanmakuTrackCache?) {
+    constructor(network: Network, baseUrl: String) : this(network, baseUrl, null)
     private val base = baseUrl.trimEnd('/')
     suspend fun search(keyword: String): List<DanmakuTitle> {
         val url = URLBuilder("$base/api/v2/search/anime").apply { parameters.append("keyword", keyword) }.buildString()
@@ -39,7 +42,26 @@ class DanmakuClient(private val network: Network, baseUrl: String) {
     }
     suspend fun comments(episodeId: Long): DanmakuTrack {
         require(episodeId > 0)
-        return parseDanmakuTrack(network.get("$base/api/v2/comment/$episodeId?format=json&duration=true", 50_000))
+        val url = "$base/api/v2/comment/$episodeId?format=json&duration=true"
+        tracks?.get(url)?.let { return it }
+        return parseDanmakuTrack(network.get(url, 50_000)).also { if (it.comments.isNotEmpty()) tracks?.put(url, it) }
+    }
+}
+
+internal class DanmakuTrackCache(private val clock: () -> Long) {
+    private val lock = Mutex()
+    private val tracks = linkedMapOf<String, Pair<Long, DanmakuTrack>>()
+
+    suspend fun get(url: String): DanmakuTrack? = lock.withLock {
+        val entry = tracks.remove(url)?.takeIf { clock() - it.first in 0 until 600_000L } ?: return@withLock null
+        tracks[url] = entry
+        entry.second
+    }
+
+    suspend fun put(url: String, track: DanmakuTrack) = lock.withLock {
+        tracks.remove(url)
+        tracks[url] = clock() to track
+        if (tracks.size > 3) tracks.remove(tracks.keys.first())
     }
 }
 

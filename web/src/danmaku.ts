@@ -1,3 +1,4 @@
+import selectionRules from '../../shared/danmaku-selection.json' with { type: 'json' }
 import { foldWidth as fold, getJson, object, scalar } from './api.ts'
 
 export type Title = { id: number; title: string; source: string }
@@ -6,7 +7,7 @@ export type Comment = { time: number; mode: number; color: number; text: string 
 export type Track = { duration: number; comments: Comment[] }
 const numeral = '[0-9零〇一二两三四五六七八九十百]+'
 const seasonPattern = new RegExp(`第\\s*(${numeral})\\s*季|(?<![a-z0-9])(?:season\\s*|s)([0-9]+)(?=e[0-9]|[^a-z0-9]|$)`, 'i')
-const ordinal = new RegExp(`第\\s*(${numeral})\\s*([集期话話])`)
+const ordinal = new RegExp(`第\\s*(${numeral})\\s*([集期话話])`, 'g')
 const special = /特别篇?|番外|加更|预告|花絮|特辑|特典|先导|前采|抢鲜|抢先|沉浸|彩蛋|\b(?:trailer|preview|ova|oad|extra|sp|special)(?=\b|\d)/i
 const platforms = 'qiyi|iqiyi|youku|qq|tencent|imgo|mgtv|mango|360|bilibili|bili|douban|dandan|renren|sohu|letv|pptv|爱奇艺|优酷|腾讯(?:视频)?|芒果\\s*tv|哔哩哔哩'
 const metadata = new RegExp(`[【\\[(]\\s*(?:${platforms}|国产剧|电视剧|电影|综艺|纪录片|动漫|动画|[日韩欧美港台]剧|短剧|高清|超清|蓝光|全集|完结|\\d{3,4}p|[248]k)\\s*[\\]】)]`, 'gi')
@@ -15,7 +16,10 @@ const yearPattern = /[【\[(]((?:19|20)\d{2})[\]】)]|\s+((?:19|20)\d{2})\s*$/g
 const aliasPattern = /[【\[(](?:又名|别名|英文名|原名|aka)\s*[:：]?\s*([^】)\]]+)[\]】)]/gi
 
 function number(text = ''): number | undefined {
-  if (/^\d+$/.test(text)) return Number(text) || undefined
+  if (/^\d+$/.test(text)) {
+    const value = Number(text)
+    return value > 0 && value <= 2147483647 ? value : undefined
+  }
   let sum = 0
   let digit = 0
   for (const char of text) {
@@ -62,7 +66,10 @@ function label(raw: string) {
   if (special.test(heading) || /上下篇|上中下/.test(heading) || special.exec(subtitle.trimStart())?.index === 0) return
   const date = text.match(/(?<!\d)(20\d{2})[-./年]?(0[1-9]|1[0-2])[-./月]?(0[1-9]|[12]\d|3[01])(?!\d)/)?.slice(1).join('')
   const part = heading.match(/[集期话話]\s*[(【\[]?\s*([上下中])(?=篇|集|部|[)】\]:：\s]|$)/)?.[1]
-  const ordinalMatch = ordinal.exec(heading)
+  const ordinalMatch = [...heading.matchAll(ordinal)].find(match => {
+    const value = number(match[1])
+    return value !== undefined && value < 10000
+  })
   const n = number(ordinalMatch?.[1])
   const english = heading.match(/(?<![a-z0-9])(?:s\d+\s*)?(?:episode|ep|e)\s*(\d+)(?![\d.])/i)
   return { date, part, season: season(heading), kind: ordinalMatch ? ordinalMatch[2] === '期' ? 'period' : 'episode' : undefined,
@@ -73,7 +80,7 @@ export function matchingEpisode(episodes: DanmakuEpisode[], name: string, workSe
   const target = label(name)
   if (!target || (!target.number && !target.date) || (target.season && workSeason && target.season !== workSeason)) return
   const expectedSeason = target.season ?? workSeason ?? 1
-  const multipleSeasons = new Set(episodes.map(episode => episode.seasonId).filter(Boolean)).size > 1
+  const multipleSeasons = new Set(episodes.map(episode => episode.seasonId).filter(value => value.trim())).size > 1
   const matches = episodes.flatMap(episode => {
     const title = label(episode.title)
     const numberLabel = label(episode.number)
@@ -99,20 +106,32 @@ export function matchingEpisode(episodes: DanmakuEpisode[], name: string, workSe
 function rows(input: unknown) { return Array.isArray(input) ? input.map(object) : [] }
 function id(value: unknown) { const result = Number(scalar(value)); return Number.isSafeInteger(result) && result > 0 ? result : 0 }
 
+const recentTracks = new Map<string, { expires: number; track: Track }>()
+
+export type DanmakuPhase = 'search' | 'episodes' | 'track'
+
+export const danmakuLoading: Record<DanmakuPhase, string> = {
+  search: '正在查找弹幕来源…',
+  episodes: '正在匹配本集弹幕…',
+  track: '正在接收弹幕…',
+}
+
 export class DanmakuClient {
   private base: string
   private signal: AbortSignal
 
-  constructor(base: string, signal: AbortSignal) {
+  constructor(base: string, signal: AbortSignal, private onPhase?: (phase: DanmakuPhase) => void) {
     this.base = base.trim().replace(/\/+$/, '')
     this.signal = signal
   }
   async search(keyword: string) {
+    this.onPhase?.('search')
     const raw = object(await getJson(`${this.base}/api/v2/search/anime?${new URLSearchParams({ keyword })}`, this.signal))
     if (raw.success !== true) throw new Error('弹幕搜索失败')
     return rows(raw.animes).map(item => ({ id: id(item.animeId), title: scalar(item.animeTitle), source: scalar(item.source) })).filter(item => item.id)
   }
   async episodes(titleId: number) {
+    this.onPhase?.('episodes')
     const raw = object(await getJson(`${this.base}/api/v2/bangumi/${titleId}`, this.signal, 20_000))
     if (raw.success !== true) throw new Error('弹幕选集加载失败')
     const bangumi = object(raw.bangumi)
@@ -121,43 +140,65 @@ export class DanmakuClient {
       seasonId: scalar(row.seasonId), season: seasons.get(scalar(row.seasonId)) })).filter(item => item.id)
   }
   async track(episodeId: number): Promise<Track> {
-    const raw = object(await getJson(`${this.base}/api/v2/comment/${episodeId}?format=json&duration=true`, this.signal, 50_000))
-    const comments = rows(raw.comments).flatMap(row => {
+    this.onPhase?.('track')
+    this.signal.throwIfAborted()
+    const url = `${this.base}/api/v2/comment/${episodeId}?format=json&duration=true`
+    const cached = recentTracks.get(url)
+    if (cached) {
+      recentTracks.delete(url)
+      if (cached.expires > Date.now()) {
+        recentTracks.set(url, cached)
+        return cached.track
+      }
+    }
+    const raw = object(await getJson(url, this.signal, 50_000, JSON.parse))
+    const comments: Comment[] = []
+    for (const item of Array.isArray(raw.comments) ? raw.comments : []) {
+      const row = object(item)
       const fields = scalar(row.p).split(',', 3)
-      if (fields.length !== 3 || fields.some(field => !field.trim())) return []
-      const [time, mode, color] = fields.map(Number)
+      if (fields.length !== 3 || fields.some(field => !field.trim())) continue
+      const time = Number(fields[0]), mode = Number(fields[1]), color = Number(fields[2])
       const text = scalar(row.m)
-      return Number.isFinite(time) && time >= 0 && time <= 604800 && [1, 4, 5].includes(mode) &&
-        Number.isInteger(color) && color >= 0 && color <= 0xffffff && text.trim() ? [{ time, mode, color, text }] : []
-    }).sort((a, b) => a.time - b.time)
+      if (Number.isFinite(time) && time >= 0 && time <= 604800 && (mode === 1 || mode === 4 || mode === 5) &&
+        Number.isInteger(color) && color >= 0 && color <= 0xffffff && text.trim()) comments.push({ time, mode, color, text })
+    }
+    comments.sort((a, b) => a.time - b.time)
     const duration = Number(raw.videoDuration)
-    return { comments, duration: Number.isFinite(duration) && duration > 0 && duration <= 604800 ? duration : 0 }
+    const track = { comments, duration: Number.isFinite(duration) && duration > 0 && duration <= 604800 ? duration : 0 }
+    if (comments.length) {
+      recentTracks.delete(url)
+      recentTracks.set(url, { expires: Date.now() + 600_000, track })
+      if (recentTracks.size > 3) recentTracks.delete(recentTracks.keys().next().value!)
+    }
+    return track
   }
 }
-const platformsByPriority = [['iqiyi', 'qiyi'], ['youku'], ['tencent', 'qq'], ['mgtv', 'imgo', 'mango']]
+const { platformPriority, durationDivisor, minimumToleranceMs, maximumToleranceMs, minimumCountRatio } = selectionRules
 const priority = (source: string) => {
-  const index = platformsByPriority.findIndex(group => group.includes(source.toLowerCase()))
-  return index < 0 ? platformsByPriority.length : index
+  const index = platformPriority.findIndex(group => group.includes(source.toLowerCase()))
+  return index < 0 ? platformPriority.length : index
 }
 const scrollingCount = (track: Track) => track.comments.reduce((count, item) => count + Number(item.mode === 1), 0)
 export function shouldUpgrade(current: Track, next: Track) {
   const currentCount = scrollingCount(current)
-  return currentCount > 0 && current.duration > 0 && next.duration > 0 &&
-    Math.abs(current.duration - next.duration) <= Math.min(10, Math.max(1, Math.min(current.duration, next.duration) / 100)) &&
-    scrollingCount(next) >= currentCount * 2
+  const currentMs = Math.round(current.duration * 1000)
+  const nextMs = Math.round(next.duration * 1000)
+  const tolerance = Math.min(maximumToleranceMs,
+    Math.max(minimumToleranceMs, Math.floor(Math.min(currentMs, nextMs) / durationDivisor)))
+  return currentCount > 0 && currentMs > 0 && nextMs > 0 &&
+    Math.abs(currentMs - nextMs) <= tolerance && scrollingCount(next) >= currentCount * minimumCountRatio
 }
 
 export async function autoMatch(client: DanmakuClient, query: string, year: string, episodeName: string,
   memory: { title?: number; episode?: { title: number; id: number } }, publish: (track: Track) => void, signal: AbortSignal) {
   let budget = 12
   const expectedSeason = season(query) ?? season(episodeName)
-  async function load(title: number, remembered?: number) {
+  async function load(title: number) {
     try {
       if (!budget) return
       budget--
       const episodes = await client.episodes(title)
-      const episode = remembered !== undefined ? episodes.find(item => item.id === remembered)
-        : matchingEpisode(episodes, episodeName, expectedSeason)
+      const episode = matchingEpisode(episodes, episodeName, expectedSeason)
       if (!episode || !budget) return
       budget--
       const track = await client.track(episode.id)
@@ -165,8 +206,11 @@ export async function autoMatch(client: DanmakuClient, query: string, year: stri
     } catch (error) { if (signal.aborted) throw error }
   }
   if (memory.episode) {
-    const track = await load(memory.episode.title, memory.episode.id)
-    if (track) { publish(track); return }
+    try {
+      budget--
+      const track = await client.track(memory.episode.id)
+      if (scrollingCount(track)) { publish(track); return }
+    } catch (error) { if (signal.aborted) throw error }
   }
   if (memory.title) {
     const track = await load(memory.title)
@@ -199,38 +243,43 @@ export async function autoMatch(client: DanmakuClient, query: string, year: stri
 }
 
 type PositionedComment = Comment & { x: number; y: number; end: number }
-const layouts = new WeakMap<HTMLCanvasElement, {
+type CommentLayout = {
   track: Track; width: number; height: number; font: string; velocity: number; comments: PositionedComment[]
-}>()
+  pending?: Generator<void>
+}
+const layouts = new WeakMap<HTMLCanvasElement, CommentLayout>()
 
 function layoutComments(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, track: Track, width: number, height: number) {
   const cached = layouts.get(canvas)
   if (cached?.track === track && cached.width === width && cached.height === height) return cached
-  const fontSize = Math.max(14, Math.min(26, height / 17))
+  const fontSize = Math.max(14, Math.min(26, height / 4.25))
   const rowHeight = fontSize * 1.4
-  const lanes = new Array<number>(Math.max(1, Math.floor(height * 0.43 / rowHeight))).fill(0)
+  const lanes = new Array<number>(Math.max(1, Math.floor((height - 3) / rowHeight))).fill(0)
   const fixed = { 4: 0, 5: 0 }
   const velocity = width / 6
   const font = `600 ${fontSize}px system-ui, sans-serif`
-  ctx.font = font
   const comments: PositionedComment[] = []
-  for (const item of track.comments) {
-    const text = item.text.slice(0, 100)
-    if (item.mode === 1) {
-      const row = lanes.findIndex(until => until <= item.time)
-      if (row < 0) continue
-      const size = ctx.measureText(text).width
-      if (size > width * 1.65) continue
-      lanes[row] = item.time + (size + 18) / velocity
-      comments.push({ ...item, text, x: width, y: (row + 1) * rowHeight, end: item.time + (width + size) / velocity })
-    } else if ((item.mode === 4 || item.mode === 5) && fixed[item.mode] <= item.time) {
-      const size = ctx.measureText(text).width
-      if (size > width) continue
-      fixed[item.mode] = item.time + 4
-      comments.push({ ...item, text, x: (width - size) / 2, y: item.mode === 5 ? rowHeight : height * 0.78, end: item.time + 4 })
+  function* positionComments() {
+    let count = 0
+    for (const item of track.comments) {
+      if (++count % 128 === 0) yield
+      const text = item.text.slice(0, 100)
+      if (item.mode === 1) {
+        const row = lanes.findIndex(until => until <= item.time)
+        if (row < 0) continue
+        const size = ctx.measureText(text).width
+        if (size > width * 1.65) continue
+        lanes[row] = item.time + (size + 18) / velocity
+        comments.push({ ...item, text, x: width, y: (row + 1) * rowHeight, end: item.time + (width + size) / velocity })
+      } else if ((item.mode === 4 || item.mode === 5) && fixed[item.mode] <= item.time) {
+        const size = ctx.measureText(text).width
+        if (size > width) continue
+        fixed[item.mode] = item.time + 4
+        comments.push({ ...item, text, x: (width - size) / 2, y: item.mode === 5 ? rowHeight : height - 4, end: item.time + 4 })
+      }
     }
   }
-  const layout = { track, width, height, font, velocity, comments }
+  const layout: CommentLayout = { track, width, height, font, velocity, comments, pending: positionComments() }
   layouts.set(canvas, layout)
   return layout
 }
@@ -242,11 +291,21 @@ export function drawComments(canvas: HTMLCanvasElement, track: Track | undefined
   if (canvas.width !== Math.round(width * scale)) canvas.width = Math.round(width * scale)
   if (canvas.height !== Math.round(height * scale)) canvas.height = Math.round(height * scale)
   const ctx = canvas.getContext('2d')
-  if (!ctx) return
+  if (!ctx) return false
   ctx.setTransform(scale, 0, 0, scale, 0, 0)
   ctx.clearRect(0, 0, width, height)
-  if (!track || time < 0 || !width || !height) return
-  const { comments, velocity, font } = layoutComments(canvas, ctx, track, width, height)
+  if (!track) layouts.delete(canvas)
+  if (!track || time < 0 || !width || !height) return false
+  const layout = layoutComments(canvas, ctx, track, width, height)
+  const { comments, velocity, font, pending } = layout
+  ctx.font = font
+  if (pending) {
+    // Share each paint with the video instead of laying out the entire track at once.
+    const deadline = performance.now() + 6
+    do {
+      if (pending.next().done) { layout.pending = undefined; break }
+    } while (performance.now() < deadline)
+  }
   let low = 0
   let high = comments.length
   while (low < high) {
@@ -254,8 +313,7 @@ export function drawComments(canvas: HTMLCanvasElement, track: Track | undefined
     if (comments[middle].time < time - 16) low = middle + 1
     else high = middle
   }
-  ctx.font = font
-  ctx.lineWidth = 3
+  ctx.lineWidth = 1
   ctx.lineJoin = 'round'
   ctx.strokeStyle = 'rgba(0, 0, 0, .85)'
   for (let index = low; index < comments.length; index++) {
@@ -267,4 +325,5 @@ export function drawComments(canvas: HTMLCanvasElement, track: Track | undefined
     ctx.fillStyle = '#' + item.color.toString(16).padStart(6, '0')
     ctx.fillText(item.text, x, item.y)
   }
+  return layout.pending !== undefined
 }

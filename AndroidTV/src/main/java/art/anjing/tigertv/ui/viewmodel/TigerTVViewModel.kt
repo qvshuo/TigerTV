@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -60,6 +61,17 @@ class TigerTVViewModel(
         private set
     var recentPlaybackLoaded by mutableStateOf(false)
         private set
+
+    private val workCovers = mutableStateMapOf<String, String>()
+
+    fun cardSource(work: VideoWork): SearchResult =
+        recentPlayback.firstOrNull { it.workId == work.id }?.cardSource ?: work.displaySource
+
+    fun workCover(id: String): String? = workCovers[id] ?: recentPlayback.firstOrNull { it.workId == id }?.cardPoster
+
+    fun rememberWorkCover(id: String, url: String) {
+        if (workCovers[id] != url) workCovers[id] = url
+    }
 
     suspend fun refreshRecentPlayback() {
         playbackSaveJob?.join()
@@ -171,6 +183,8 @@ class TigerTVViewModel(
         if (session.copy(positionMillis = active.positionMillis) != active) return
         val source = selectedResult ?: return
         val detail = fetchResponse
+        val display = selectedWork?.let(::cardSource) ?: source
+        val cardPoster = workCover(session.workId)
         val recentSource = source.copy(
             vodName = source.vodName.ifBlank { detail?.vodName.orEmpty() },
             vodPic = detail?.vodPic?.takeIf { it.isNotBlank() } ?: source.vodPic,
@@ -190,7 +204,7 @@ class TigerTVViewModel(
         val previous = playbackSaveJob
         playbackSaveJob = persistenceScope.launch {
             previous?.join()
-            repository.recordPlayback(session.workId, session.site, session.line, session.episode, recentSource)
+            repository.recordPlayback(session.workId, session.site, session.line, session.episode, recentSource, display, cardPoster)
         }
     }
 
@@ -258,7 +272,14 @@ class TigerTVViewModel(
         val generation = ++hotSearchGeneration
         isLoadingHotSearches = hotSearches.isEmpty()
         try {
-            val titles = repository.hotSearches(category)
+            val titles = repository.hotSearches(category) { batch ->
+                withContext(Dispatchers.Main.immediate) {
+                    if (generation == hotSearchGeneration && selectedHotCategory == category) {
+                        hotSearches = batch
+                        isLoadingHotSearches = false
+                    }
+                }
+            }
             kotlinx.coroutines.currentCoroutineContext().ensureActive()
             if (generation == hotSearchGeneration && selectedHotCategory == category) {
                 if (titles.isNotEmpty()) hotSearches = titles

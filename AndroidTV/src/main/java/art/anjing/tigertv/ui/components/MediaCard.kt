@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.tv.material3.Card
+import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 
@@ -18,6 +19,7 @@ import androidx.tv.material3.MaterialTheme
 fun MediaCard(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Card(
         onClick = onClick,
+        scale = CardDefaults.scale(focusedScale = 1.02f),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(

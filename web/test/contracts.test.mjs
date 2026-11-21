@@ -1,9 +1,9 @@
-import { test } from 'node:test'
+import { test } from 'bun:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { apiUrl, integer, parseConfig, parseJson, parseLines, webUrl, workId } from '../src/api.ts'
+import { integer, parseConfig, parseJson, parseLines, webUrl, workId } from '../src/api.ts'
 import { filterPlaylist, effectiveTime, originalTime } from '../src/hls.ts'
-import { matchingEpisode, shouldUpgrade, titleRank } from '../src/danmaku.ts'
+import { autoMatch, DanmakuClient, matchingEpisode, shouldUpgrade, titleRank } from '../src/danmaku.ts'
 import { getBookmark, getPosition, getRecent, getSettings, getSpeed, getVolume, recordStarted, savePosition, saveSpeed, saveVolume } from '../src/storage.ts'
 
 const fixture = name => readFileSync(new URL(`../../docs/fixtures/${name}.sample.json`, import.meta.url), 'utf8')
@@ -28,35 +28,26 @@ test('MacCMS input, first-arrival identity, preserved parameters and playback gr
     b: { name: '🎬B', api: 'https://a.example' },
     c: { name: '🎬C', api: 'https://c.example', _comment: null },
   } })
-  assert.deepEqual(config, [{ name: '🎬A', api: 'https://a.example' }])
-  const url = new URL(apiUrl('https://api.example/?ac=list&a=1&wd=old&ids=2', { ac: 'detail', wd: '逐玉 +' }))
-  assert.equal(url.searchParams.get('ac'), 'detail')
-  assert.equal(url.searchParams.get('wd'), '逐玉 +')
-  assert.equal(url.searchParams.get('a'), '1')
-  assert.equal(url.searchParams.get('ids'), null)
+  assert.deepEqual(config, [{ name: '🎬A', api: 'https://a.example', gateway: 'a' }])
   assert.equal(webUrl('https://media.example/剧集%2F/第一集.m3u8?token=猫+2'),
     'https://media.example/%E5%89%A7%E9%9B%86%2F/%E7%AC%AC%E4%B8%80%E9%9B%86.m3u8?token=%E7%8C%AB+2')
 })
 
 test('Android and Web remove the same interval and preserve the key and relative URLs', () => {
-  const { site, uris, durations, playlist, expected, startMs, endMs } = json('hls-filter')
-  const uriFingerprints = ['7c4f99cccfbcb28c', 'fe05efc48c56aa91', 'cc8b29bd966317ba', '51a777b555e02b27']
-  // FNV-1a fingerprints for the four sanitized URI strings in the shared fixture.
-  const rules = [{ site, uriFingerprints, durations }]
-  const result = filterPlaylist(site, playlist, rules)
+  const { uris, playlist, expected, startMs, endMs } = json('hls-filter')
+  const result = filterPlaylist(playlist)
   assert.deepEqual(result, { text: expected, removed: [{ start: startMs / 1000, end: endMs / 1000 }] })
   assert.ok(Math.abs(originalTime(startMs / 1000, result.removed) - endMs / 1000) < 1e-9)
   assert.ok(Math.abs(effectiveTime(endMs / 1000, result.removed) - startMs / 1000) < 1e-9)
   assert.equal(effectiveTime(startMs / 1000 + 1, result.removed), startMs / 1000)
   for (const input of [
     playlist.replace(uris[2], 'changed.ts'),
-    playlist.replace('#EXT-X-DISCONTINUITY\n', ''),
+    playlist.replaceAll('#EXT-X-DISCONTINUITY\n', ''),
     playlist.replace('MEDIA-SEQUENCE:0', 'MEDIA-SEQUENCE:0\n#EXT-X-MEDIA-SEQUENCE:1'),
     playlist.replace('IV=0x00000000000000000000000000000001', 'KEYFORMAT="drm"'),
     playlist.replace('#EXTINF:5,', '#EXT-X-MAP:URI="init.mp4"\n#EXTINF:5,'),
     playlist.replace('#EXTINF:5,', '#EXT-X-BYTERANGE:24@0\n#EXTINF:5,'),
-  ]) assert.equal(filterPlaylist(site, input, rules), undefined)
-  assert.equal(filterPlaylist('unknown', playlist, rules), undefined)
+  ]) assert.equal(filterPlaylist(input), undefined)
 })
 
 test('match season, date and parts, and upgrade only a compatible cut', () => {
@@ -84,7 +75,9 @@ test('work-wide speed, volume settings, separate episode progress and recent ded
   const next = { ...episode, episode: '第2集', index: 1 }
   recordStarted(episode, 1)
   recordStarted({ ...episode, work: { ...work, id: '其他作品' } }, 2)
-  recordStarted(other, 3)
+  recordStarted({ ...other, work: { ...work, display: second } }, 3)
+  assert.equal(getRecent()[0].work.display.id, first.id)
+  assert.equal(getRecent()[0].source.id, second.id)
   assert.equal(getBookmark(work.id, first).episode, episode.episode)
   assert.deepEqual(getRecent().map(r => [r.work.id, r.at]), [[work.id, 3], ['其他作品', 2]])
   saveSpeed(episode.work.id, 1.5, true)
@@ -103,14 +96,8 @@ test('work-wide speed, volume settings, separate episode progress and recent ded
 
 test('unlisted sources share heuristic intervals and preserve the original key sequence', () => {
   for (const { name, playlist, removed } of json('hls-smart')) {
-    const result = filterPlaylist('🎬未收录来源', playlist)
+    const result = filterPlaylist(playlist)
     assert.deepEqual(result?.removed ?? [], removed.map(([start, end]) => ({ start: start / 1000, end: end / 1000 })), name)
-    if (name === 'same-directory-without-evidence') {
-      const fingerprints = ['e18860e8d17c825b', '27bcbb2440ca6534']
-      const rules = [{ site: 'fixture', uriFingerprints: fingerprints, durations: [4, 4], continuous: true }]
-      assert.deepEqual(filterPlaylist('fixture', playlist, rules)?.removed, [{ start: 60, end: 68 }])
-      assert.equal(filterPlaylist('fixture', playlist.replace('part103.ts', 'part333.ts'), rules), undefined)
-    }
     if (!result) continue
     assert.match(result.text, /IV=0x00000000000000000000000000000069/)
     assert.ok(result.text.includes(`#EXT-X-VERSION:${removed.length === 2 ? 3 : 2}\n`))
@@ -126,6 +113,14 @@ test('unlisted sources share heuristic intervals and preserve the original key s
   }
 })
 
+test('source profiles match a splice across changed asset URIs and keep negative controls', () => {
+  for (const { name, host, playlist, removed } of json('hls-source-groups')) {
+    const result = filterPlaylist(playlist, host)
+    assert.deepEqual(result?.removed ?? [], removed.map(([start, end]) => ({ start: start / 1000, end: end / 1000 })), name)
+    if (result) assert.equal(originalTime(removed[0][0] / 1000, result.removed), removed[0][1] / 1000, name)
+  }
+})
+
 test('conservative work identities are stable across sources', () => {
   const identities = new Map()
   for (const row of json('work-identity')) {
@@ -134,4 +129,29 @@ test('conservative work identities are stable across sources', () => {
     identities.set(row.expected, id)
   }
   assert.equal(new Set(identities.values()).size, identities.size)
+})
+
+
+test('reopening a remembered episode reuses a parsed track scoped to its API address', async () => {
+  const originalFetch = globalThis.fetch
+  const requested = []
+  globalThis.fetch = async url => {
+    requested.push(new URL(url).pathname)
+    return Response.json({ videoDuration: 100, comments: [{ p: '4,1,16777215', m: 'fixture' }] })
+  }
+  try {
+    const signal = new AbortController().signal
+    const memory = { episode: { title: 7, id: 9 } }
+    const tracks = []
+    for (const address of ['https://fixture.test/a', 'https://fixture.test/a', 'https://fixture.test/b']) {
+      const client = new DanmakuClient(address, signal)
+      await autoMatch(client, '作品', '', '第1集', memory, track => tracks.push(track), signal)
+    }
+    assert.deepEqual(requested, ['/a/api/v2/comment/9', '/b/api/v2/comment/9'])
+    assert.equal(tracks.length, 3)
+    assert.equal(tracks[0], tracks[1])
+    assert.notEqual(tracks[1], tracks[2])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
 })

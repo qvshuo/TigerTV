@@ -20,6 +20,7 @@ import art.anjing.tigertv.ui.components.ActionButton
 import art.anjing.tigertv.ui.components.UiMetrics
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.InputChip
+import androidx.tv.material3.InputChipDefaults
 import androidx.tv.material3.Text
 import art.anjing.tigertv.R
 
@@ -53,6 +54,7 @@ fun SearchHistoryRow(
         ) {
             items(history) { item ->
                 InputChip(
+                    scale = InputChipDefaults.scale(focusedScale = 1f),
                     selected = false,
                     onClick = { onSelect(item) },
                     onLongClick = { onRemove(item) },

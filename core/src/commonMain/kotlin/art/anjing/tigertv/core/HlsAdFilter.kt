@@ -21,11 +21,17 @@ internal data class HlsVod(
 private val keyAttribute = Regex("([A-Z-]+)=(\"[^\"]*\"|[^,]+)")
 private val explicitIv = Regex("0[xX][0-9a-fA-F]{32}")
 private val vodHeader = Regex("#EXT-X-(?:VERSION:[0-9]+|TARGETDURATION:[0-9]+|MEDIA-SEQUENCE:[0-9]+|PLAYLIST-TYPE:VOD)")
+private val partialUri = Regex("[0-9a-f]+")
 
 /** A single complete media timeline. Unsupported segment state stays with the upstream playlist. */
 internal fun parseHlsVod(playlist: String): HlsVod? {
     val lines = playlist.replace("\r\n", "\n").split('\n').filter { it.isNotEmpty() }
     if (lines.firstOrNull() != "#EXTM3U" || lines.lastOrNull() != "#EXT-X-ENDLIST") return null
+    val end = lines.indexOf("#EXT-X-ENDLIST")
+    // Some responses append a partial URI and an exact copy of the final discontinuity and segment.
+    if (end != lines.lastIndex && (end < 4 || lines.size != end + 6 ||
+            !partialUri.matches(lines[end + 1]) || lines[end - 3] != "#EXT-X-DISCONTINUITY" ||
+            lines.subList(end - 3, end) != lines.subList(end + 2, lines.lastIndex))) return null
     val headers = mutableListOf("#EXTM3U")
     val segments = mutableListOf<HlsSegment>()
     val tags = mutableListOf<String>()
@@ -35,7 +41,7 @@ internal fun parseHlsVod(playlist: String): HlsVod? {
     var extinf: String? = null
     var micros = 0L
     var total = 0L
-    for (line in lines.subList(1, lines.lastIndex)) {
+    for (line in lines.subList(1, end)) {
         when {
             line.startsWith("#EXT-X-KEY:") -> {
                 if (extinf != null) return null

@@ -119,11 +119,6 @@ class LiveDanmakuPlaybackTest {
             val paused = main { overlay().lastClockMs }
             Thread.sleep(700)
             assertEquals(paused, main { overlay().lastClockMs })
-            // Adjust reference offset while paused: no video-time movement or repeated ad subtraction.
-            openQuick()
-            compose.onNodeWithTag("danmaku-action-1").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
-            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
-            compose.waitUntil(5_000) { main { kotlin.math.abs(overlay().lastClockMs - player().currentPosition - 1_000) < 100 } }
             val seekAt = args.getString("seek_millis")?.toLongOrNull() ?: 310_000L
             main { player().seekTo(seekAt); player().setPlaybackSpeed(1.5f); player().play() }
             Thread.sleep(100)
@@ -133,7 +128,7 @@ class LiveDanmakuPlaybackTest {
             val bufferFrozen = buffering && main { player().playbackState == Player.STATE_BUFFERING }
             if (bufferFrozen) assertEquals(bufferClock, main { overlay().lastClockMs })
             compose.waitUntil(25_000) { main { player().isPlaying && player().currentPosition > seekAt + 1_000 && overlay().drawnCount > 0 } }
-            main { assertTrue(kotlin.math.abs(overlay().lastClockMs - player().currentPosition - 1_000) < 200) }
+            main { assertTrue(kotlin.math.abs(overlay().lastClockMs - player().currentPosition) < 200) }
             Thread.sleep(1_000)
             main { assertNull(player().playerError); assertTrue(overlay().drawnCount <= 12) }
             main {
@@ -149,7 +144,7 @@ class LiveDanmakuPlaybackTest {
                     assertNull(player().playerError)
                     val advanced = player().currentPosition - before
                     assertTrue("Playback stalled during soak", advanced >= soakSeconds * 750L)
-                    assertTrue(kotlin.math.abs(overlay().lastClockMs - player().currentPosition - 1_000) < 300 || overlay().drawnCount == 0)
+                    assertTrue(kotlin.math.abs(overlay().lastClockMs - player().currentPosition) < 300 || overlay().drawnCount == 0)
                     val counters = (player() as androidx.media3.exoplayer.ExoPlayer).videoDecoderCounters!!
                     counters.ensureUpdated()
                     android.util.Log.i("TigerTVDanmakuLive", "soakSeconds=$soakSeconds advancedMs=$advanced rendered=${counters.renderedOutputBufferCount} dropped=${counters.droppedBufferCount}")

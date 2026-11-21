@@ -129,7 +129,11 @@ class ResultsRemoteTest {
             compose.onNodeWithText("小老虎爱看剧").assertIsDisplayed()
             compose.onNodeWithText("最近播放").assertDoesNotExist()
             val recommendation = hasText("热门验收 (2026)") and hasClickAction()
-            compose.waitUntil(10_000) { compose.onAllNodes(recommendation and isFocused()).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(10_000) { compose.onAllNodes(recommendation).fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithTag("home-search").assertIsFocused().assertIsDisplayed()
+            compose.onNodeWithTag("home-settings").assertIsDisplayed()
+            compose.onNodeWithText("小老虎爱看剧").assertIsDisplayed()
+            compose.onNode(recommendation).performSemanticsAction(SemanticsActions.RequestFocus) { it() }
             remote(KeyEvent.KEYCODE_DPAD_CENTER)
             compose.waitUntil(10_000) { compose.onAllNodes(hasText("搜索结果: 热门验收")).fetchSemanticsNodes().isNotEmpty() }
             remote(KeyEvent.KEYCODE_BACK)
@@ -157,7 +161,6 @@ class ResultsRemoteTest {
             compose.waitUntil(10_000) {
                 compose.onAllNodes(hasText("播放 · 第一集") and isFocused()).fetchSemanticsNodes().isNotEmpty()
             }
-            remote(KeyEvent.KEYCODE_DPAD_DOWN)
             remote(KeyEvent.KEYCODE_DPAD_DOWN)
             remote(KeyEvent.KEYCODE_DPAD_DOWN)
             compose.onNode(hasText("第一集") and hasClickAction()).assertIsFocused()

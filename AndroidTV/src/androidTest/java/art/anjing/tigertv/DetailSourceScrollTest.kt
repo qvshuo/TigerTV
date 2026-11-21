@@ -138,10 +138,10 @@ class DetailSourceScrollTest {
             compose.onNodeWithText("收起").assertDoesNotExist()
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN)
             compose.waitForIdle()
-            compose.onNode(hasText("🎬源甲") and hasClickAction()).assertIsFocused()
+            compose.onNode(hasText("源甲") and hasClickAction()).assertIsFocused()
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
             compose.waitForIdle()
-            val source = compose.onNode(hasText("🎬源乙") and hasClickAction())
+            val source = compose.onNode(hasText("源乙") and hasClickAction())
             source.assertIsFocused()
             fun scrollPosition() = compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
                 .fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
@@ -157,13 +157,13 @@ class DetailSourceScrollTest {
             if (navigateWhileLoading) {
                 instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_LEFT)
                 compose.waitForIdle()
-                compose.onNode(hasText("🎬源甲") and hasClickAction()).assertIsFocused()
+                compose.onNode(hasText("源甲") and hasClickAction()).assertIsFocused()
             }
             releaseDetail.complete(Unit)
             compose.waitUntil(10_000) { !model.isFetching && (model.fetchResponse?.site == "🎬源乙" || model.fetchErrorMessage != null) }
             compose.waitForIdle()
             if (navigateWhileLoading) {
-                compose.onNode(hasText("🎬源甲") and hasClickAction()).assertIsFocused().assertIsDisplayed()
+                compose.onNode(hasText("源甲") and hasClickAction()).assertIsFocused().assertIsDisplayed()
                 assertNull(model.playbackUrl)
                 return
             }

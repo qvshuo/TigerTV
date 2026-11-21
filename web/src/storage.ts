@@ -41,7 +41,10 @@ export function recordStarted(selection: Selection, at = Date.now()) {
   const { line, episode, index } = selection
   write(bookmarkKey(selection.work.id, selection.source), { line, episode, index })
   const records = Object.fromEntries(getRecent().map(item => [item.work.id, item]))
-  records[selection.work.id] = { ...selection, at }
+  const previous = records[selection.work.id]
+  records[selection.work.id] = { ...selection, at,
+    work: previous ? { ...selection.work, display: previous.work.display } : selection.work,
+  }
   const recent = Object.entries(records).sort(([, a], [, b]) => b.at - a.at).slice(0, 100)
   write('recent', Object.fromEntries(recent))
 }

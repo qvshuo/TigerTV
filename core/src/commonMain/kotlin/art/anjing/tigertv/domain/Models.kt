@@ -134,6 +134,7 @@ data class PlaybackBookmark(val line: String, val episode: String)
 data class RecentPlayback(
     val workId: String, val source: SearchResult, val bookmark: PlaybackBookmark,
     val positions: Map<String, Map<String, Long>>, val progressPercent: Int?, val playedAt: Long,
+    val cardSource: SearchResult = source, val cardPoster: String? = null,
 ) {
     val positionMillis: Long get() = positions[bookmark.line]?.get(bookmark.episode) ?: 0
 }

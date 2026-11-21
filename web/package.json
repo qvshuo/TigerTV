@@ -3,11 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test": "node --test test/*.test.mjs"
+    "dev": "bun --bun vite",
+    "build": "bun --bun vite build",
+    "start": "bun server/index.ts",
+    "check": "bun --bun svelte-check --tsconfig ./tsconfig.json",
+    "test": "bun test"
   },
   "dependencies": {
     "@videojs/hlsjs-video": "10.5.0",
@@ -22,6 +22,8 @@
     "svelte-check": "4.7.8",
     "tailwindcss": "4.3.5",
     "typescript": "6.0.3",
-    "vite": "8.3.8"
-  }
+    "vite": "8.3.8",
+    "@types/bun": "^1.3.0"
+  },
+  "packageManager": "bun@1.4.4"
 }

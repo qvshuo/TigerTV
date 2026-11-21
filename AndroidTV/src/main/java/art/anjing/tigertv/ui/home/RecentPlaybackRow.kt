@@ -23,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
@@ -35,13 +34,15 @@ import androidx.tv.material3.Text
 import art.anjing.tigertv.data.normalizeCoverUrl
 import art.anjing.tigertv.domain.RecentPlayback
 import art.anjing.tigertv.ui.components.MediaCard
+import art.anjing.tigertv.ui.components.WorkPoster
 import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.requestFocusSafely
-import coil3.compose.AsyncImage
 
 @Composable
 internal fun RecentPlaybackRow(
     items: List<RecentPlayback>,
+    workCover: (String) -> String?,
+    onCoverShown: (String, String) -> Unit,
     restoreId: String?,
     onFocusRestored: () -> Unit,
     onSelect: (RecentPlayback) -> Unit,
@@ -64,14 +65,12 @@ internal fun RecentPlaybackRow(
                 .then(if (restoreId == item.workId) Modifier.focusRequester(target) else Modifier)
                 .testTag("recent-card")) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(Modifier.width(44.dp).aspectRatio(2f / 3f).clip(MaterialTheme.shapes.small)
-                        .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                        Text(item.source.vodName.take(1), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        AsyncImage(model = normalizeCoverUrl(item.source.vodPic), contentDescription = null,
-                            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    }
+                    WorkPoster(item.workId, listOfNotNull(workCover(item.workId), normalizeCoverUrl(item.cardSource.vodPic),
+                        normalizeCoverUrl(item.source.vodPic)).distinct(), item.cardSource.vodName,
+                        Modifier.width(44.dp).aspectRatio(2f / 3f).clip(MaterialTheme.shapes.small),
+                        onShown = { onCoverShown(item.workId, it) })
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(item.source.vodName.ifBlank { "未命名作品" }, style = MaterialTheme.typography.titleMedium,
+                        Text(item.cardSource.vodName.ifBlank { "未命名作品" }, style = MaterialTheme.typography.titleMedium,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                         val progress = item.progressPercent?.takeIf { it > 0 }?.let { "已看 $it%" }
                             ?: item.positionMillis.takeIf { it >= 1_000 }?.let {

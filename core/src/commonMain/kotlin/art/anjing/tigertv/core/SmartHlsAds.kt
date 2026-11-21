@@ -1,38 +1,81 @@
 package art.anjing.tigertv.core
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.json.Json
 import kotlin.math.abs
 
 @Serializable
 private data class HlsHeuristics(
     val minSeconds: Double, val maxSeconds: Double, val maxFraction: Double,
-    val flankSegments: Int, val pathTokens: Set<String>,
+    val flankSegments: Int, val pathTokens: Set<String>, val sourceGroups: List<SourceAdGroup>,
 )
+
+@Serializable
+private data class SourceAdGroup(
+    val manifestHost: String, val segmentUri: String, val durationsMicros: List<List<Long>>,
+    val repeated: Boolean = false, val allowEnd: Boolean = false, val contentUri: String? = null,
+    val requireAllDurations: Boolean = false, val innerDiscontinuityOffsets: Set<Int> = emptySet(),
+) {
+    @Transient val hostPattern = Regex(manifestHost)
+    @Transient val segmentPattern = Regex(segmentUri)
+    @Transient val contentPattern = contentUri?.let(::Regex)
+
+    fun contentSide(path: String): Boolean = contentPattern?.matches(path) ?: !segmentPattern.matches(path)
+}
 
 private val heuristics by lazy { Json.decodeFromString<HlsHeuristics>(hlsHeuristicsJson) }
 private val numbersAtEnd = Regex("[0-9]+(?=\\.[^./]+$)")
 private val pathSeparator = Regex("[/._-]")
 
-fun filterSmartHlsAds(site: String, playlist: String): HlsFilterResult? {
+fun filterSmartHlsAds(playlist: String, playlistHost: String = ""): HlsFilterResult? {
     val vod = parseHlsVod(playlist) ?: return null
-    return rewriteHlsVod(vod, smartAdIndices(vod, exactAdIndices(vod, knownHlsRules.filter { it.site == site })))
+    return rewriteHlsVod(vod, smartAdIndices(vod, playlistHost))
 }
 
-internal fun smartAdIndices(vod: HlsVod, exact: Set<Int>): Set<Int> {
+private fun smartAdIndices(vod: HlsVod, playlistHost: String): Set<Int> {
     val params = heuristics
     val segments = vod.segments
     val total = segments.sumOf { it.micros }.toDouble()
-    val accepted = exact.toMutableSet()
-    var removed = exact.sumOf { segments[it].micros }.toDouble()
-    fun propose(start: Int, end: Int, declared: Double? = null) {
+    val accepted = mutableSetOf<Int>()
+    var removed = 0.0
+    fun propose(start: Int, end: Int, declared: Double? = null, verified: Boolean = false) {
         if (start >= end || (start until end).any { it in accepted }) return
         val duration = segments.subList(start, end).sumOf { it.micros }.toDouble()
         if (duration / 1_000_000 !in params.minSeconds..params.maxSeconds ||
-            removed + duration > total * params.maxFraction ||
+            (!verified && removed + duration > total * params.maxFraction) ||
             (declared != null && abs(duration / 1_000_000 - declared) > 0.25)) return
         accepted.addAll(start until end)
         removed += duration
+    }
+
+    // Source profiles verify the shape of a splice independently of its title or URI fingerprints.
+    val paths = segments.map { it.uri.substringBefore('?').substringBefore('#') }
+    val spliceBoundaries = segments.indices.filter { segments[it].discontinuity } + segments.size
+    for (profile in params.sourceGroups) {
+        if (!profile.hostPattern.matches(playlistHost)) continue
+        val hasInnerBoundary = profile.innerDiscontinuityOffsets.isNotEmpty()
+        val candidates = spliceBoundaries.windowed(if (hasInnerBoundary) 3 else 2).mapNotNull { boundaries ->
+            val start = boundaries.first()
+            val end = boundaries.last()
+            if (hasInnerBoundary && boundaries[1] - start !in profile.innerDiscontinuityOffsets) return@mapNotNull null
+            val group = segments.subList(start, end)
+            val matches = start > 0 && (end != segments.size || profile.allowEnd) &&
+                group.map { it.micros } in profile.durationsMicros &&
+                (start until end).all { !segments[it].encrypted && profile.segmentPattern.matches(paths[it]) } &&
+                profile.contentSide(paths[start - 1]) &&
+                (end == segments.size || profile.contentSide(paths[end]))
+            if (matches) start to end else null
+        }
+        if (profile.requireAllDurations) {
+            val found = candidates.map { (start, end) -> segments.subList(start, end).map { it.micros } }.toSet()
+            if (!found.containsAll(profile.durationsMicros)) continue
+        }
+        val matching = if (profile.repeated) {
+            candidates.groupBy { (start, end) -> paths.subList(start, end) }.values
+                .filter { it.size > 1 }.flatten()
+        } else candidates
+        for ((start, end) in matching) propose(start, end, verified = true)
     }
 
     // Paired cue boundaries identify a splice even in a continuous encrypted directory.
@@ -51,20 +94,22 @@ internal fun smartAdIndices(vod: HlsVod, exact: Set<Int>): Set<Int> {
         }
     }
 
-    val paths = segments.map { it.uri.substringBefore('?').substringBefore('#') }
     val families = paths.map { numbersAtEnd.replace(it, "") }
     val flank = params.flankSegments
-    // An ad-labelled path must be bracketed by a stable content URI family.
+    val adPaths = paths.map { path -> path.lowercase().split(pathSeparator).any { it in params.pathTokens } }
+    // Explicit ad paths also occur between content chapters with unrelated URI families.
+    // Require ordinary content on both sides and either consistent URI families or paired splice boundaries.
     var start = 0
     while (start < segments.size) {
+        if (!adPaths[start]) { start++; continue }
         var end = start + 1
-        while (end < segments.size && families[end] == families[start]) end++
+        while (end < segments.size && adPaths[end]) end++
         if (start >= flank && end + flank <= segments.size &&
-            (start - flank until start).all { families[it] == families[start - 1] } &&
-            (end until end + flank).all { families[it] == families[start - 1] } &&
-            paths[start].lowercase().split(pathSeparator).any { it in params.pathTokens } &&
-            paths[start - 1].lowercase().split(pathSeparator).none { it in params.pathTokens }) {
-            propose(start, end)
+            (start - flank until start).none { adPaths[it] } &&
+            (end until end + flank).none { adPaths[it] }) {
+            val sameFamily = (start - flank until start).all { families[it] == families[start - 1] } &&
+                (end until end + flank).all { families[it] == families[start - 1] }
+            if (sameFamily || (segments[start].discontinuity && segments[end].discontinuity)) propose(start, end)
         }
         start = end
     }

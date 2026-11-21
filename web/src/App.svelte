@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte'
   import Poster from './Poster.svelte'
-  import { categories, getDetail, hot, search, webUrl, type Detail, type Episode, type HotItem, type Source, type Work } from './api.ts'
+  import { categories, doubanPoster, getDetail, hot, search, webUrl, type Detail, type Episode, type HotItem, type Site, type Source, type Work } from './api.ts'
   import { defaultDanmakuServer, getBookmark, getPosition, getRecent, getSettings, read, write, type Bookmark, type PlaybackOptions, type Recent, type Selection } from './storage.ts'
   import snapshot from './douban-snapshot.json'
   import type PlayerComponent from './Player.svelte'
@@ -15,10 +15,14 @@
   let category = $state<string>(categories[0][0])
   let hotItems = $state.raw<HotItem[]>([])
   let hotFallback = $state(false)
+  let hotError = $state(false)
+  let hotAttempt = $state(0)
   let recent = $state.raw<Recent[]>(getRecent())
   let query = $state('')
   let submitted = $state('')
   let historyItems = $state(read<string[]>('search-history', []))
+  let workPosters = $state.raw(read<Record<string, string>>('work-posters', {}))
+  let sourcesWithAdFilters = $state.raw(read<string[]>('sources-with-ad-filters', []))
   let searchBusy = $state(false)
   let searchStatus = $state('')
   let results = $state.raw<Work[]>([])
@@ -38,6 +42,7 @@
   let focusSources = false
   let detailHeading = $state<HTMLElement>()
   let searchInput = $state<HTMLInputElement>()
+  let searchPanel = $state<HTMLElement>()
   let sourceHeading = $state<HTMLElement>()
   let danmakuDraft = $state<HTMLInputElement>()
   const line = $derived(detail?.lines[selectedLine])
@@ -58,7 +63,6 @@
     if (push) window.history.pushState({ tigerPage: next }, '', next === 'home' ? location.pathname : '#' + next)
     window.scrollTo({ top: 0 })
     void tick().then(() => {
-      if (next === 'search' && !submitted) searchInput?.focus()
       if (next === 'detail') {
         (focusSources ? sourceHeading : detailHeading)?.focus()
         focusSources = false
@@ -73,7 +77,8 @@
   onMount(() => {
     const initial = location.hash === '#settings' ? 'settings' : location.hash === '#search' ? 'search' : 'home'
     window.history.replaceState({ tigerPage: 'home' }, '', location.pathname + location.search)
-    if (initial !== 'home') show(initial)
+    if (initial === 'search') void tick().then(() => searchPanel?.showPopover())
+    else if (initial !== 'home') show(initial)
     return () => { searchRequest?.abort(); detailRequest?.abort() }
   })
   function restorePage(event: PopStateEvent) {
@@ -88,19 +93,58 @@
   $effect(() => {
     if (page !== 'home') return
     const id = category
+    const attempt = hotAttempt
     const controller = new AbortController()
     const local = snapshot.categories[id as keyof typeof snapshot.categories] ?? []
     hotItems = local
     hotFallback = local.length > 0
-    void hot(id, controller.signal)
-      .then(items => { if (!controller.signal.aborted && items.length) { hotItems = items; hotFallback = false } })
-      .catch(error => { if (!controller.signal.aborted) console.info('豆瓣推荐读取失败', id, error) })
+    hotError = false
+    function showHot(items: HotItem[]) {
+      if (!controller.signal.aborted && items.length) { hotItems = items; hotFallback = false }
+    }
+    void hot(id, controller.signal, showHot)
+      .then(showHot)
+      .catch(error => {
+        if (!controller.signal.aborted) {
+          hotError = true
+          console.info('豆瓣推荐读取失败', id, attempt, error)
+        }
+      })
     return () => controller.abort()
   })
+
+  function clearHistory() {
+    historyItems = []
+    write('search-history', [])
+  }
+
+  function cardMetadata(work: Work) {
+    return recent.find(item => item.work.id === work.id)?.work.display ?? work.display
+  }
+  function posterCandidates(work: Work) {
+    return [workPosters[work.id], cardMetadata(work).poster, work.display.poster, ...work.sources.map(item => item.poster)]
+  }
+  function rememberPoster(work: Work, url: string) {
+    if (workPosters[work.id] === url) return
+    workPosters = Object.fromEntries([[work.id, url],
+      ...Object.entries(workPosters).filter(([id]) => id !== work.id).slice(0, 99)])
+    write('work-posters', workPosters)
+  }
+
+  // These sources have verified examples. Other badges appear after a successful filter.
+  const verifiedAdSources = new Set(['360zy.com', 'iqiyizyapi.com', 'www.moduzy.net', '1080zyk4.com', 'ffzyapi.com'])
+  const adSourceKey = (site: Site) => site.gateway ?? site.api
+  function markAdFilter(site: Site) {
+    const key = adSourceKey(site)
+    if (sourcesWithAdFilters.includes(key)) return
+    sourcesWithAdFilters = [key, ...sourcesWithAdFilters].slice(0, 50)
+    write('sources-with-ad-filters', sourcesWithAdFilters)
+  }
 
   async function runSearch(value = query) {
     const keyword = value.trim()
     if (!keyword) { searchInput?.focus(); return }
+    searchPanel?.hidePopover()
     query = keyword
     submitted = keyword
     results = []
@@ -174,7 +218,7 @@
     const currentLine = detail?.lines[selectedLine]
     const nextEpisode = currentLine?.episodes[index]
     if (!selected || !source || !currentLine || !nextEpisode) return
-    selection = { work: visibleWork ?? selected, source: detail?.source ?? source, line: currentLine.id, episode: nextEpisode.name, index }
+    selection = { work: { ...(visibleWork ?? selected), display: cardMetadata(visibleWork ?? selected) }, source: detail?.source ?? source, line: currentLine.id, episode: nextEpisode.name, index }
     video = nextEpisode
     inherited = options
     show('play')
@@ -214,29 +258,46 @@
 <svelte:window onpopstate={restorePage} />
 <header class="site-header">
   <div class="shell header-inner">
-    <a class="brand" href="./" onclick={event => { event.preventDefault(); show('home') }}>
-      <img src={asset} alt="" width="36" height="36" /><span>TigerTV</span>
+    <a class="brand" href="./" aria-current={page === 'home' ? 'page' : undefined} onclick={event => { event.preventDefault(); show('home') }}>
+      <img src={asset} alt="" width="36" height="36" /><span>小老虎爱看剧</span>
     </a>
-    <nav aria-label="主导航" class="flex items-center gap-1 sm:gap-3">
-      <a class="nav-link" href="./" aria-current={page === 'home' ? 'page' : undefined}
-        onclick={event => { event.preventDefault(); show('home') }}>首页</a>
-      <a class="nav-link" href="#search" aria-current={page === 'search' ? 'page' : undefined}
-        onclick={event => { event.preventDefault(); show('search') }}>搜索</a>
-      <a class="nav-link" href="#settings" aria-current={page === 'settings' ? 'page' : undefined}
-        onclick={event => { event.preventDefault(); show('settings') }}>设置</a>
+    <nav aria-label="主导航" class="flex items-center gap-1">
+      <button type="button" class="nav-link" aria-label="搜索" popovertarget="catalog-search">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" />
+        </svg>
+      </button>
+      <a class="nav-link" href="#settings" aria-label="设置" aria-current={page === 'settings' ? 'page' : undefined}
+        onclick={event => { event.preventDefault(); show('settings') }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M19.4 13a7.8 7.8 0 0 0 0-2l2-1.6-1.9-3.3-2.4 1a8 8 0 0 0-1.7-1L15 3h-4l-.4 3.1a8 8 0 0 0-1.7 1l-2.4-1-1.9 3.3L6.5 11a7.8 7.8 0 0 0 0 2l-1.9 1.6 1.9 3.3 2.4-1a8 8 0 0 0 1.7 1L11 21h4l.4-3.1a8 8 0 0 0 1.7-1l2.4 1 1.9-3.3zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7" transform="translate(-1)" />
+        </svg>
+      </a>
     </nav>
+  </div>
+  <div id="catalog-search" class="search-panel" popover="auto" bind:this={searchPanel}
+    onbeforetoggle={event => { if (event.newState === 'open') query = '' }}
+    ontoggle={event => { if (event.newState === 'open') searchInput?.focus() }}>
+    <form class="search-form" role="search" onsubmit={event => { event.preventDefault(); if (!searchBusy || query.trim() !== submitted) void runSearch() }}>
+      <input type="search" bind:this={searchInput} bind:value={query} placeholder="搜索电影、剧集或综艺" aria-label="作品名称" required />
+      <button class="primary" disabled={searchBusy && query.trim() === submitted}>搜索</button>
+    </form>
+    <section aria-labelledby="history-heading" class="history-section">
+      <div class="section-heading">
+        <h2 id="history-heading">搜索历史</h2>
+        {#if historyItems.length}<button class="quiet" onclick={clearHistory}>清空</button>{/if}
+      </div>
+      {#if historyItems.length}
+        <div class="choices">
+          {#each historyItems.filter(item => !query.trim() || item.includes(query.trim())) as item (item)}<button class="choice" onclick={() => void runSearch(item)}>{item}</button>{/each}
+        </div>
+      {:else}<p class="muted">暂无搜索历史</p>{/if}
+    </section>
   </div>
 </header>
 
 <main class="shell page">
   {#if page === 'home'}
-    <div class="intro">
-      <h1>小老虎爱看剧</h1>
-      <form class="search-form" role="search" onsubmit={event => { event.preventDefault(); void runSearch() }}>
-        <input type="search" bind:this={searchInput} bind:value={query} placeholder="搜索电影、剧集或综艺" aria-label="搜索电影、剧集或综艺" required />
-        <button class="primary">搜索</button>
-      </form>
-    </div>
     {#if recent.length}
       <section aria-labelledby="recent-heading">
         <h2 id="recent-heading">最近播放</h2>
@@ -244,7 +305,7 @@
           {#each recent.slice(0, 12) as item (item.work.id)}
             <li>
               <button class="recent-card" onclick={() => open(item.work, item)}>
-                <Poster title={item.work.display.title} candidates={[item.source.poster, item.work.display.poster]} />
+                <Poster title={item.work.display.title} candidates={posterCandidates(item.work)} onShown={url => rememberPoster(item.work, url)} />
                 <span class="min-w-0">
                   <strong>{item.work.display.title}</strong>
                   <small>{item.episode || '继续播放'} {#if getPosition(item) > 0} · {Math.ceil(getPosition(item) / 60)} 分钟{/if}</small>
@@ -255,75 +316,74 @@
         </ul>
       </section>
     {/if}
-    <section aria-labelledby="hot-heading" class="mt-9 sm:mt-12">
+    <section aria-labelledby="hot-heading" class={recent.length ? 'mt-6' : undefined}>
       <div class="section-heading">
         <h2 id="hot-heading">豆瓣热门</h2>
         {#if hotFallback}<span class="muted snapshot-date">{snapshot.date} 快照</span>{/if}
       </div>
-      <div class="choices mb-5" aria-label="热门分类">
+      <div class="choices mb-3" aria-label="热门分类">
         {#each categories as [id, name] (id)}
           <button class="choice" aria-pressed={category === id} onclick={() => { category = id }}>{name}</button>
         {/each}
       </div>
-      <ul class="poster-grid">
+      <ul class="poster-grid hot-grid">
         {#each hotItems as item, index (item.id)}
           <li>
             <button class="poster-card" onclick={() => void runSearch(item.title)}>
-              <Poster title={item.title} candidates={[item.poster]} eager={index < 4} />
+              <Poster title={item.title} candidates={[doubanPoster(item.poster), item.poster]} eager={index < 4} />
               <strong>{item.title}</strong>
               <small>{item.year}{item.rating ? ` · ${item.rating.toFixed(1)}` : ''}</small>
             </button>
           </li>
         {/each}
       </ul>
+      {#if hotError}
+        <button class="quiet mt-4" onclick={() => { hotAttempt += 1 }}>重试加载豆瓣热门</button>
+      {/if}
     </section>
   {:else if page === 'search'}
-    <h1>搜索</h1>
-    <form class="search-form my-6" role="search" onsubmit={event => { event.preventDefault(); if (!searchBusy || query.trim() !== submitted) void runSearch() }}>
-      <input type="search" bind:this={searchInput} bind:value={query} placeholder="搜索电影、剧集或综艺" aria-label="作品名称" required />
-      <button class="primary" disabled={searchBusy && query.trim() === submitted}>搜索</button>
-    </form>
-    {#if !submitted && historyItems.length}
-      <div class="section-heading">
-        <h2>搜索历史</h2>
-        <button class="quiet" onclick={() => { historyItems = []; write('search-history', []) }}>清空</button>
-      </div>
-      <div class="choices">
-        {#each historyItems as item (item)}<button class="choice" onclick={() => void runSearch(item)}>{item}</button>{/each}
-      </div>
-    {/if}
     {#if submitted}
-      <p class="muted mb-5" role="status">{searchBusy ? '正在搜索…' : searchStatus}</p>
+      <h1 class="mb-2 text-xl">“{submitted}”的搜索结果</h1>
+      <p class="muted mb-3" role="status">{searchBusy ? '正在搜索…' : searchStatus}</p>
       <ul class="poster-grid">
         {#each results as work (work.id)}
+          {@const display = cardMetadata(work)}
           <li>
             <button class="poster-card" onclick={() => open(work)}>
-              <Poster title={work.display.title} candidates={[work.display.poster, ...work.sources.map(item => item.poster)]} />
-              <strong>{work.display.title || '未命名作品'}</strong>
-              <small>{work.display.year === '0' ? '' : work.display.year} {work.display.remarks}</small>
+              <Poster title={display.title} candidates={posterCandidates(work)} onShown={url => rememberPoster(work, url)} />
+              <strong>{display.title || '未命名作品'}</strong>
+              <small>{display.year === '0' ? '' : display.year} {display.remarks}</small>
             </button>
           </li>
         {/each}
       </ul>
     {/if}
   {:else if page === 'detail' && visibleWork && source}
-    <button class="quiet mb-5" onclick={() => back('search')}>← 返回</button>
+    {@const detailPoster = !detailBusy && detail ? detail.source.poster : ''}
+    {@const year = detail?.source.year && detail.source.year !== '0' ? detail.source.year : source.year}
+    {@const metadata = [year === '0' ? '' : year, detail?.source.category || source.category, detail?.source.area].filter(Boolean).join(' · ')}
+    <button class="quiet mb-3" onclick={() => back('search')}>← 返回</button>
     <div class="work-overview">
-      {#key source.site.name + ':' + source.id}
-        <Poster title={source.title} candidates={[detailBusy ? source.poster : detail?.source.poster || source.poster]} eager />
+      {#key source.site.name + ':' + source.id + ':' + detailPoster}
+        <Poster title={source.title} candidates={[detailPoster, source.poster]} eager />
       {/key}
       <div class="min-w-0 self-center">
         <h1 bind:this={detailHeading} tabindex="-1">{detail?.source.title || source.title}</h1>
-        <p class="muted mt-2">{source.year === '0' ? '' : source.year} {source.remarks}</p>
+        {#if metadata}<p class="muted mt-2">{metadata}</p>{/if}
         {#if detail?.overview}<p class="synopsis">{detail.overview}</p>{/if}
-        <button class="primary mt-4" disabled={detailBusy || !line} onclick={resumeDetail}>播放</button>
+        <button class="primary mt-3" disabled={detailBusy || !line} onclick={resumeDetail}>播放</button>
       </div>
     </div>
     <section class="detail-section" aria-labelledby="source-heading">
       <h2 id="source-heading" tabindex="-1" bind:this={sourceHeading}>资源</h2>
       <div class="choices">
         {#each visibleWork.sources as item (item.site.name + ':' + item.id)}
-          <button class="choice" aria-pressed={sameSource(item, source)} onclick={() => void loadDetail(item)}>{item.site.name.replace(/^🎬\s*/, '')}</button>
+          <button class="choice source-choice" aria-pressed={sameSource(item, source)} onclick={() => void loadDetail(item)}>
+            {item.site.name.replace(/^🎬\s*/, '')}
+            {#if verifiedAdSources.has(adSourceKey(item.site)) || sourcesWithAdFilters.includes(adSourceKey(item.site))}
+              <span class="source-badge">去广告</span>
+            {/if}
+          </button>
         {/each}
       </div>
     </section>
@@ -356,6 +416,7 @@
       <Player {selection} episode={video} {settings} {inherited}
         canPrevious={selection.index > 0} canNext={selection.index < (line?.episodes.length ?? 0) - 1}
         onBack={() => back('detail')} onSources={() => { focusSources = true; back('detail') }}
+        onAdFilter={markAdFilter}
         onPrevious={() => { if (selection) play(selection.index - 1) }} onNext={options => { if (selection) play(selection.index + 1, options) }} />
     {:else if playerLoadFailed}
       <p role="alert">播放器加载失败。</p>
@@ -363,7 +424,6 @@
     {:else}<p class="muted" role="status">正在准备播放…</p>{/if}
   {:else if page === 'settings'}
     <div class="settings-page">
-      <h1>设置</h1>
       <section class="detail-section" aria-labelledby="playback-heading">
         <h2 id="playback-heading">播放</h2>
         {#each playbackSettings as [key, label] (key)}

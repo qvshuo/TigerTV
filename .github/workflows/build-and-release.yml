@@ -211,33 +211,24 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-node@v6
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - name: Check and build Web/PWA
+          bun-version-file: web/package.json
+      - name: Check Web/PWA and metadata
         working-directory: web
         run: |
-          npm ci
-          npm run check
-          npm test
-          npm run build
-      - uses: actions/setup-go@v7.1.0
-        with:
-          go-version: '1.27.4'
-          cache: false
-      - name: Check optional metadata Gateway
+          bun install --frozen-lockfile
+          bun run check
+          bun test
+      - name: Build and package Web image
         run: |
-          (cd gateway && go test -race ./... && go vet ./...)
-          docker compose -f gateway/compose.yaml config --quiet
-          docker compose -f gateway/compose.yaml build
-      - name: Package Web/PWA
-        run: |
+          docker compose -f web/compose.yaml config --quiet
+          docker compose -f web/compose.yaml -f web/compose.network.yaml config --quiet
+          docker compose -f web/compose.yaml build
           mkdir -p artifacts
-          tar -czf artifacts/TigerTV-Web.tar.gz -C web/dist .
+          docker image save tigertv-web:local | gzip > artifacts/TigerTV-Web-Linux-x86_64.tar.gz
           cd artifacts
-          sha256sum TigerTV-Web.tar.gz > TigerTV-Web.tar.gz.sha256
+          sha256sum TigerTV-Web-Linux-x86_64.tar.gz > TigerTV-Web-Linux-x86_64.tar.gz.sha256
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: tigertv-web
@@ -264,7 +255,7 @@ jobs:
           test -f TigerTV-CLI-Linux-x86_64.tar.gz
           test -f TigerTV-CLI-Linux-arm64.tar.gz
           test -f TigerTV-AndroidTV-universal.apk
-          test -f TigerTV-Web.tar.gz
+          test -f TigerTV-Web-Linux-x86_64.tar.gz
           sha256sum -c *.sha256
       - uses: softprops/action-gh-release@v3.0.3
         with:

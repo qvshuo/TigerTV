@@ -38,8 +38,8 @@ internal fun DanmakuPlayback(
     val scope = rememberCoroutineScope()
     val currentEpisodeFocus = remember { FocusRequester() }
     AndroidView(factory = { DanmakuView(it) },
-        update = { it.bind(controller.player, state.track, state.enabled, state.offsetMs,
-            loading = controller.hasVideoFrame && state.busy && !state.hasComments) { controller.playbackTimeline } },
+        update = { it.bind(controller.player, state.track, state.enabled,
+            loading = state.loadingStep.takeIf { controller.hasVideoFrame && !state.hasComments }) { controller.playbackTimeline } },
         onRelease = { it.release() }, modifier = Modifier.fillMaxSize().testTag("danmaku-overlay"))
     if (!menuOpen) return
     val entry = remember { FocusRequester() }
@@ -67,7 +67,7 @@ internal fun DanmakuPlayback(
             Surface(modifier = Modifier.widthIn(max = 760.dp).fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge,
                 colors = SurfaceDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)) {
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = dialogHeight).testTag("danmaku-options")
-                    .semantics { stateDescription = if (busy) "加载中" else "就绪" }, state = listState, contentPadding = PaddingValues(40.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                    .semantics { stateDescription = if (busy) "加载中" else "就绪" }, state = listState, contentPadding = PaddingValues(28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     item { Text("选择弹幕", style = MaterialTheme.typography.headlineSmall) }
                     if (!state.isConfigured) {
                         item {
@@ -84,7 +84,7 @@ internal fun DanmakuPlayback(
                                     modifier = Modifier.testTag("danmaku-search")) { Text("匹配") }
                             }
                         }
-                        if (busy) item { Text(if (state.track == null) "正在加载弹幕…" else "正在比较弹幕…") }
+                        state.loadingStep?.let { step -> item { Text(step.label) } }
                         error?.let { error -> item { Text(error, color = MaterialTheme.colorScheme.error) } }
                         item { Text("弹幕来源", style = MaterialTheme.typography.titleMedium) }
                         items(titles, key = { "title-${it.id}" }) { result ->

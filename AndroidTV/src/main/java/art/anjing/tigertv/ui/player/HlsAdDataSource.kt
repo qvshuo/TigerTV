@@ -25,7 +25,7 @@ internal class HlsPlaybackSession(val uri: Uri, val site: String, val filterAds:
 internal class HlsAdDataSource(
     private val upstream: DataSource,
     private val session: HlsPlaybackSession?,
-    private val filter: (String, String) -> HlsFilterResult? = ::filterSmartHlsAds,
+    private val filter: ((String) -> HlsFilterResult?)? = null,
 ) : DataSource {
     private var bytes: ByteArray? = null
     private var position = 0
@@ -66,7 +66,8 @@ internal class HlsAdDataSource(
             current.timeline = null
         }
         val filtered = try {
-            if (master) null else filter(current!!.site, text)
+            if (master) null else if (filter != null) filter(text)
+            else filterSmartHlsAds(text, resolved?.host.orEmpty())
         } catch (_: IllegalArgumentException) { null }
         android.util.Log.d("TigerTVHls", "source=${current!!.site} matched=${filtered != null} filterMs=${(android.os.SystemClock.elapsedRealtimeNanos() - filterStart) / 1_000_000.0}")
         if (!master) current.timeline = filtered?.timeline

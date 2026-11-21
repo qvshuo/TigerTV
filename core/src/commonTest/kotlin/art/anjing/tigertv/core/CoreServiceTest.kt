@@ -112,7 +112,7 @@ class CoreServiceTest {
         val source = art.anjing.tigertv.domain.SearchResult("A", 42, "作品", vodPic = "https://a.test/cover")
         try {
             assertTrue(core.recentPlayback().isEmpty())
-            core.recordPlayback("one", "A", "0", "首集", source)
+            core.recordPlayback("one", "A", "0", "首集", source, source, "https://a.test/display-poster")
             core.recordPlaybackPosition("one", "A", "0", "首集", 800, 20)
             core.recordPlayback("two", "A", "0", "首集", source.copy(vodId = 43))
             core.recordPlaybackPosition("one", "A", "0", "首集", 900, 25)
@@ -122,6 +122,8 @@ class CoreServiceTest {
             core.recordPlaybackPosition("one", "A", "0", "首集", 1_000, 30)
             val resumed = core.recentPlayback().first()
             assertEquals(otherSource, resumed.source)
+            assertEquals(source, resumed.cardSource)
+            assertEquals("https://a.test/display-poster", resumed.cardPoster)
             assertEquals(0L, resumed.positionMillis)
             assertNull(resumed.progressPercent)
             assertEquals(listOf("one", "two"), core.recentPlayback().map { it.workId })

@@ -1,29 +1,19 @@
-import bundledConfig from '../../skills/references/LunaTV-config.json' with { type: 'json' }
+import { object, parseJson, readText } from '../common/http.ts'
+import { hotLimit, posterKey } from '../common/douban.ts'
+export { object, parseJson }
 
 export type Site = { name: string; api: string; gateway?: string }
-export type Source = { site: Site; id: number; title: string; year: string; poster: string; remarks: string }
+export type Source = { site: Site; id: number; title: string; year: string; poster: string; remarks: string; category?: string; area?: string }
 export type Work = { id: string; display: Source; sources: Source[] }
 export type Episode = { name: string; url: string }
 export type Line = { id: string; name: string; episodes: Episode[] }
 export type Detail = { source: Source; overview: string; lines: Line[] }
 export type HotItem = { id: string; title: string; year: string; poster: string; rating: number }
 
-const cdnConfig = 'https://cdn.jsdelivr.net/gh/qvshuo/TigerTV@main/skills/references/LunaTV-config.json'
-const rawConfig = 'https://raw.githubusercontent.com/qvshuo/TigerTV/refs/heads/main/skills/references/LunaTV-config.json'
-const gateway = import.meta.env?.VITE_TIGERTV_GATEWAY
 function gatewayUrl(route: string, params?: Record<string, string>) {
-  const base = new URL(gateway.endsWith('/') ? gateway : gateway + '/', location.href)
-  const result = new URL(route, base)
-  for (const [key, value] of Object.entries(params ?? {})) result.searchParams.set(key, value)
+  const result = new URL('./api/metadata/' + route, document.baseURI)
+  result.search = new URLSearchParams(params).toString()
   return result.href
-}
-const maxText = 10 * 1024 * 1024
-const operations = ['ac', 'wd', 'ids', 'pg', 'pagesize']
-const integerFields = new Set(['code', 'pagecount', 'vod_id'])
-
-export function parseJson(text: string, fields = integerFields): unknown {
-  return JSON.parse(text, (key: string, value: unknown, context?: { source?: string }) =>
-    typeof value === 'number' && fields.has(key) && context?.source ? context.source : value)
 }
 
 export function webUrl(value: string): string {
@@ -34,7 +24,7 @@ export function webUrl(value: string): string {
   return ''
 }
 
-export async function getJson(url: string, signal?: AbortSignal, timeout = 10_000): Promise<unknown> {
+export async function getJson(url: string, signal?: AbortSignal, timeout = 10_000, parse: (text: string) => unknown = parseJson): Promise<unknown> {
   const allowed = webUrl(url)
   if (!allowed) throw new Error('来源需要 HTTPS')
   const deadline = AbortSignal.timeout(timeout)
@@ -43,31 +33,9 @@ export async function getJson(url: string, signal?: AbortSignal, timeout = 10_00
     credentials: 'omit',
     referrerPolicy: 'no-referrer',
   })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  if (Number(response.headers.get('Content-Length')) > maxText) throw new Error('响应过大')
-  const reader = response.body?.getReader()
-  if (!reader) throw new Error('响应为空')
-  const decoder = new TextDecoder('utf-8', { ignoreBOM: false })
-  let bytes = 0
-  let text = ''
-  try {
-    for (;;) {
-      const { value, done } = await reader.read()
-      if (done) break
-      bytes += value.length
-      if (bytes > maxText) throw new Error('响应过大')
-      text += decoder.decode(value, { stream: true })
-    }
-    return parseJson(text + decoder.decode())
-  } finally {
-    void reader.cancel().catch(() => {})
-    reader.releaseLock()
-  }
+  return parse(await readText(response))
 }
 
-export function object(raw: unknown): Record<string, unknown> {
-  return raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {}
-}
 export function scalar(raw: unknown): string {
   return typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean' ? String(raw) : ''
 }
@@ -88,36 +56,25 @@ export function integer(raw: unknown): number {
   return result
 }
 
-export function apiUrl(api: string, params: Record<string, string>) {
-  const url = new URL(api)
-  for (const param of operations) url.searchParams.delete(param)
-  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
-  return url.href
-}
+type GatewaySite = Site & { gateway: string }
 
-export function parseConfig(raw: unknown) {
-  const sites = new Map<string, Site>()
-  for (const value of Object.values(object(object(raw).api_site))) {
+export function parseConfig(raw: unknown): GatewaySite[] {
+  const sites = new Map<string, GatewaySite>()
+  for (const [key, value] of Object.entries(object(object(raw).api_site))) {
     const entry = object(value)
     const name = scalar(entry.name)
     const api = scalar(entry.api)
-    if (name.includes('🎬') && !('_comment' in entry) && api && !sites.has(api)) sites.set(api, { name, api, ...(gateway && entry.gateway ? { gateway: scalar(entry.gateway) } : {}) })
+    if (name.includes('🎬') && !('_comment' in entry) && api && !sites.has(api) &&
+      /^[a-z0-9_.-]+$/i.test(key) && (entry.gateway === undefined || entry.gateway === key)) sites.set(api, { name, api, gateway: key })
   }
   if (!sites.size) throw new Error('找不到可用资源站')
   return [...sites.values()]
 }
 
-let config: Promise<Site[]> | undefined
-function sites(): Promise<Site[]> {
-  return config ??= (async () => {
-    if (gateway) return parseConfig(await getJson(gatewayUrl('config'), undefined, 4000))
-    for (const url of [import.meta.env?.VITE_TIGERTV_SOURCES, cdnConfig, rawConfig]) {
-      if (!url) continue
-      try { return parseConfig(await getJson(url, undefined, 4000)) }
-      catch (error) { console.info('资源站配置读取失败', new URL(url).hostname, error) }
-    }
-    return parseConfig(bundledConfig)
-  })().catch(error => { config = undefined; throw error })
+let config: Promise<GatewaySite[]> | undefined
+function sites(): Promise<GatewaySite[]> {
+  return config ??= getJson(gatewayUrl('config'), undefined, 4000).then(parseConfig)
+    .catch(error => { config = undefined; throw error })
 }
 
 function sourceFrom(site: Site, value: unknown): Source {
@@ -127,6 +84,7 @@ function sourceFrom(site: Site, value: unknown): Source {
   return {
     site, id, title: scalar(row.vod_name), year: scalar(row.vod_year),
     poster: webUrl(scalar(row.vod_pic)), remarks: scalar(row.vod_remarks),
+    category: scalar(row.type_name), area: scalar(row.vod_area),
   }
 }
 
@@ -161,20 +119,16 @@ function vodPage(value: unknown) {
 }
 
 export async function search(query: string, signal: AbortSignal, publish: (works: Work[]) => void) {
-  const config = (await sites()).filter(site => {
-    try { return !/^https?:\/\//i.test(new URL(site.api).searchParams.get('url') ?? '') }
-    catch { return false }
-  })
+  const config = await sites()
   signal.throwIfAborted()
   const works = new Map<string, Work>()
   const failures: string[] = []
-  async function searchSite(site: Site, siteIndex: number) {
+  async function searchSite(site: GatewaySite, siteIndex: number) {
     const budget = AbortSignal.any([signal, AbortSignal.timeout(60_000)])
     const found: Source[] = []
     try {
       for (let page = 1; page <= 100; page++) {
-        const url = gateway && site.gateway ? gatewayUrl(`search/${encodeURIComponent(site.gateway)}`, { q: query, page: String(page) })
-          : apiUrl(site.api, { ac: 'detail', wd: query, pg: String(page), pagesize: '100' })
+        const url = gatewayUrl(`search/${encodeURIComponent(site.gateway)}`, { q: query, page: String(page) })
         const { rows, pages } = vodPage(await getJson(url, budget, 20_000))
         found.push(...rows.map(row => sourceFrom(site, row)))
         if (!rows.length || page >= pages) break
@@ -191,21 +145,19 @@ export async function search(query: string, signal: AbortSignal, publish: (works
       const group = works.get(id)
       if (!group) works.set(id, { id, display: source, sources: [source] })
       else if (!group.sources.some(item => item.site.name === site.name && item.id === source.id)) {
-        const insert = group.sources.findIndex(item => config.indexOf(item.site) > siteIndex)
+        const insert = group.sources.findIndex(item => config.findIndex(configured => configured.api === item.site.api) > siteIndex)
         group.sources.splice(insert < 0 ? group.sources.length : insert, 0, source)
       }
     }
     publish([...works.values()].map(work => ({ ...work, sources: [...work.sources] })))
   }
-  if (gateway) {
-    let next = 0
-    await Promise.all(Array.from({ length: Math.min(8, config.length) }, async () => {
-      while (!signal.aborted && next < config.length) {
-        const index = next++
-        await searchSite(config[index], index)
-      }
-    }))
-  } else await Promise.all(config.map(searchSite))
+  let next = 0
+  await Promise.all(Array.from({ length: Math.min(8, config.length) }, async () => {
+    while (!signal.aborted && next < config.length) {
+      const index = next++
+      await searchSite(config[index], index)
+    }
+  }))
   signal.throwIfAborted()
   return { failed: failures.length, total: config.length }
 }
@@ -223,10 +175,10 @@ export function parseLines(raw: string, from: string): Line[] {
 }
 
 export async function getDetail(source: Source, signal: AbortSignal): Promise<Detail> {
-  // Recent records can predate a deployment-mode change. Resolve the current gateway key by API URL.
-  const site = gateway ? (await sites()).find(item => item.api === source.site.api) : source.site
-  const url = gateway && site?.gateway ? gatewayUrl(`detail/${encodeURIComponent(site.gateway)}`, { id: String(source.id) })
-    : apiUrl(source.site.api, { ac: 'detail', ids: String(source.id) })
+  // Older recent records may only have the source API URL.
+  const site = (await sites()).find(item => item.api === source.site.api)
+  if (!site) throw new Error('来源未启用')
+  const url = gatewayUrl(`detail/${encodeURIComponent(site.gateway)}`, { id: String(source.id) })
   const { rows } = vodPage(await getJson(url, signal, 20_000))
   const value = rows.find(row => integer(object(row).vod_id) === source.id)
   if (!value) throw new Error('来源未返回指定作品')
@@ -242,21 +194,44 @@ export const categories = [
   ['tv_korean', '韩剧'], ['tv_japanese', '日剧'], ['tv_animation', '动漫'],
 ] as const
 
-export async function hot(category: string, signal: AbortSignal): Promise<HotItem[]> {
-  const key = `tigertv:hot:${category}`
+export function doubanPoster(url: string) {
+  const route = posterKey(url)
+  return route ? gatewayUrl(route) : ''
+}
+
+export async function hot(category: string, signal: AbortSignal, onUpdate: (items: HotItem[]) => void): Promise<HotItem[]> {
+  const key = `tigertv:hot:all:${category}`
   let cached: { at: number; items: HotItem[] } | undefined
   try { cached = JSON.parse(localStorage.getItem(key) ?? 'null') ?? undefined } catch { /* Storage is optional. */ }
   if (cached && Date.now() - cached.at < 6 * 3600_000) return cached.items
+  const items = new Map<string, HotItem>()
   try {
-    const url = gateway ? gatewayUrl(`hot/${category}`) : `https://m.douban.com/rexxar/api/v2/subject_collection/${category}/items?start=0&count=12`
-    const raw = object(await getJson(url, signal))
-    if (!Array.isArray(raw.subject_collection_items)) throw new Error('豆瓣响应异常')
-    const items = raw.subject_collection_items.slice(0, 12).map(object).map(entry => ({
-      id: scalar(entry.id), title: scalar(entry.title), year: scalar(entry.year),
-      poster: webUrl(scalar(object(entry.pic).large)), rating: Number(object(entry.rating).value) || 0,
-    })).filter(item => item.id && item.title)
-    try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), items })) } catch { /* Cache is optional. */ }
-    return items
+    let start = 0
+    while (true) {
+      const url = new URL(gatewayUrl(`hot/${category}`), location.href)
+      url.searchParams.set('start', String(start))
+      const raw = object(await getJson(url.href, signal))
+      const page = raw.subject_collection_items
+      if (!Array.isArray(page)) throw new Error('豆瓣响应异常')
+      const previousSize = items.size
+      for (const value of page) {
+        const entry = object(value)
+        const id = scalar(entry.id)
+        const title = scalar(entry.title)
+        if (id && title && !items.has(id)) items.set(id, {
+          id, title, year: scalar(entry.year), poster: webUrl(scalar(object(entry.pic).large)),
+          rating: Number(object(entry.rating).value) || 0,
+        })
+      }
+      start += page.length
+      if (items.size === previousSize || (typeof raw.total === 'number' ? start >= raw.total : page.length < hotLimit)) break
+      onUpdate([...items.values()])
+    }
+    const complete = [...items.values()]
+    if (complete.length) {
+      try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), items: complete })) } catch { /* Cache is optional. */ }
+    }
+    return complete
   } catch (error) {
     if (!signal.aborted && cached && Date.now() - cached.at < 24 * 3600_000) return cached.items
     throw error
