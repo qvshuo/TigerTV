@@ -6,15 +6,15 @@
   import '@videojs/html/i18n'
   import '@videojs/html/i18n/locales/zh-CN/register'
   import type { HlsJsVideoElement } from '@videojs/html/media/hlsjs-video'
-  import { legacyWorkId, webUrl, type Episode, type Site } from './api.ts'
+  import { legacyWorkId, webUrl, type Episode } from './api.ts'
   import { effectiveTime, originalTime, type Interval } from './hls.ts'
   import { getPosition, getSpeed, getVolume, read, recordStarted, savePosition, saveSpeed, saveVolume, write, type PlaybackOptions, type Selection, type Settings } from './storage.ts'
   import { autoMatch, DanmakuClient, danmakuLoading, drawComments, type DanmakuEpisode, type Title, type Track } from './danmaku.ts'
 
   type Media = HTMLVideoElement | HlsJsVideoElement
-  let { selection, episode, settings, onBack, onNext, onPrevious, onSources, canNext, canPrevious, inherited, onAdFilter }:
+  let { selection, episode, settings, onBack, onNext, onPrevious, onSources, canNext, canPrevious, inherited }:
     { selection: Selection; episode: Episode; settings: Settings; onBack: () => void; onNext: (options?: PlaybackOptions) => void;
-      onPrevious: () => void; onAdFilter: (site: Site) => void; onSources: () => void; canNext: boolean; canPrevious: boolean; inherited?: PlaybackOptions } = $props()
+      onPrevious: () => void; onSources: () => void; canNext: boolean; canPrevious: boolean; inherited?: PlaybackOptions } = $props()
   let container = $state<HTMLElementTagNameMap["video-skin"]>()
   let player = $state<VideoPlayerElement>()
   let canvas = $state<HTMLCanvasElement>()
@@ -240,7 +240,6 @@
           engine: hlsLoader ? { hlsJs: { pLoader: hlsLoader(intervals => {
             if (active && media === el) {
               removed = intervals
-              if (intervals.length) onAdFilter(session.source.site)
             }
           }) } } : undefined,
         }

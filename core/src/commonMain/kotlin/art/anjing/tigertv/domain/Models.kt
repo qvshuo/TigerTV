@@ -20,11 +20,9 @@ data class SearchResult(
     @SerialName("vod_year") val vodYear: String = "",
     @SerialName("type_name") val typeName: String = ""
 ) {
-    /** 封面兜底缓存统一 key（内存 / 磁盘 / UI 三处共用，禁止手拼）。 */
     val coverKey: String get() = coverCacheKey(site, vodId)
 }
 
-/** 封面兜底缓存 key 的唯一构造点：`site-vodId`。 */
 fun coverCacheKey(site: String, vodId: Int): String = "$site-$vodId"
 
 @Serializable
@@ -63,7 +61,6 @@ data class SourceSite(
     val detail: String? = null
 )
 
-/** A work retains independent source IDs; resource order is separate from card order. */
 @Serializable
 data class VideoWork(
     val id: String, val title: String, val sources: List<SearchResult>,

@@ -1,4 +1,6 @@
 {
+  "verifiedFilterSources": ["-爱奇艺-", "360 资源", "魔都资源", "优质资源", "非凡资源"],
+  "noGamblingInSamples": ["光速资源", "红牛资源", "百度云zy"],
   "minSeconds": 5,
   "maxSeconds": 60,
   "maxFraction": 0.15,

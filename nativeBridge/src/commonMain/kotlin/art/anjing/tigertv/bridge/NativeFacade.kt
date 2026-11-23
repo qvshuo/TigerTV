@@ -6,7 +6,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
 
-/** Versioned, UTF-8 JSON boundary used by the SwiftUI client. */
 class NativeFacade internal constructor(private val service: CoreService) {
     constructor(directory: String) : this(CoreService(directory))
     constructor(cacheDirectory: String, dataDirectory: String) : this(CoreService(cacheDirectory, historyDirectory = dataDirectory))

@@ -1,20 +1,15 @@
-# macOS
 .DS_Store
 
-# Python
 __pycache__/
 
-# Xcode
 xcuserdata/
 DerivedData/
 *.xcresult
 *.dSYM/
 
-# Swift Package Manager
 .build/
 .swiftpm/
 
-# Android / Gradle / IDE
 .gradle/
 build/
 .idea/
@@ -30,7 +25,6 @@ local.properties
 *.keystore
 *.jks
 
-# Release output
 artifacts/
 
 /web/node_modules/

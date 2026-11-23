@@ -12,7 +12,6 @@ struct TigerTVApp: App {
     }
 }
 
-/// Flush search history and playback writes before a normal Quit.
 @MainActor
 final class TigerTVAppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     var persistenceFlushers: [UUID: @MainActor () async -> Void] = [:]

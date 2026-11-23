@@ -1,6 +1,5 @@
 export const hotLimit = 36
 
-// This endpoint only accepts files from Douban's public poster directory.
 export const posterRoute = /^poster\/(img[1-9])\/(p\d{1,20}\.jpg)$/
 
 export function posterKey(url: string) {

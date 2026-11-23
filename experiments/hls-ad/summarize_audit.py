@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""Produce a URL-free audit from source_audit captures. Matching always calls shared Kotlin.
-Compile FilterPlaylist.java first, then supply its classpath (including core and Kotlin stdlib).
-"""
+"""Compile FilterPlaylist.java against Core and the Kotlin stdlib before running."""
 import argparse,json,pathlib,re,statistics,subprocess
 
 def main():

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Local HTTP fixture tests for the Kotlin/Native CLI contract."""
 import argparse
 import json
 import os

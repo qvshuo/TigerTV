@@ -17,9 +17,7 @@ protocol VideoRepository: Sendable {
     func clearHistory() async
 }
 
-/// Owns one Kotlin/Native service. No subprocess or JVM is involved.
 actor SharedCoreRepository: VideoRepository {
-    // All windows share caches and the core's serialized persistent state.
     static let shared: SharedCoreRepository = {
         let cachesDir = FileManager.default
             .urls(for: .cachesDirectory, in: .userDomainMask)

@@ -9,6 +9,7 @@ import kotlin.math.abs
 private data class HlsHeuristics(
     val minSeconds: Double, val maxSeconds: Double, val maxFraction: Double,
     val flankSegments: Int, val pathTokens: Set<String>, val sourceGroups: List<SourceAdGroup>,
+    val verifiedFilterSources: Set<String>, val noGamblingInSamples: Set<String>,
 )
 
 @Serializable
@@ -25,6 +26,17 @@ private data class SourceAdGroup(
 }
 
 private val heuristics by lazy { Json.decodeFromString<HlsHeuristics>(hlsHeuristicsJson) }
+enum class SourceAdEvidence { FILTER_VERIFIED, NO_GAMBLING_IN_SAMPLES, UNVERIFIED }
+
+fun sourceAdEvidence(site: String): SourceAdEvidence {
+    val name = site.replace("🎬", "").trim()
+    return when (name) {
+        in heuristics.verifiedFilterSources -> SourceAdEvidence.FILTER_VERIFIED
+        in heuristics.noGamblingInSamples -> SourceAdEvidence.NO_GAMBLING_IN_SAMPLES
+        else -> SourceAdEvidence.UNVERIFIED
+    }
+}
+
 private val numbersAtEnd = Regex("[0-9]+(?=\\.[^./]+$)")
 private val pathSeparator = Regex("[/._-]")
 
@@ -49,7 +61,6 @@ private fun smartAdIndices(vod: HlsVod, playlistHost: String): Set<Int> {
         removed += duration
     }
 
-    // Source profiles verify the shape of a splice independently of its title or URI fingerprints.
     val paths = segments.map { it.uri.substringBefore('?').substringBefore('#') }
     val spliceBoundaries = segments.indices.filter { segments[it].discontinuity } + segments.size
     for (profile in params.sourceGroups) {

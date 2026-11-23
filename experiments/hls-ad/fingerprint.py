@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""Offline experiment: compare two short audio files; never classifies ads by itself.
-Requires ffmpeg and numpy. Inputs must be local files. Outputs no URLs.
-"""
+"""Compare local audio with ffmpeg and NumPy. This is not an ad classifier."""
 import argparse
 import json
 import resource

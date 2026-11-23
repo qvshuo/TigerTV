@@ -43,7 +43,6 @@ class Media3Controller(context: Context) {
         .setMediaSourceFactory(DefaultMediaSourceFactory(dataSource))
         .build()
     private val mediaSession = MediaSession.Builder(appContext, player).setId(java.util.UUID.randomUUID().toString()).build()
-    /** Null until this session has a validated, filtered media playlist. */
     val playbackTimeline: art.anjing.tigertv.core.MediaTimeline? get() = hlsSession?.timeline
 
     var snapshot by mutableStateOf(PlayerSnapshot())

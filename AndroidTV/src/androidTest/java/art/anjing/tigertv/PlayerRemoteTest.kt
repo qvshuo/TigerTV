@@ -46,7 +46,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.rules.TestName
 
-/** A real ExoPlayer, Compose focus tree and Kotlin core, with deterministic API fixtures. */
 @RunWith(AndroidJUnit4::class)
 class PlayerRemoteTest {
     @get:Rule val compose = createComposeRule()
@@ -410,7 +409,6 @@ class PlayerRemoteTest {
         compose.onNodeWithTag("player-previous").assertIsNotEnabled().assertContentDescriptionEquals("上一集")
         compose.onNodeWithText("选集").assertDoesNotExist()
         compose.onNodeWithText("设置").assertDoesNotExist()
-        // Pause must survive more than the normal control timeout.
         SystemClock.sleep(5_300)
         compose.onNodeWithTag("player-play").assertExists()
         compose.onNodeWithTag("player-timeline").performSemanticsAction(SemanticsActions.SetProgress) { it(0.25f) }

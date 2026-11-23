@@ -15,7 +15,6 @@ import java.io.ByteArrayOutputStream
 
 internal fun mayFilterHls(uri: Uri): Boolean = uri.path?.endsWith(".m3u8", ignoreCase = true) == true
 
-/** Bound to one media item. A new playback session gets a new instance. */
 internal class HlsPlaybackSession(val uri: Uri, val site: String, val filterAds: Boolean = true) {
     @Volatile var timeline: MediaTimeline? = null
     @Volatile var childPlaylist: Uri? = null

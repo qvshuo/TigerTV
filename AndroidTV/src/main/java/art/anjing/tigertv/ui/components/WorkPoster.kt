@@ -12,7 +12,6 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 
-/** Retain the first successful cover as incremental sources arrive. */
 @Composable
 internal fun WorkPoster(
     workId: String,

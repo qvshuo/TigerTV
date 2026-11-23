@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Spacing
 
 enum AppSpacing {
     static let xs: CGFloat = 4
@@ -10,21 +9,18 @@ enum AppSpacing {
     static let xl: CGFloat = 32
 }
 
-// MARK: - Radius
 
 enum AppRadius {
     static let sm: CGFloat = 12
     static let md: CGFloat = 20
 }
 
-// MARK: - Motion
 
 enum AppMotion {
     static var page: Animation { .smooth(duration: 0.25) }
     static var control: Animation { .smooth(duration: 0.18) }
 }
 
-// Shared dimensions for page loading and detail controls.
 enum AppMetrics {
     static let homeSearchHeight: CGFloat = 44
     static let compactSearchHeight: CGFloat = 28

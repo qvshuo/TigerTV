@@ -177,7 +177,6 @@ fun PlayerScreen(
     LaunchedEffect(windowFocused) {
         if (!windowFocused) finishSeek(false)
     }
-    // An error can arrive while loading is already blocked, without changing `blocked`.
     LaunchedEffect(focusRequest, blocked, playbackError, controls.visible, controls.speedMenuOpen, windowFocused, lifecycleState) {
         if (!windowFocused || lifecycleState != Lifecycle.State.RESUMED) return@LaunchedEffect
         when {
@@ -259,7 +258,6 @@ fun PlayerScreen(
             controller.savePosition()
         }
     }
-    // Keep lifecycle callbacks current without repeatedly registering an observer.
     val cancelSeekOnBackground by rememberUpdatedState({ finishSeek(false) })
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->

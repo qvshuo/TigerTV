@@ -62,7 +62,7 @@ final class WorkDetailContractTests: XCTestCase {
 
     func testUnwatchedWorkUsesRecentSiteWithoutLosingOtherSourcesPoster() throws {
         var work = try XCTUnwrap(JSONDecoder().decode(SearchResponse.self, from: fixture("search.sample.json")).works.first)
-        work.recentPlayedSite = work.sources[0].site // This source has no poster.
+        work.recentPlayedSite = work.sources[0].site
         XCTAssertEqual(work.defaultSource?.site, "🎬一")
         let availableCovers = work.orderedSources.filter { !$0.vodPic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         XCTAssertEqual(availableCovers.first?.site, "🎬二")

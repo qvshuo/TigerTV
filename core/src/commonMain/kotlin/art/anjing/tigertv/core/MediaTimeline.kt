@@ -20,7 +20,6 @@ data class ReferenceSpan(
     }
 }
 
-/** Timeline calculations only; callers decide whether an interval is an ad. */
 class MediaTimeline(ads: List<MediaInterval>, referenceSpans: List<ReferenceSpan> = emptyList()) {
     val ads: List<MediaInterval> = ads.sortedBy { it.startMs }.fold(mutableListOf<MediaInterval>()) { result, next ->
         val last = result.lastOrNull()

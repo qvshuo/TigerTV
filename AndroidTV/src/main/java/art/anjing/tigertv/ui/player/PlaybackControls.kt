@@ -153,7 +153,6 @@ fun PlaybackControls(
                     }
                     down = if (stacked) speedFocus else FocusRequester.Cancel
                 }.onFocusChanged { if (it.isFocused) onFocus(PlayerFocusArea.Actions) }
-                // The symmetric transport group centers play on the viewport, independently of speed.
                 Row(Modifier.align(if (stacked) Alignment.TopCenter else Alignment.Center), horizontalArrangement = Arrangement.spacedBy(20.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     IconButton(scale = IconButtonDefaults.scale(focusedScale = 1.02f), onClick = onPrevious, enabled = canPrevious,

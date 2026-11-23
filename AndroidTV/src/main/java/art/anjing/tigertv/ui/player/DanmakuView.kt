@@ -48,7 +48,6 @@ internal class DanmakuView(context: Context) : View(context) {
         if (player !== media) { player?.removeListener(listener); player = media; media.addListener(listener); reset(); changed = true }
         if (track !== data) {
             track = data
-            // Playback state hands off the time-sorted rolling comments prepared off the UI thread.
             comments = data?.comments.orEmpty()
             reset(); changed = true
         }

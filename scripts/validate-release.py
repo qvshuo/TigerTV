@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Validate dispatch inputs before either platform starts a release build."""
 import os
 from pathlib import Path
 import re

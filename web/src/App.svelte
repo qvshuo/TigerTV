@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte'
+  import sourceEvidence from '../../shared/hls-heuristics.json' with { type: 'json' }
   import Poster from './Poster.svelte'
   import { categories, doubanPoster, getDetail, hot, search, webUrl, type Detail, type Episode, type HotItem, type Site, type Source, type Work } from './api.ts'
   import { defaultDanmakuServer, getBookmark, getPosition, getRecent, getSettings, read, write, type Bookmark, type PlaybackOptions, type Recent, type Selection } from './storage.ts'
@@ -22,7 +23,6 @@
   let submitted = $state('')
   let historyItems = $state(read<string[]>('search-history', []))
   let workPosters = $state.raw(read<Record<string, string>>('work-posters', {}))
-  let sourcesWithAdFilters = $state.raw(read<string[]>('sources-with-ad-filters', []))
   let searchBusy = $state(false)
   let searchStatus = $state('')
   let results = $state.raw<Work[]>([])
@@ -131,14 +131,12 @@
     write('work-posters', workPosters)
   }
 
-  // These sources have verified examples. Other badges appear after a successful filter.
-  const verifiedAdSources = new Set(['360zy.com', 'iqiyizyapi.com', 'www.moduzy.net', '1080zyk4.com', 'ffzyapi.com'])
-  const adSourceKey = (site: Site) => site.gateway ?? site.api
-  function markAdFilter(site: Site) {
-    const key = adSourceKey(site)
-    if (sourcesWithAdFilters.includes(key)) return
-    sourcesWithAdFilters = [key, ...sourcesWithAdFilters].slice(0, 50)
-    write('sources-with-ad-filters', sourcesWithAdFilters)
+  const sourceGroups = ['filter', 'sample', 'other'] as const
+  function evidenceFor(site: Site) {
+    const name = site.name.replaceAll('🎬', '').trim()
+    if (sourceEvidence.verifiedFilterSources.includes(name)) return 'filter'
+    if (sourceEvidence.noGamblingInSamples.includes(name)) return 'sample'
+    return 'other'
   }
 
   async function runSearch(value = query) {
@@ -376,16 +374,28 @@
     </div>
     <section class="detail-section" aria-labelledby="source-heading">
       <h2 id="source-heading" tabindex="-1" bind:this={sourceHeading}>资源</h2>
-      <div class="choices">
-        {#each visibleWork.sources as item (item.site.name + ':' + item.id)}
-          <button class="choice source-choice" aria-pressed={sameSource(item, source)} onclick={() => void loadDetail(item)}>
-            {item.site.name.replace(/^🎬\s*/, '')}
-            {#if verifiedAdSources.has(adSourceKey(item.site)) || sourcesWithAdFilters.includes(adSourceKey(item.site))}
-              <span class="source-badge">去广告</span>
-            {/if}
-          </button>
-        {/each}
-      </div>
+      {#if visibleWork.sources.some(item => evidenceFor(item.site) !== 'other')}
+        <h3 class="mb-2 mt-3">推荐资源 <span class="source-badge">弹幕</span></h3>
+      {/if}
+      {#each sourceGroups as evidence (evidence)}
+        {@const group = visibleWork.sources.filter(item => evidenceFor(item.site) === evidence)}
+        {#if group.length}
+          {#if evidence === 'other'}
+            <h3 class="mb-2 mt-3">其他资源</h3>
+          {:else if evidence === 'sample' || settings.filterAds}
+            <h4 class="mb-2 mt-3">
+              <span class="source-badge">{evidence === 'sample' ? '样本未见博彩插播' : '去广告'}</span>
+            </h4>
+          {/if}
+          <div class="choices">
+            {#each group as item (item.site.name + ':' + item.id)}
+              <button class="choice source-choice" aria-pressed={sameSource(item, source)} onclick={() => void loadDetail(item)}>
+                {item.site.name.replace(/^🎬\s*/, '')}
+              </button>
+            {/each}
+          </div>
+        {/if}
+      {/each}
     </section>
     <section class="detail-section" aria-labelledby="line-heading">
       <h2 id="line-heading">线路</h2>
@@ -416,7 +426,6 @@
       <Player {selection} episode={video} {settings} {inherited}
         canPrevious={selection.index > 0} canNext={selection.index < (line?.episodes.length ?? 0) - 1}
         onBack={() => back('detail')} onSources={() => { focusSources = true; back('detail') }}
-        onAdFilter={markAdFilter}
         onPrevious={() => { if (selection) play(selection.index - 1) }} onNext={options => { if (selection) play(selection.index + 1, options) }} />
     {:else if playerLoadFailed}
       <p role="alert">播放器加载失败。</p>

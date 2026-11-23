@@ -20,7 +20,7 @@ export function webUrl(value: string): string {
   try {
     const url = new URL(value.startsWith('//') ? 'https:' + value : value)
     if (url.protocol === 'https:' || (url.protocol === 'http:' && location.protocol === 'http:')) return url.href
-  } catch { /* Invalid upstream URL. */ }
+  } catch { }
   return ''
 }
 

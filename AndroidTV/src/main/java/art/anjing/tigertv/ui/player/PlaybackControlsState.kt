@@ -1,6 +1,5 @@
 package art.anjing.tigertv.ui.player
 
-/** Remote interaction state, independent of media loading and persisted playback history. */
 data class SeekPreview(
     val originMillis: Long,
     val targetMillis: Long,

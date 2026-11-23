@@ -192,7 +192,7 @@ class WorkSelectionTest {
         assertEquals(0L, viewModel.playbackSession?.positionMillis)
         // The old player flushes after selection has already changed.
         viewModel.savePlaybackPosition(original, 755_000)
-        viewModel.playbackDidStart(original) // A stale start cannot change the current bookmark.
+        viewModel.playbackDidStart(original)
         advanceUntilIdle()
         coVerify(exactly = 1) { repository.recordPlayback(any(), "A", "0", second.name, any(), any(), matchNullable { true }) }
         coVerify(exactly = 1) { repository.recordPlaybackPosition(original.workId, "A", "0", second.name, 755_000) }
@@ -228,7 +228,7 @@ class WorkSelectionTest {
         advanceUntilIdle()
         assertEquals(b, viewModel.works.single().defaultSource)
         coVerify(exactly = 1) { repository.recordPlayback(work.id, "B", "0", first.name, any(), any(), matchNullable { true }) }
-        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession)) // Resume must not append duplicate history.
+        viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         coVerify(exactly = 1) { repository.recordPlayback(work.id, "B", "0", first.name, any(), any(), matchNullable { true }) }
         viewModel.selectResult(a)
@@ -558,7 +558,7 @@ class WorkSelectionTest {
         assertEquals(listOf(backup), viewModel.episodes)
         assertEquals(-1, viewModel.selectedEpisodeIndex)
         assertNull(viewModel.playbackUrl)
-        viewModel.selectEpisode(1) // Last episode cannot spill into another line.
+        viewModel.selectEpisode(1)
         assertEquals(-1, viewModel.selectedEpisodeIndex)
     }
 

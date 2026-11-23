@@ -84,7 +84,6 @@ fun plainDescription(raw: String): String = raw.replace(Regex("(?i)<br\\s*/?>|</
     .replace(Regex("<[^>]+>"), "").replace("&nbsp;", " ").replace("&lt;", "<")
     .replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'").replace("&amp;", "&").trim()
 
-/** Decode search metadata directly, skipping large content/playback fields instead of retaining a JSON tree. */
 @Serializable
 internal data class SearchPage(
     val code: JsonElement = JsonNull,

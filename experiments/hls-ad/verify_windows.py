@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Offline only: run shared Kotlin filtering on a captured window, decode kept cached media.
-Arguments: snapshot.json review-directory source java-classpath start-index end-index.
-Cached segment files are the decoded originals from review_window.py. No network requests.
-"""
+"""Use decoded segment files produced by review_window.py."""
 import argparse,json,pathlib,re,subprocess
 
 def main():

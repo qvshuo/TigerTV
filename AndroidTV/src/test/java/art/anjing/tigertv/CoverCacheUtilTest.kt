@@ -74,7 +74,6 @@ class NormalizeCoverUrlTest {
 
     @Test
     fun `non-ascii path is percent encoded as utf-8`() {
-        // 与 macOS HTTPConfiguration.percentEncodedURL(from:) 同语义：只编非 ASCII。
         assertEquals(
             "https://pic.example.com/%E9%80%90%E7%8E%89/73480.jpg",
             normalizeCoverUrl("https://pic.example.com/逐玉/73480.jpg")

@@ -179,7 +179,6 @@ class DanmakuProgressiveTest {
             withTimeout(5_000){cancelled.await()}
             assertNull(state.track);assertFalse(state.busy)
             state.toggleEnabled()
-            // PlayerScreen starts matching when enabled with no loaded track.
             state.search("示例")
             withTimeout(5_000){while(state.busy)delay(10)}
             assertEquals(2,searches);assertEquals(1L,state.selectedTitle?.id);assertNotNull(state.track)

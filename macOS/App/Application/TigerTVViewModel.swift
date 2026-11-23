@@ -47,7 +47,6 @@ final class TigerTVViewModel: ObservableObject {
     @Published private(set) var isLoadingHotSearches = false
     @Published private(set) var hotSearchRevision = 0
 
-    /// Source-specific fallback URLs; failures are not cached.
     @Published private(set) var coverFallbacks: [String: URL] = [:]
     private var historySaveTask: Task<Void, Never>?
     private var historyRevision = 0
@@ -112,7 +111,6 @@ final class TigerTVViewModel: ObservableObject {
     private var hotSearchGeneration = 0
     private var hotWarmTask: Task<Void, Never>?
 
-    // Discard results from cancelled or superseded operations.
     private var searchGeneration = 0
     private var fetchGeneration = 0
 

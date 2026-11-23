@@ -141,7 +141,6 @@ class TigerTVViewModel(
 
     val playbackUrl: String? get() = episodes.getOrNull(selectedEpisodeIndex)?.url
 
-    /** Changes on every playback selection, including retries of the same URL. */
     var playbackRevision by mutableIntStateOf(0)
         private set
 
@@ -157,7 +156,6 @@ class TigerTVViewModel(
     var hotSearchRevision by mutableIntStateOf(0)
         private set
 
-    /** Source-specific fallback URLs; failures are not cached. */
     var coverFallbacks by mutableStateOf<Map<String, String>>(emptyMap())
         private set
     // Flushes must survive disposal of the screen and its ViewModel scope.
@@ -179,7 +177,6 @@ class TigerTVViewModel(
 
     fun playbackDidStart(session: PlaybackSession) {
         val active = playbackSession ?: return
-        // Resume positions can change while the identity of the playing session stays fixed.
         if (session.copy(positionMillis = active.positionMillis) != active) return
         val source = selectedResult ?: return
         val detail = fetchResponse
@@ -328,7 +325,6 @@ class TigerTVViewModel(
         loadConfig()
     }
 
-    /** Resolve missing posters only while their owning search is active. */
     fun loadCoverFallbackIfPossible(result: SearchResult) {
         if (result.vodPic.isBlank() && result.coverKey !in coverFallbacks && result.coverKey !in coverJobs) {
             val generation = searchGeneration
@@ -381,7 +377,6 @@ class TigerTVViewModel(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            // Visible cards retry through their normal image-loading path.
         }
     }
 

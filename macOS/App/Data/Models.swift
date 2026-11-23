@@ -141,7 +141,6 @@ struct HotSearchItem: Codable, Identifiable, Sendable {
     let status: String
 }
 
-/// Immutable identity retained by a player until its final position has been saved.
 struct PlaybackSession: Sendable {
     let workId: String
     let site: String

@@ -29,7 +29,6 @@ fun ActionButton(
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     content: @Composable RowScope.() -> Unit
 ) {
-    // Keep natural width while centering content across the native surface's full width.
     Button(onClick = onClick, modifier = modifier.width(IntrinsicSize.Max).heightIn(min = height), onLongClick = onLongClick,
         enabled = enabled, scale = ButtonDefaults.scale(focusedScale = 1.02f), colors = colors, contentPadding = PaddingValues(0.dp)) {
         Row(Modifier.fillMaxWidth().heightIn(min = height).padding(contentPadding),

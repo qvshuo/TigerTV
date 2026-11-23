@@ -15,7 +15,6 @@ class PlaybackControlsStateTest {
         assertEquals(50_000L, repeated.seek?.originMillis)
         assertEquals(70_000L, repeated.seek?.targetMillis)
         assertTrue(requireNotNull(repeated.seek).wasPlaying)
-        // A pause caused by scrubbing must not replace the original playback intention.
         assertFalse(PlaybackControlsState().right(100, playing = false).right(250, true).seek!!.wasPlaying)
         assertNull(repeated.copy(seek = null).seek)
     }

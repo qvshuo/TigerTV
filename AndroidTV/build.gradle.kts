@@ -31,7 +31,6 @@ android {
         }
         create("release") {
             initWith(getByName("debug"))
-            // CI restores ~/.android/debug.keystore from signing secrets.
             val ciStoreFile = System.getenv("CI_RELEASE_STORE_FILE")?.takeIf { it.isNotEmpty() }
             if (ciStoreFile != null) {
                 storeFile = file(ciStoreFile)
@@ -81,26 +80,21 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
     implementation("androidx.navigation:navigation-compose:2.10.2")
 
-    // Compose / TV
     implementation("androidx.compose.ui:ui:1.12.1")
     implementation("androidx.compose.material3:material3:1.4.0")
     implementation("androidx.tv:tv-material:1.1.0")
     implementation("androidx.compose.material:material-icons-core:1.7.8")
 
-    // Media3 ExoPlayer
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
     implementation("androidx.media3:media3-session:1.11.1")
 
-    // Image loading (search result covers)
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
 
-    // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
-    // Testing
     androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.12.1")

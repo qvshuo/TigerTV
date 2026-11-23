@@ -30,7 +30,6 @@ import art.anjing.tigertv.ui.components.ActionButton
 import art.anjing.tigertv.ui.components.TvTextInput
 import art.anjing.tigertv.ui.requestFocusSafely
 
-/** Nonblocking overlay and manual selection. Recreate with the playback-session key. */
 @Composable
 internal fun DanmakuPlayback(
     controller: Media3Controller, state: DanmakuState, title: String, menuOpen: Boolean, onClose: () -> Unit, onSettings: () -> Unit,

@@ -3,7 +3,6 @@ import AVKit
 import Combine
 import AppKit
 
-/// Owns the AVPlayer item across SwiftUI view updates.
 @MainActor
 final class AVPlayerController: ObservableObject {
     let player = AVPlayer()

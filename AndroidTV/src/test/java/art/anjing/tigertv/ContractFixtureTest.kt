@@ -6,7 +6,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.File
 
-/** Both clients decode the same current core fixtures. */
 class ContractFixtureTest {
 
     private fun findRepoFixture(relative: String): File {

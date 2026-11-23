@@ -35,7 +35,6 @@ sealed class Screen(val route: String) {
 fun TigerTVApp(
     navController: NavHostController = rememberNavController()
 ) {
-    // Create the network service only when a new ViewModel is needed, not on Activity recreation.
     val appContext = LocalContext.current.applicationContext
     val viewModel: TigerTVViewModel = viewModel(
         factory = remember(appContext) { TigerTVViewModelFactory(appContext) }

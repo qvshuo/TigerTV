@@ -6,7 +6,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Android UI adapter. All runtime business rules are implemented in KMP core. */
 class TigerTVRepository(private val core: CoreService) {
     private suspend fun <T> result(block: suspend () -> T): Result<T> = withContext(Dispatchers.IO) {
         try { Result.Success(block()) }

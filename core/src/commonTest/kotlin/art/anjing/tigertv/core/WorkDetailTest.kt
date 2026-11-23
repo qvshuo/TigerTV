@@ -149,7 +149,7 @@ class WorkDetailTest {
             assertEquals("🎬A", work.defaultSource.site)
             core.recordPlayback(work.id, "🎬B", "0", "第一集")
             assertEquals("🎬B", core.search("同作").works.single().defaultSource.site)
-            assertEquals(2, requests) // Same cached network data, current preference.
+            assertEquals(2, requests)
             val unwatched = core.search("其他关键词").works.single()
             assertNull(unwatched.lastPlayedSite)
             assertEquals("🎬B", unwatched.defaultSource.site)

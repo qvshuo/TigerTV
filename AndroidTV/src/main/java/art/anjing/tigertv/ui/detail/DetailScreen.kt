@@ -25,6 +25,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -36,6 +37,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.tv.material3.*
 import coil3.compose.AsyncImage
 import art.anjing.tigertv.R
+import art.anjing.tigertv.core.SourceAdEvidence
+import art.anjing.tigertv.core.sourceAdEvidence
+import art.anjing.tigertv.ui.player.PlaybackPreferences
 import art.anjing.tigertv.domain.EpisodeLink
 import art.anjing.tigertv.domain.FetchResponse
 import art.anjing.tigertv.domain.SearchResult
@@ -56,6 +60,7 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
     val result = viewModel.selectedResult
     val response = viewModel.fetchResponse?.takeIf { it.site == result?.site && it.vodId == result.vodId }
     val sources = viewModel.availableSources
+    val filterAds = PlaybackPreferences(LocalContext.current).filterAds
     val episodes = viewModel.episodes
     val preferredSource = sources.indexOfFirst { it.coverKey == result?.coverKey }.coerceAtLeast(0)
     val preferredLine = viewModel.selectedPlaybackSourceIndex
@@ -129,22 +134,42 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                     }
                     item(key = "source-label", span = { GridItemSpan(maxLineSpan) }) { SectionTitle("资源") }
                     item(key = "sources", span = { GridItemSpan(maxLineSpan) }) {
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = UiSpacing.sm),
-                            horizontalArrangement = Arrangement.spacedBy(ChoiceGap),
-                            verticalArrangement = Arrangement.spacedBy(ChoiceGap)
-                        ) {
-                            sources.forEachIndexed { index, source ->
-                                key(source.coverKey) {
-                                    val name = source.site.trimStart().removePrefix("🎬").trim()
-                                    DetailChoice(name, source.coverKey == result?.coverKey,
-                                        badge = "去广告".takeIf { name in verifiedAdSources },
-                                        modifier = if (index == preferredSource) Modifier.focusRequester(sourceFocus) else Modifier) {
-                                        if (source.coverKey != result?.coverKey) {
-                                            restoreRetryFocus = false
-                                            sourceViewport = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "sources" }
-                                                ?.let { it.index to -it.offset.y }
-                                            viewModel.selectResult(source)
+                        val groups = sources.groupBy { sourceAdEvidence(it.site) }
+                        Column(verticalArrangement = Arrangement.spacedBy(UiSpacing.sm)) {
+                            if (groups.keys.any { it != SourceAdEvidence.UNVERIFIED }) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.sm),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    Text("推荐资源", style = MaterialTheme.typography.labelLarge)
+                                    ResourceBadge("弹幕")
+                                }
+                            }
+                            SourceAdEvidence.entries.forEach { evidence ->
+                                val group = groups[evidence].orEmpty()
+                                if (group.isNotEmpty()) {
+                                    when (evidence) {
+                                        SourceAdEvidence.FILTER_VERIFIED -> if (filterAds) ResourceBadge("去广告")
+                                        SourceAdEvidence.NO_GAMBLING_IN_SAMPLES -> ResourceBadge("样本未见博彩插播")
+                                        SourceAdEvidence.UNVERIFIED -> Text("其他资源", style = MaterialTheme.typography.labelLarge)
+                                    }
+                                    FlowRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(ChoiceGap),
+                                        verticalArrangement = Arrangement.spacedBy(ChoiceGap)
+                                    ) {
+                                        group.forEach { source ->
+                                            key(source.coverKey) {
+                                                val name = source.site.trimStart().removePrefix("🎬").trim()
+                                                DetailChoice(name, source.coverKey == result?.coverKey,
+                                                    modifier = if (source == sources.getOrNull(preferredSource))
+                                                        Modifier.focusRequester(sourceFocus) else Modifier) {
+                                                    if (source.coverKey != result?.coverKey) {
+                                                        restoreRetryFocus = false
+                                                        sourceViewport = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "sources" }
+                                                            ?.let { it.index to -it.offset.y }
+                                                        viewModel.selectResult(source)
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -191,7 +216,6 @@ private fun DetailOverview(result: SearchResult, detail: FetchResponse?, poster:
         horizontalArrangement = Arrangement.spacedBy(UiSpacing.lg),
         verticalAlignment = Alignment.Top
     ) {
-        // Only the selected site's own detail/list/fallback URLs are eligible here.
         val urls = listOfNotNull(poster, result.vodPic, fallback).mapNotNull(::normalizeCoverUrl).distinct()
         SourcePoster(result, urls, Modifier.width(UiMetrics.posterWidth).height(UiMetrics.posterHeight))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(UiSpacing.sm)) {
@@ -232,7 +256,7 @@ private fun SectionTitle(title: String) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier = Modifier, maxLines: Int = 1, badge: String? = null, onClick: () -> Unit) {
+internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier = Modifier, maxLines: Int = 1, onClick: () -> Unit) {
     SelectionChip(selected = selected, onClick = onClick,
         modifier = modifier.width(IntrinsicSize.Max).heightIn(min = UiMetrics.chipHeight)) {
         Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.chipHeight - 16.dp),
@@ -240,11 +264,16 @@ internal fun DetailChoice(title: String, selected: Boolean, modifier: Modifier =
             verticalAlignment = Alignment.CenterVertically) {
             Text(title, modifier = Modifier.weight(1f, fill = false), textAlign = TextAlign.Center,
                 maxLines = maxLines, overflow = TextOverflow.Ellipsis)
-            if (badge != null) Text(badge, style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.border(1.dp, LocalContentColor.current.copy(alpha = .55f), MaterialTheme.shapes.extraSmall)
-                    .padding(horizontal = UiSpacing.xs))
         }
     }
+}
+
+@Composable
+private fun ResourceBadge(label: String) {
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    val shape = MaterialTheme.shapes.extraSmall
+    Text(label, style = MaterialTheme.typography.labelSmall, color = color,
+        modifier = Modifier.border(1.dp, color.copy(alpha = .5f), shape).padding(horizontal = UiSpacing.xs))
 }
 
 @Composable
@@ -298,7 +327,6 @@ private fun episodeChoices(detail: FetchResponse?, preferredLine: Int): List<Epi
     }
 }
 
-private val verifiedAdSources = setOf("360 资源", "-爱奇艺-", "魔都资源", "优质资源", "非凡资源")
 private val EpisodeMinWidth = 120.dp
 private val ChoiceInset = UiSpacing.md
 private val ChoiceGap = 12.dp

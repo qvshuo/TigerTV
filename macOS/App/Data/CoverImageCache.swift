@@ -2,7 +2,6 @@ import Foundation
 import AppKit
 import CryptoKit
 
-/// Memory and seven-day disk cache for source posters.
 final class CoverImageCache: @unchecked Sendable {
     static let ttl: TimeInterval = 7 * 86400
     static let maxResponseSize = 10 * 1024 * 1024

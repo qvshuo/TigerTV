@@ -207,7 +207,6 @@ struct DetailScreen: View {
 
 }
 
-/// Detail posters only use URLs belonging to the currently selected source.
 private struct SourceDetailPoster: View {
     let title: String
     let candidates: [URL]

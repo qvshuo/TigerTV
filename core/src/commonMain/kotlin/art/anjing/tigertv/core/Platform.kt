@@ -2,7 +2,6 @@ package art.anjing.tigertv.core
 
 import io.ktor.client.HttpClient
 
-/** Platform I/O only. Business rules must stay in commonMain. */
 interface Storage {
     fun read(path: String): String?
     fun writeAtomic(path: String, text: String)
