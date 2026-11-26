@@ -39,7 +39,7 @@ class DetailSourceScrollTest {
     @Test fun lateSourceResponseDoesNotUndoNewRemoteNavigation() = checkSourceSwitch(navigateWhileLoading = true)
     @Test fun longerSynopsisKeepsTheResourcePosition() = checkSourceSwitch(startsShort = true)
     @Test fun enlargedTextKeepsSourcePositionWithAShorterSynopsis() = checkSourceSwitch(shortSynopsis = true, fontScale = 1.3f)
-    @Test fun emptySourceKeepsTheResourcePosition() = checkSourceSwitch(shortSynopsis = true, emptyEpisodes = true)
+    @Test fun emptySourceIsDisabled() = checkSourceSwitch(shortSynopsis = true, emptyEpisodes = true)
     @Test fun repeatedRetryFailureRestoresRetryFocus() = checkSourceSwitch(failDetail = true, retryAgain = true)
     @Test fun lateRetryFailureDoesNotStealFocusAfterRemoteNavigation() = checkSourceSwitch(failDetail = true, retryAgain = true, navigateDuringRetry = true)
 
@@ -47,7 +47,7 @@ class DetailSourceScrollTest {
 
     private fun checkSourceSwitch(shortSynopsis: Boolean = false, failDetail: Boolean = false, navigateWhileLoading: Boolean = false, startsShort: Boolean = false, fontScale: Float = 1f, emptyEpisodes: Boolean = false, retryAgain: Boolean = false, navigateDuringRetry: Boolean = false, rapidEpisodes: Boolean = false) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val files = ConcurrentHashMap(mapOf("source" to """{"api_site":{"a":{"name":"🎬源甲","api":"https://a.test/api"},"b":{"name":"🎬源乙","api":"https://b.test/api"}}}"""))
+        val files = ConcurrentHashMap(mapOf("source" to """{"api_site":{"a":{"name":"🎬源甲","api":"https://a.test/api"},"b":{"name":"🎬源乙","api":"https://b.test/api"},"c":{"name":"🎬源丙","api":"https://c.test/api"}}}"""))
         val storage = object : Storage {
             override fun read(path: String) = files[path]
             override fun writeAtomic(path: String, text: String) { files[path] = text }
@@ -62,6 +62,7 @@ class DetailSourceScrollTest {
         val longSynopsis = "这是一段用于验证切源时保持资源位置的剧情简介。".repeat(80)
         val synopsis = if (startsShort) "简短介绍" else longSynopsis
         val core = CoreService("cache", "source", storage, configureClient(HttpClient(MockEngine { request ->
+            if (request.url.host == "c.test") return@MockEngine respond("""{"code":1,"list":[]}""")
             val secondDetail = request.url.parameters["ids"] != null && request.url.host == "b.test"
             if (secondDetail) {
                 if (++secondSourceRequests == 1) releaseDetail.await() else releaseRetry.await()
@@ -93,7 +94,7 @@ class DetailSourceScrollTest {
             if (rapidEpisodes) {
                 val down = KeyEvent.KEYCODE_DPAD_DOWN
                 val up = KeyEvent.KEYCODE_DPAD_UP
-                repeat(3) { instrumentation.sendKeyDownUpSync(down); compose.waitForIdle() }
+                repeat(2) { instrumentation.sendKeyDownUpSync(down); compose.waitForIdle() }
                 compose.onNode(hasText("第1集") and hasClickAction()).assertIsFocused()
                 val stats = InstrumentationRegistry.getArguments().getString("measure_episode_focus") == "true"
                 fun gfx(command: String): String = android.os.ParcelFileDescriptor.AutoCloseInputStream(
@@ -111,8 +112,8 @@ class DetailSourceScrollTest {
                 repeat(18) { send(down) }
                 compose.waitForIdle()
                 val focused = compose.onNode(isFocused()).fetchSemanticsNode().config[SemanticsProperties.Text].single().text
-                val episode = focused.removePrefix("第").removeSuffix("集").toIntOrNull()
-                assertTrue("Expected focus several rows into the episode grid: $focused", episode != null && episode >= 24)
+                val episode = Regex("^第([0-9]+)集").find(focused)?.groupValues?.get(1)?.toIntOrNull()
+                assertTrue("Expected focus several rows into the episode grid: $focused", episode != null && episode >= 17)
                 repeat(18) { send(up) }
                 compose.waitForIdle()
                 val returned = compose.onNode(isFocused()).fetchSemanticsNode().config[SemanticsProperties.Text].single().text
@@ -125,7 +126,7 @@ class DetailSourceScrollTest {
                     android.util.Log.i("TigerTVEpisodeFocus", "keys=${sorted.size}, keyDispatchMsP50=${sorted[sorted.size / 2]}, keyDispatchMsP95=${sorted[sorted.size * 95 / 100]}, down=$focused, returned=$returned, $result")
                 }
                 assertTrue("Focus was lost after reversing: $returned",
-                    Regex("^第[1-9]集").containsMatchIn(returned) || returned in listOf("主线", "🎬源甲"))
+                    Regex("^(?:播放 · )?第[1-9]集").containsMatchIn(returned) || returned == "源甲")
                 assertNull(model.playbackUrl)
                 return
             }
@@ -139,6 +140,7 @@ class DetailSourceScrollTest {
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN)
             compose.waitForIdle()
             compose.onNode(hasText("源甲") and hasClickAction()).assertIsFocused()
+            compose.onNodeWithText("源丙").assertIsDisplayed().assertIsNotEnabled()
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
             compose.waitForIdle()
             val source = compose.onNode(hasText("源乙") and hasClickAction())
@@ -167,18 +169,24 @@ class DetailSourceScrollTest {
                 assertNull(model.playbackUrl)
                 return
             }
-            source.assertIsFocused().assertIsDisplayed().assertIsSelected()
+            if (emptyEpisodes) source.assertIsNotEnabled() else source.assertIsFocused()
+            source.assertIsDisplayed().assertIsSelected()
             val loaded = source.fetchSemanticsNode().boundsInRoot
             assertEquals("Detail completion moved the focused resource ($beforeScroll -> $loadingScroll -> ${scrollPosition()})", before.top, loaded.top, 2f)
             if (emptyEpisodes) {
-                compose.onNodeWithText("暂无播放内容").assertIsDisplayed()
+                compose.onNodeWithText("暂无剧集").assertIsDisplayed()
                 assertTrue(model.episodes.isEmpty())
                 assertNull(model.playbackUrl)
                 return
             }
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN)
             compose.waitForIdle()
-            compose.onNodeWithText(if (failDetail) "重试" else "主线").assertIsFocused().assertIsDisplayed()
+            if (failDetail) {
+                compose.onNodeWithText("重试").assertIsFocused().assertIsDisplayed()
+            } else {
+                compose.onNode(hasText("集", substring = true) and hasClickAction() and isFocused()).assertIsDisplayed()
+                compose.onNodeWithText("主线").assertDoesNotExist()
+            }
             if (retryAgain) {
                 instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
                 compose.waitUntil(5_000) { model.isFetching }

@@ -31,6 +31,9 @@ class DanmakuFallbackTest {
             val commentCalls = calls.count { it.contains("comment") }
             state.select(state.titles.first { it.id==3L })
             withTimeout(5_000) { while(state.busy) delay(10) }
+            assertTrue(remembered.isEmpty())
+            state.select(state.episodes.single())
+            withTimeout(5_000) { while(state.busy) delay(10) }
             assertEquals(listOf(3L),remembered)
             assertEquals(commentCalls,calls.count { it.contains("comment") })
             state.close()
@@ -62,7 +65,9 @@ class DanmakuFallbackTest {
             assertFalse(calls.any { it.contains("search") })
             state.configure("https://example.test/first"); state.search("示例", useSaved = false)
             withTimeout(5_000) { while (state.busy) delay(10) }
-            assertEquals(10L, state.selectedTitle?.id)
+            assertEquals(listOf(10L), state.titles.map { it.id })
+            assertEquals(9L, state.selectedTitle?.id)
+            assertEquals(2, calls.count { it.contains("comment") })
             assertTrue(writes.isEmpty())
             state.configure("https://example.test/second")
             assertNull(state.track); assertNull(state.selectedTitle)

@@ -5,6 +5,7 @@ import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import art.anjing.tigertv.domain.episodePositionKey
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
@@ -205,10 +206,7 @@ class PlayerRemoteTest {
         compose.onNodeWithText("延后 1 秒").assertDoesNotExist()
         compose.onNodeWithText("选择弹幕").assertExists()
         compose.onNodeWithText("关闭弹幕").assertExists()
-        compose.onNodeWithTag("danmaku-action-4").assertIsFocused()
-        remote(KeyEvent.KEYCODE_DPAD_DOWN)
-        compose.onNodeWithTag("danmaku-action-0").assertIsFocused()
-        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        chooseDanmakuAction(0)
         compose.onNodeWithTag("player-danmaku").assertContentDescriptionEquals("弹幕已关闭")
         compose.runOnIdle { model.selectEpisode(1) }
         compose.waitUntil(10_000) { model.selectedEpisodeIndex == 1 }
@@ -219,7 +217,7 @@ class PlayerRemoteTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("弹幕已关闭").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("player-danmaku").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        chooseDanmakuAction(4)
         compose.onNodeWithTag("danmaku-options").assertExists()
         compose.onNodeWithText("完成").assertDoesNotExist()
         compose.onNodeWithText("提前 1 秒").assertDoesNotExist()
@@ -255,7 +253,7 @@ class PlayerRemoteTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("player-danmaku").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("player-danmaku").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        chooseDanmakuAction(4)
         val panel = compose.onNodeWithTag("danmaku-options")
         compose.onNodeWithTag("danmaku-open-settings").assertIsFocused()
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -268,6 +266,9 @@ class PlayerRemoteTest {
         compose.onNodeWithTag("danmaku-save").assertIsNotEnabled()
         assertEquals("https://fixture.test", instrumentation.targetContext.getSharedPreferences("danmaku", 0).getString("server", ""))
         remote(KeyEvent.KEYCODE_BACK)
+        if (compose.onAllNodesWithTag("danmaku-server").fetchSemanticsNodes().isNotEmpty()) {
+            remote(KeyEvent.KEYCODE_BACK) // The IME can consume the first Back on TV.
+        }
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("danmaku-server").fetchSemanticsNodes().isEmpty() }
         compose.runOnIdle { assertSame("Settings must preserve the video session", media, findPlayerView(rootView)!!.player) }
         compose.waitUntil(10_000) { danmakuRequests.get() >= 3 }
@@ -279,6 +280,12 @@ class PlayerRemoteTest {
         compose.waitUntil(10_000) { compose.onNodeWithTag("danmaku-options").fetchSemanticsNode().config[SemanticsProperties.StateDescription] == "就绪" }
         panel.performScrollToNode(hasTestTag("danmaku-title-101"))
         compose.onNodeWithTag("danmaku-title-101").assertIsSelected()
+        compose.onNodeWithText("当前集").assertDoesNotExist()
+        panel.performScrollToNode(hasTestTag("danmaku-episode-11"))
+        val firstEpisode = compose.onNodeWithTag("danmaku-episode-11").fetchSemanticsNode().boundsInRoot
+        val secondEpisode = compose.onNodeWithTag("danmaku-episode-12").fetchSemanticsNode().boundsInRoot
+        assertEquals(firstEpisode.top, secondEpisode.top)
+        assertTrue(firstEpisode.right < secondEpisode.left)
         for ((id, title) in listOf(
             11 to "第1集：再见朋友！出发前…",
             12 to "第 2 集",
@@ -294,7 +301,7 @@ class PlayerRemoteTest {
         remote(KeyEvent.KEYCODE_DPAD_RIGHT)
         compose.onNodeWithTag("danmaku-search").assertIsFocused()
         compose.onNodeWithTag("danmaku-server").assertDoesNotExist()
-        compose.onNodeWithTag("danmaku-search").assertTextContains("匹配")
+        compose.onNodeWithTag("danmaku-search").assertTextContains("搜索")
         compose.onNodeWithTag("danmaku-search").performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.waitUntil(10_000) { compose.onNodeWithTag("danmaku-options").fetchSemanticsNode().config[SemanticsProperties.StateDescription] == "就绪" }
         panel.performScrollToNode(hasTestTag("danmaku-title-101"))
@@ -317,13 +324,10 @@ class PlayerRemoteTest {
         val requestsBeforeToggle = danmakuRequests.get()
         compose.onNodeWithTag("player-danmaku").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag("danmaku-action-4").assertIsFocused()
-        remote(KeyEvent.KEYCODE_DPAD_DOWN)
-        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        chooseDanmakuAction(0)
         compose.onNodeWithTag("player-danmaku").assertContentDescriptionEquals("弹幕已关闭")
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        remote(KeyEvent.KEYCODE_DPAD_DOWN)
-        remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        chooseDanmakuAction(0)
         compose.onNodeWithTag("player-danmaku").assertContentDescriptionEquals("弹幕已开启")
         assertEquals("Reopening a loaded track must not request another source", requestsBeforeToggle, danmakuRequests.get())
     }
@@ -342,12 +346,24 @@ class PlayerRemoteTest {
         compose.onNodeWithTag("player-danmaku").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag("danmaku-action-4").assertIsFocused()
-        remote(KeyEvent.KEYCODE_DPAD_DOWN)
-        compose.onNodeWithTag("danmaku-action-0").assertIsFocused()
-        remote(KeyEvent.KEYCODE_DPAD_UP)
-        compose.onNodeWithTag("danmaku-action-4").assertIsFocused()
+        val toggle = compose.onNodeWithTag("danmaku-action-0")
+        val choose = compose.onNodeWithTag("danmaku-action-4")
+        assertTrue(toggle.fetchSemanticsNode().boundsInRoot.top < choose.fetchSemanticsNode().boundsInRoot.top)
         remote(KeyEvent.KEYCODE_BACK)
         compose.onNodeWithTag("player-danmaku").assertIsFocused()
+    }
+
+    private fun firstEpisodePosition(): Long {
+        val work = model.works.single()
+        val source = work.sources.first { it.site == "🎬测试" }
+        return work.playbackPositions[source.coverKey]?.get("0")?.get(episodePositionKey("第一集", 0)) ?: 0
+    }
+
+    private fun chooseDanmakuAction(action: Int) {
+        compose.onNodeWithTag("danmaku-action-4").assertIsFocused()
+        if (action == 0) remote(KeyEvent.KEYCODE_DPAD_UP)
+        compose.onNodeWithTag("danmaku-action-$action").assertIsFocused()
+        remote(KeyEvent.KEYCODE_DPAD_CENTER)
     }
 
     @Test fun failureAfterPlaybackIsClearedFocusesRetryAndBackExits() {
@@ -373,20 +389,23 @@ class PlayerRemoteTest {
         }
         compose.waitUntil(10_000) {
             model.playbackUrl != null &&
-                model.works.single().playback["🎬测试"]?.line == "1"
+                model.works.single().let { work -> work.bookmarkFor(work.sources.first { it.site == "🎬测试" }) }?.line == "1"
         }
         compose.runOnIdle { model.setPlaybackError("Fixture native playback failure") }
         compose.waitUntil(5_000) {
             compose.onAllNodes(hasText("重试") and isFocused()).fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("重试").assertIsFocused()
-        compose.onAllNodes(hasClickAction()).assertCountEquals(1)
+        compose.onAllNodes(hasClickAction()).assertCountEquals(2)
         compose.onNodeWithText("返回").assertDoesNotExist()
-        listOf(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_UP,
-            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_DOWN).forEach {
+        listOf(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN).forEach {
             remote(it)
             compose.onNodeWithText("重试").assertIsFocused()
         }
+        remote(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithText("切换来源").assertIsFocused()
+        remote(KeyEvent.KEYCODE_DPAD_LEFT)
+        compose.onNodeWithText("重试").assertIsFocused()
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { model.playbackErrorMessage == null && model.playbackUrl != null }
         compose.waitUntil(10_000) {
@@ -413,7 +432,7 @@ class PlayerRemoteTest {
         compose.onNodeWithTag("player-play").assertExists()
         compose.onNodeWithTag("player-timeline").performSemanticsAction(SemanticsActions.SetProgress) { it(0.25f) }
         compose.waitUntil(5_000) {
-            val position = model.works.single().playbackPositions["🎬测试"]?.get("0")?.get("第一集") ?: 0
+            val position = firstEpisodePosition()
             position in 29_000L..31_000L
         }
         compose.onNodeWithTag("player-play").assertExists()
@@ -520,7 +539,7 @@ class PlayerRemoteTest {
                 assertTrue("Playback state was cleared before the view disappeared", retainedUrl)
                 assertNull(model.playbackUrl)
                 assertNull(findPlayerView(rootView))
-                assertTrue(model.works.single().playbackPositions["🎬测试"]!!.getValue("0").getValue("第一集") > 0)
+                assertTrue(firstEpisodePosition() > 0)
             }
             compose.onNodeWithText("继续播放 · 第一集").assertExists()
         } finally {
@@ -637,9 +656,9 @@ class PlayerRemoteTest {
             .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
             .assert(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress))
         compose.waitUntil(5_000) {
-            (model.works.single().playbackPositions["🎬测试"]?.get("0")?.get("第一集") ?: 0) >= 15_000
+            (firstEpisodePosition()) >= 15_000
         }
-        val before = model.works.single().playbackPositions["🎬测试"]!!.getValue("0").getValue("第一集")
+        val before = firstEpisodePosition()
         val down = SystemClock.uptimeMillis()
         instrumentation.sendKeySync(KeyEvent(down, down, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT, 0))
         SystemClock.sleep(200)
@@ -647,14 +666,14 @@ class PlayerRemoteTest {
         remote(KeyEvent.KEYCODE_BACK)
         instrumentation.sendKeySync(KeyEvent(down, SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_RIGHT, 0))
         remote(KeyEvent.KEYCODE_MEDIA_PAUSE)
-        val after = model.works.single().playbackPositions["🎬测试"]!!.getValue("0").getValue("第一集")
+        val after = firstEpisodePosition()
         assertTrue("Cancelled seek changed the actual position: $before -> $after", after < before + 5_000)
         remote(KeyEvent.KEYCODE_DPAD_RIGHT)
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { model.selectedEpisodeIndex == 1 }
         assertEquals("主线", model.fetchResponse!!.playSources[model.selectedPlaybackSourceIndex].name)
         assertEquals("🎬测试", model.selectedResult!!.site)
-        assertTrue(model.works.single().playbackPositions["🎬测试"]!!.getValue("0").getValue("第一集") >= 10_000)
+        assertTrue(firstEpisodePosition() >= 10_000)
     }
 }
 

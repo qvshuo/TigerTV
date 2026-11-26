@@ -29,7 +29,7 @@ const metadata = await configuredMetadata()
 const server = Bun.serve({
   hostname: Bun.env.TIGERTV_BIND || '0.0.0.0',
   port: Number(Bun.env.PORT || 8080),
-  idleTimeout: 15,
+  idleTimeout: 25,
   maxRequestBodySize: 8192,
   development: false,
   fetch(request) {

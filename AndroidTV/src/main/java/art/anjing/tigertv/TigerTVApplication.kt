@@ -6,6 +6,7 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import art.anjing.tigertv.core.USER_AGENT
 import kotlinx.coroutines.CoroutineScope
@@ -30,6 +31,10 @@ class TigerTVApplication : Application(), SingletonImageLoader.Factory {
             .components {
                 add(OkHttpNetworkFetcherFactory(callFactory = {
                     OkHttpClient.Builder()
+                        .dispatcher(Dispatcher().apply {
+                            maxRequests = 8
+                            maxRequestsPerHost = 4
+                        })
                         .addNetworkInterceptor { chain ->
                             chain.proceed(chain.request().newBuilder().header("User-Agent", USER_AGENT).build())
                         }

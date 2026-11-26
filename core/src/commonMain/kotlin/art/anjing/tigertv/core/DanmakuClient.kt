@@ -1,23 +1,27 @@
 package art.anjing.tigertv.core
 
 import io.ktor.http.URLBuilder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import kotlin.math.roundToLong
 
-data class DanmakuTitle(val id: Long, val title: String, val source: String)
-data class DanmakuEpisode(val id: Long, val title: String, val number: String, val season: Int? = null, val seasonId: String = "")
+@Serializable data class DanmakuTitle(val id: Long, val title: String, val source: String)
+@Serializable data class DanmakuEpisode(val id: Long, val title: String, val number: String, val season: Int? = null, val seasonId: String = "")
+@Serializable data class DanmakuChoice(val title: DanmakuTitle, val episode: DanmakuEpisode)
 data class DanmakuComment(val timeMs: Long, val text: String, val mode: Int, val color: Int)
 data class DanmakuTrack(val referenceDurationMs: Long?, val comments: List<DanmakuComment>)
 
 /** Explicit title/episode selection: matching a title does not establish timeline alignment. */
-class DanmakuClient internal constructor(private val network: Network, baseUrl: String, private val tracks: DanmakuTrackCache?) {
-    constructor(network: Network, baseUrl: String) : this(network, baseUrl, null)
+class DanmakuClient internal constructor(private val network: Network, baseUrl: String, private val tracks: DanmakuTrackCache) {
+    constructor(network: Network, baseUrl: String) : this(network, baseUrl, DanmakuTrackCache(::nowMillis))
     private val base = baseUrl.trimEnd('/')
     suspend fun search(keyword: String): List<DanmakuTitle> {
         val url = URLBuilder("$base/api/v2/search/anime").apply { parameters.append("keyword", keyword) }.buildString()
-        val root = Json.parseToJsonElement(network.get(url)).jsonObject
+        val root = Json.parseToJsonElement(network.get(url, selectionRules.searchTimeoutMs)).jsonObject
         check(root["success"]?.jsonPrimitive?.booleanOrNull == true) { "Danmaku search failed" }
         return root["animes"]?.jsonArray.orEmpty().mapNotNull { value ->
             val item = value.jsonObject
@@ -27,24 +31,24 @@ class DanmakuClient internal constructor(private val network: Network, baseUrl: 
     }
     suspend fun episodes(titleId: Long): List<DanmakuEpisode> {
         require(titleId > 0)
-        val root = Json.parseToJsonElement(network.get("$base/api/v2/bangumi/$titleId")).jsonObject
+        val root = Json.parseToJsonElement(network.get("$base/api/v2/bangumi/$titleId", selectionRules.episodesTimeoutMs)).jsonObject
         check(root["success"]?.jsonPrimitive?.booleanOrNull == true) { "Danmaku episodes failed" }
         val bangumi = root["bangumi"]?.jsonObject
-        val seasons = bangumi?.get("seasons")?.jsonArray.orEmpty().associate { value ->
-            val s = value.jsonObject
-            s["id"]?.jsonPrimitive?.contentOrNull.orEmpty() to danmakuSeason(s["name"]?.jsonPrimitive?.contentOrNull.orEmpty())
-        }
         return bangumi?.get("episodes")?.jsonArray.orEmpty().mapNotNull { value ->
             val item = value.jsonObject
             val id = item["episodeId"]?.jsonPrimitive?.longOrNull ?: return@mapNotNull null
-            DanmakuEpisode(id, item["episodeTitle"]?.jsonPrimitive?.contentOrNull.orEmpty(), item["episodeNumber"]?.jsonPrimitive?.contentOrNull.orEmpty(), seasons[item["seasonId"]?.jsonPrimitive?.contentOrNull], item["seasonId"]?.jsonPrimitive?.contentOrNull.orEmpty())
+            DanmakuEpisode(id, item["episodeTitle"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                item["episodeNumber"]?.jsonPrimitive?.contentOrNull.orEmpty())
         }
     }
-    suspend fun comments(episodeId: Long): DanmakuTrack {
+    suspend fun comments(episodeId: Long, manual: Boolean = false): DanmakuTrack {
         require(episodeId > 0)
         val url = "$base/api/v2/comment/$episodeId?format=json&duration=true"
-        tracks?.get(url)?.let { return it }
-        return parseDanmakuTrack(network.get(url, 50_000)).also { if (it.comments.isNotEmpty()) tracks?.put(url, it) }
+        tracks.get(url)?.let { return it }
+        val timeout = if (manual) selectionRules.manualTrackTimeoutMs else selectionRules.trackTimeoutMs
+        val text = network.get(url, timeout, socketTimeoutMillis = timeout)
+        return withContext(Dispatchers.Default) { parseDanmakuTrack(text) }
+            .also { if (it.comments.isNotEmpty()) tracks.put(url, it) }
     }
 }
 

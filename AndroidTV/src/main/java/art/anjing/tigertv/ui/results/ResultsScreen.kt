@@ -84,7 +84,7 @@ fun ResultsScreen(
             ) {
                 ScreenTitle("${stringResource(R.string.results_title)}: ${viewModel.submittedKeyword}", Modifier.weight(1f))
                 IconButton(onClick = onSearch, enabled = !viewModel.isSearching, modifier = Modifier.size(UiMetrics.controlHeight),
-                    scale = IconButtonDefaults.scale(focusedScale = 1.02f)) {
+                    scale = IconButtonDefaults.scale(focusedScale = 1f)) {
                     if (viewModel.isSearching) LoadingIndicator(Modifier.size(UiMetrics.compactLoadingIndicator))
                     else Icon(Icons.Rounded.Search, contentDescription = "搜索")
                 }
@@ -92,7 +92,7 @@ fun ResultsScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             when {
-                viewModel.isSearching && viewModel.works.isEmpty() -> Spacer(Modifier.fillMaxSize())
+                viewModel.submittedKeyword.isEmpty() || viewModel.isSearching && viewModel.works.isEmpty() -> Spacer(Modifier.fillMaxSize())
                 viewModel.searchErrorMessage != null -> ErrorMessage(
                     message = viewModel.searchErrorMessage ?: stringResource(R.string.error_generic),
                     onRetry = {

@@ -30,7 +30,7 @@ fun ActionButton(
     content: @Composable RowScope.() -> Unit
 ) {
     Button(onClick = onClick, modifier = modifier.width(IntrinsicSize.Max).heightIn(min = height), onLongClick = onLongClick,
-        enabled = enabled, scale = ButtonDefaults.scale(focusedScale = 1.02f), colors = colors, contentPadding = PaddingValues(0.dp)) {
+        enabled = enabled, scale = ButtonDefaults.scale(focusedScale = 1f), colors = colors, contentPadding = PaddingValues(0.dp)) {
         Row(Modifier.fillMaxWidth().heightIn(min = height).padding(contentPadding),
             horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically, content = content)
     }

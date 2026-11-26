@@ -1,5 +1,7 @@
 package art.anjing.tigertv.ui.player
 
+import art.anjing.tigertv.core.DanmakuPhase
+
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.Box
@@ -57,10 +59,10 @@ class DanmakuRenderTest {
             assertTrue(main{view.drawCount}-paints<=1)
             main{view.bind(media.player,DanmakuTrack(120_000,emptyList()),true){null}}
             compose.waitUntil(2_000){main{view.drawnCount==0&&view.commentCount==0}}
-            main { view.bind(media.player, null, true, loading = DanmakuLoadingStep.Track) { null } }
+            main { view.bind(media.player, null, true, loading = DanmakuPhase.Track) { null } }
             assertEquals(View.VISIBLE, main { view.visibility })
-            assertEquals(DanmakuLoadingStep.Track.label, main { view.contentDescription })
-            main { view.bind(media.player, null, false, loading = DanmakuLoadingStep.Track) { null } }
+            assertEquals(DanmakuPhase.Track.label, main { view.contentDescription })
+            main { view.bind(media.player, null, false, loading = DanmakuPhase.Track) { null } }
             assertEquals(View.GONE, main { view.visibility })
             assertNull(main { view.contentDescription })
         } finally { main{view.release();media.close()};file.delete() }
@@ -109,7 +111,7 @@ class DanmakuRenderTest {
                 media.play()
             }
             compose.waitUntil(10_000) {
-                compose.runOnIdle { media.hasVideoFrame && overlay(root)?.contentDescription == DanmakuLoadingStep.Track.label }
+                compose.runOnIdle { media.hasVideoFrame && overlay(root)?.contentDescription == DanmakuPhase.Search.label }
             }
             response.complete(Unit)
             compose.waitUntil(5_000) { compose.runOnIdle { overlay(root)?.contentDescription == null } }

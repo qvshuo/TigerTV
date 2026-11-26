@@ -76,20 +76,14 @@ const encrypted = (segment: Segment) => Boolean(segment.key && segment.key !== '
 const range = (start: number, end: number) => Array.from({ length: end - start }, (_, index) => start + index)
 
 function smartAdIndices(segments: Segment[], playlistHost: string) {
-  const { minSeconds, maxSeconds, maxFraction, flankSegments: flank, pathTokens } = heuristics
-  const total = segments.reduce((sum, segment) => sum + segment.micros, 0)
+  const { minSeconds, maxSeconds } = heuristics
   const accepted = new Set<number>()
-  let removed = 0
-  function propose(start: number, end: number, declared?: number, verified = false) {
-    if (start >= end) return
+  function propose(start: number, end: number) {
     const indices = range(start, end)
-    if (indices.some(index => accepted.has(index))) return
-    const duration = indices.reduce((sum, index) => sum + segments[index].micros, 0)
-    const seconds = duration / 1e6
-    if (seconds < minSeconds || seconds > maxSeconds || (!verified && removed + duration > total * maxFraction) ||
-      (declared !== undefined && Math.abs(seconds - declared) > 0.25)) return
+    if (!indices.length || indices.some(index => accepted.has(index))) return
+    const seconds = indices.reduce((sum, index) => sum + segments[index].micros, 0) / 1e6
+    if (seconds < minSeconds || seconds > maxSeconds) return
     for (const index of indices) accepted.add(index)
-    removed += duration
   }
 
   const paths = segments.map(segment => segment.uri.split(/[?#]/, 1)[0])
@@ -122,55 +116,10 @@ function smartAdIndices(segments: Segment[], playlistHost: string) {
     }
     if (profile.requireAllDurations && seenDurations.size !== profile.durationsMicros.length) continue
     for (const runs of matches.values()) if (!profile.repeated || runs.length > 1) {
-      for (const [start, end] of runs) propose(start, end, undefined, true)
+      for (const [start, end] of runs) propose(start, end)
     }
   }
 
-  let cueStart = -1
-  let cueSeconds = 0
-  for (const [index, segment] of segments.entries()) {
-    if (segment.tags.includes('#EXT-X-CUE-IN') && cueStart >= 0) {
-      propose(cueStart, index, cueSeconds)
-      cueStart = -1
-    }
-    const cues = segment.tags.filter(tag => tag.startsWith('#EXT-X-CUE-OUT:'))
-    if (cues.length === 1) {
-      const seconds = Number(cues[0].slice('#EXT-X-CUE-OUT:'.length).replace(/^DURATION=/, ''))
-      cueStart = cueStart < 0 && Number.isFinite(seconds) ? index : -1
-      cueSeconds = seconds
-    }
-  }
-
-  const families = paths.map(path => path.replace(/[0-9]+(?=\.[^./]+$)/, ''))
-  const adPaths = paths.map(path => path.toLowerCase().split(/[/._-]/).some(part => pathTokens.includes(part)))
-  for (let start = 0; start < segments.length;) {
-    if (!adPaths[start]) { start++; continue }
-    let end = start + 1
-    while (end < segments.length && adPaths[end]) end++
-    if (start >= flank && end + flank <= segments.length &&
-      !adPaths.slice(start - flank, start).some(Boolean) && !adPaths.slice(end, end + flank).some(Boolean)) {
-      const sameFamily = families.slice(start - flank, start).every(family => family === families[start - 1]) &&
-        families.slice(end, end + flank).every(family => family === families[start - 1])
-      if (sameFamily || (segments[start].discontinuity && segments[end].discontinuity)) propose(start, end)
-    }
-    start = end
-  }
-
-  const boundaries = [0, ...segments.flatMap((s, i) => i && (s.discontinuity || encrypted(segments[i - 1]) !== encrypted(s)) ? [i] : []), segments.length]
-  const repeated = new Map<string, [number, number][]>()
-  for (const [i, start] of boundaries.slice(0, -1).entries()) {
-    const end = boundaries[i + 1]
-    if (start < flank || end - start < 2 || (end !== segments.length && end + flank > segments.length) ||
-      !segments.slice(start - flank, start).every(encrypted) || !segments.slice(end, end + flank).every(encrypted) ||
-      segments.slice(start, end).some(encrypted)) continue
-    const signature = JSON.stringify(range(start, end).map(index => [paths[index], segments[index].micros]))
-    const runs = repeated.get(signature) ?? []
-    runs.push([start, end])
-    repeated.set(signature, runs)
-  }
-  for (const runs of repeated.values()) if (runs.length > 1) {
-    for (const [start, end] of runs) propose(start, end)
-  }
   return accepted
 }
 

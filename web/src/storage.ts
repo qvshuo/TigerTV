@@ -1,12 +1,12 @@
-import { legacyWorkId, workId, type Source, type Work } from './api.ts'
+import { type Source, type Work } from './api.ts'
 
 export const defaultDanmakuServer = 'https://danmu.example.com'
 export const defaults = { autoNext: true, rememberSpeed: true, rememberVolume: true, filterAds: true, danmakuServer: '' }
 export type Settings = typeof defaults
 export type PlaybackOptions = { speed: number; volume: number; muted: boolean; danmakuEnabled: boolean }
-export type Selection = { work: Work; source: Source; line: string; episode: string; index: number }
+export type Selection = { work: Work; source: Source; line: string; episode: string; index: number; uniqueName?: boolean }
 export type Bookmark = Pick<Selection, 'line' | 'episode' | 'index'>
-export type Recent = Selection & { at: number }
+export type Recent = Selection & { at: number; progress?: number }
 const prefix = 'tigertv:v1:'
 const memory = new Map<string, unknown>()
 
@@ -24,44 +24,42 @@ export function write(key: string, value: unknown) {
 
 export const getSettings = (): Settings => ({ ...defaults, ...read('settings', {}) })
 export function getRecent(): Recent[] {
-  const deduplicated = new Map<string, Recent>()
-  for (const item of Object.values(read<Record<string, Recent>>('recent', {})).sort((a, b) => b.at - a.at)) {
-    const display = item.work.display
-    const id = display?.title != null && item.work.id === legacyWorkId(display) ? workId(display) : item.work.id
-    if (!deduplicated.has(id)) deduplicated.set(id, { ...item, work: { ...item.work, id } })
-  }
-  return [...deduplicated.values()]
+  return Object.values(read<Record<string, Recent>>('recent', {})).sort((a, b) => b.at - a.at)
 }
 const bookmarkKey = (work: string, source: Source) => 'bookmark:' + JSON.stringify([work, source.site.name, source.id])
-export function getBookmark(work: string, source: Source): Bookmark | undefined {
-  const saved = read<Bookmark | undefined>(bookmarkKey(work, source), undefined)
-  return saved ?? (source.title == null ? undefined : read<Bookmark | undefined>(bookmarkKey(legacyWorkId(source), source), undefined)) ?? getRecent().find(item => item.work.id === work && item.source.site.name === source.site.name && item.source.id === source.id)
-}
+export const getBookmark = (work: string, source: Source) =>
+  read<Bookmark | undefined>(bookmarkKey(work, source), undefined)
 export function recordStarted(selection: Selection, at = Date.now()) {
   const { line, episode, index } = selection
   write(bookmarkKey(selection.work.id, selection.source), { line, episode, index })
   const records = Object.fromEntries(getRecent().map(item => [item.work.id, item]))
   const previous = records[selection.work.id]
   records[selection.work.id] = { ...selection, at,
+    progress: previous && positionKey(previous) === positionKey(selection) ? previous.progress : undefined,
     work: previous ? { ...selection.work, display: previous.work.display } : selection.work,
   }
   const recent = Object.entries(records).sort(([, a], [, b]) => b.at - a.at).slice(0, 100)
   write('recent', Object.fromEntries(recent))
 }
-export function positionKey(s: Selection, id = s.work.id) {
-  return 'position:' + JSON.stringify([id, s.source.site.name, s.source.id, s.line, s.episode, s.episode ? null : s.index])
+export const episodeIdentity = (s: Selection) => [s.line, s.episode, s.index] as const
+export function positionKey(s: Selection) {
+  return 'position:' + JSON.stringify([s.work.id, s.source.site.name, s.source.id, ...episodeIdentity(s)])
 }
-export const getPosition = (s: Selection) => read<number | undefined>(positionKey(s), undefined)
-  ?? (s.source.title == null ? 0 : read(positionKey(s, legacyWorkId(s.source)), 0))
-export function savePosition(s: Selection, position: number) {
-  if (Number.isFinite(position) && position >= 0) write(positionKey(s), position)
+export function getPosition(s: Selection) {
+  const key = positionKey(s)
+  const legacy = 'position:' + JSON.stringify([s.work.id, s.source.site.name, s.source.id, s.line, s.episode, null])
+  return read<number | undefined>(key, undefined) ?? (s.episode && s.uniqueName ? read(legacy, 0) : 0)
 }
-export function getSpeed(work: string, remember: boolean, sources: Source[] = []) {
-  if (!remember) return 1
-  return read<number | undefined>('speed:' + work, undefined)
-    ?? sources.map(source => read<number | undefined>('speed:' + legacyWorkId(source), undefined)).find(value => value !== undefined)
-    ?? 1
+export function savePosition(s: Selection, position: number, progress?: number) {
+  if (!Number.isFinite(position) || position < 0) return
+  write(positionKey(s), position)
+  const records = read<Record<string, Recent>>('recent', {})
+  const recent = records[s.work.id]
+  if (progress !== undefined && recent && positionKey(recent) === positionKey(s) && recent.progress !== progress) {
+    write('recent', { ...records, [s.work.id]: { ...recent, progress } })
+  }
 }
+export const getSpeed = (work: string, remember: boolean) => remember ? read('speed:' + work, 1) : 1
 export function saveSpeed(work: string, speed: number, remember: boolean) {
   if (remember) write('speed:' + work, speed)
 }

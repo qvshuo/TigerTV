@@ -1,12 +1,16 @@
 package art.anjing.tigertv.domain
 
+import art.anjing.tigertv.core.SourceAdEvidence
+import art.anjing.tigertv.core.sourceAdEvidence
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @Serializable
 data class SearchResponse(
     @SerialName("query") val keyword: String,
-    val works: List<VideoWork>
+    val works: List<VideoWork>,
+    @Transient val settledSites: Set<String> = emptySet(),
 )
 
 @Serializable
@@ -24,6 +28,7 @@ data class SearchResult(
 }
 
 fun coverCacheKey(site: String, vodId: Int): String = "$site-$vodId"
+fun displaySourceName(site: String): String = site.replace("🎬", "").trim()
 
 @Serializable
 data class FetchResponse(
@@ -68,19 +73,49 @@ data class VideoWork(
     @SerialName("last_played_site") val lastPlayedSite: String? = null,
     @SerialName("recent_played_site") val recentPlayedSite: String? = null,
     val playback: Map<String, PlaybackBookmark> = emptyMap(),
-    @SerialName("playback_positions") val playbackPositions: Map<String, Map<String, Map<String, Long>>> = emptyMap()
+    @SerialName("playback_positions") val playbackPositions: Map<String, Map<String, Map<String, Long>>> = emptyMap(),
+    val lastPlayedSourceKey: String? = null
 ) {
     val displaySource: SearchResult get() = sources.first { it.coverKey == displaySourceId }
     val orderedSources: List<SearchResult> get() = listOf(displaySource) + sources.filter { it.coverKey != displaySourceId }
-    val defaultSource: SearchResult get() = sources.firstOrNull { it.site == lastPlayedSite }
-        ?: sources.firstOrNull { it.site == recentPlayedSite }
-        ?: sources.firstOrNull { it.vodPic.isNotBlank() } ?: sources.first()
+    val defaultSource: SearchResult get() = preferredSource()
+    fun preferredSource(filterAds: Boolean = true, available: List<SearchResult> = sources): SearchResult {
+        fun recommended(result: SearchResult) = when (sourceAdEvidence(result.site)) {
+            SourceAdEvidence.FILTER_VERIFIED -> filterAds
+            SourceAdEvidence.NO_GAMBLING_IN_SAMPLES -> true
+            SourceAdEvidence.UNVERIFIED -> false
+        }
+        return available.firstOrNull { it.coverKey == lastPlayedSourceKey }
+            ?: available.singleOrNull { lastPlayedSourceKey == null && it.site == lastPlayedSite }
+            ?: available.firstOrNull { it.site == recentPlayedSite && recommended(it) }
+            ?: available.firstOrNull(::recommended) ?: available.firstOrNull() ?: sources.first()
+    }
+    fun acceptsLegacy(source: SearchResult): Boolean =
+        sources.count { it.site == source.site } == 1 &&
+            !(lastPlayedSite == source.site && lastPlayedSourceKey != null && lastPlayedSourceKey != source.coverKey)
+
+    fun bookmarkFor(source: SearchResult): PlaybackBookmark? =
+        playback[source.coverKey] ?: playback[source.site]?.takeIf { acceptsLegacy(source) }
+
+    fun positionFor(source: SearchResult, line: PlaybackSource, index: Int): Long {
+        val episode = line.episodes.getOrNull(index) ?: return 0
+        return playbackPositions[source.coverKey]?.get(line.id)?.get(episodePositionKey(episode.name, index))
+            ?: playbackPositions[source.site]?.get(line.id)?.get(episode.name)
+                ?.takeIf { acceptsLegacy(source) && line.episodes.count { item -> item.name == episode.name } == 1 }
+            ?: 0
+    }
 }
 
 @Serializable
 data class PlaybackSource(val id: String, val name: String, val episodes: List<EpisodeLink>) {
-    fun resumeEpisodeIndex(bookmark: PlaybackBookmark?): Int =
-        if (bookmark?.line == id) episodes.indexOfFirst { it.name == bookmark.episode }.coerceAtLeast(0) else 0
+    fun bookmarkedIndex(bookmark: PlaybackBookmark?): Int? {
+        if (bookmark?.line != id) return null
+        val savedIndex = bookmark.index
+        if (savedIndex != null && episodes.getOrNull(savedIndex)?.name == bookmark.episode) return savedIndex
+        return episodes.indices.singleOrNull { episodes[it].name == bookmark.episode }
+    }
+
+    fun resumeEpisodeIndex(bookmark: PlaybackBookmark?): Int = bookmarkedIndex(bookmark) ?: 0
 }
 
 private val taggedAlias = Regex("[（(【](?:又名|别名|原名|英文名|aka)\\s*[:：]\\s*[^)）】]+[)）】]\\s*$", RegexOption.IGNORE_CASE)
@@ -106,9 +141,6 @@ private fun workIdentity(title: String, year: String, coverKey: String): String 
     return kotlinx.serialization.json.JsonArray(identity).toString()
 }
 
-fun legacyWorkId(source: SearchResult): String =
-    workIdentity(source.vodName, source.vodYear.trim().takeUnless { it == "0" }.orEmpty(), source.coverKey)
-
 fun workId(source: SearchResult): String {
     val title = foldWidth(source.vodName).trim()
     val withoutAlias = taggedAlias.replace(title, "").ifBlank { title }
@@ -126,14 +158,18 @@ fun aggregateWorks(results: List<SearchResult>): List<VideoWork> = results.disti
     .map { (id, sources) -> VideoWork(id, sources.first().vodName, sources, sources.first().coverKey) }
 
 @Serializable
-data class PlaybackBookmark(val line: String, val episode: String)
+data class PlaybackBookmark(val line: String, val episode: String, val index: Int? = null)
+
+fun episodePositionKey(name: String, index: Int): String = "${name.length}:$name:$index"
 
 data class RecentPlayback(
     val workId: String, val source: SearchResult, val bookmark: PlaybackBookmark,
     val positions: Map<String, Map<String, Long>>, val progressPercent: Int?, val playedAt: Long,
     val cardSource: SearchResult = source, val cardPoster: String? = null,
 ) {
-    val positionMillis: Long get() = positions[bookmark.line]?.get(bookmark.episode) ?: 0
+    val positionMillis: Long get() = positions[bookmark.line]?.let { line ->
+        bookmark.index?.let { line[episodePositionKey(bookmark.episode, it)] } ?: line[bookmark.episode]
+    } ?: 0
 }
 
 @Serializable

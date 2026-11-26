@@ -4,7 +4,6 @@ import android.view.KeyEvent
 import androidx.test.platform.app.InstrumentationRegistry
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -22,7 +21,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import art.anjing.tigertv.ui.detail.DetailChoice
+import art.anjing.tigertv.ui.detail.ResourceChoice
 import art.anjing.tigertv.ui.home.SearchHistoryRow
 import art.anjing.tigertv.ui.theme.TigerTVTheme
 import org.junit.Assert.*
@@ -40,7 +39,7 @@ class DetailChoiceTest {
             TigerTVTheme {
                 androidx.tv.material3.Surface(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().padding(48.dp)) {
-                        DetailChoice("🎬暴风资源", selected.value) { selected.value = !selected.value }
+                        ResourceChoice("🎬暴风资源", selected.value) { selected.value = !selected.value }
                     }
                 }
             }
@@ -138,22 +137,16 @@ class DetailChoiceTest {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
                 TigerTVTheme {
                     Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            DetailChoice("🎬测试资源", selected.value) { selected.value = !selected.value }
-                            DetailChoice("🎬另一资源", false) {}
-                        }
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(8.dp)) {
-                            item { DetailChoice("主线路", selected.value) { selected.value = !selected.value } }
-                            item { DetailChoice("备用线路", false) {} }
-                        }
-                        DetailChoice("第十二集：再次相逢", selected.value, Modifier.width(176.dp), maxLines = 2) {
-                            selected.value = !selected.value
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            ResourceChoice("源甲", selected.value, Modifier.weight(1f)) { selected.value = !selected.value }
+                            ResourceChoice("源乙", selected.value, Modifier.weight(1f)) { selected.value = !selected.value }
+                            ResourceChoice("源丙", false, Modifier.weight(1f), enabled = false) {}
                         }
                     }
                 }
             }
         }
-        val titles = listOf("🎬测试资源", "主线路", "第十二集：再次相逢")
+        val titles = listOf("源甲", "源乙", "源丙")
         val initialWidths = titles.associateWith { button(it).fetchSemanticsNode().size.width }
         fun checkLabels() {
             titles.forEach { title ->
@@ -174,11 +167,12 @@ class DetailChoiceTest {
             }
         }
         checkLabels()
-        activate("主线路")
-        button("主线路").assertIsSelected()
+        button("源丙").assertIsNotEnabled()
+        activate("源乙")
+        button("源乙").assertIsSelected()
         checkLabels()
-        activate("🎬测试资源")
-        button("主线路").assertIsNotSelected()
+        activate("源甲")
+        button("源乙").assertIsNotSelected()
         checkLabels()
     }
 

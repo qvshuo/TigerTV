@@ -4,15 +4,15 @@
 
 # 小老虎爱看剧（TigerTV）
 
-TigerTV 是支持多来源搜索、影视播放、智能弹幕匹配和 HLS 去广告的开源项目。长期维护 Android TV、Web/PWA 和原生命令行。macOS SwiftUI 原生客户端已停止开发与维护，原代码留作参考。macOS、Windows 和 Linux 的图形界面统一使用 Web/PWA。
+TigerTV 是支持多来源搜索、影视播放、智能弹幕匹配和博彩插播过滤的开源项目。长期维护 Android TV、Web/PWA 和原生命令行。macOS SwiftUI 原生客户端已停止开发与维护，原代码留作参考。macOS、Windows 和 Linux 的图形界面统一使用 Web/PWA。
 
 | 功能 | Android TV | Web/PWA | CLI |
 |---|---|---|---|
-| 多源搜索、聚合、详情 | 支持 | 内置 Gateway | 支持 |
-| 豆瓣推荐 | 直连 | 实时集合，附带离线快照 | — |
-| 选集、自动下一集、最近播放、分集续播、记忆倍速 | 支持 | 支持 | — |
-| 智能弹幕和手动选择 | 配置弹幕 API | 配置支持 CORS 的弹幕 API | — |
-| HLS 去广告 | Media3，通用识别 | hls.js，通用识别 | — |
+| 多源搜索、聚合、详情 | 支持 | 支持 | 支持 |
+| 热门推荐 | 支持 | 支持，附带离线快照 | — |
+| 选集、自动下一集、继续观看、分集续播、记忆倍速 | 支持 | 支持 | — |
+| 智能弹幕和手动选择 | 在设置中填写弹幕服务地址 | 在设置中填写弹幕服务地址 | — |
+| 博彩插播过滤 | 支持 | 支持 | — |
 | 音量记忆、键盘快捷键、画中画 | 系统音量和遥控器 | 支持，画中画按浏览器能力显示 | — |
 | 获取链接、生成 Quantumult X 规则、日志 | — | — | 支持 |
 
@@ -31,6 +31,10 @@ TigerTV 是支持多来源搜索、影视播放、智能弹幕匹配和 HLS 去�
   </tr>
 </table>
 
+### Web/PWA
+
+![Web 作品详情](screenshots/web-detail.png)
+
 ## 快速开始
 
 ### Web/PWA
@@ -41,7 +45,7 @@ TigerTV 是支持多来源搜索、影视播放、智能弹幕匹配和 HLS 去�
 docker compose -f web/compose.yaml up -d --build
 ```
 
-打开 `http://localhost:18811`。一个 Bun 服务提供 Web 和元数据，浏览器直接播放资源站 CDN 的媒体。弹幕服务单独部署，其地址在设置中填写。浏览器支持时可通过 HTTPS 安装为 PWA。 [共享网络反代、环境变量与兼容性](docs/development/web.md)
+打开 `http://localhost:18811`。浏览器直接播放资源站的视频。弹幕服务单独部署，其地址在设置中填写。浏览器支持时可通过 HTTPS 安装为 PWA。 [共享网络反代、环境变量与兼容性](docs/development/web.md)
 
 ### Android TV 应用
 
@@ -77,7 +81,8 @@ tigertv search 嫁金钗
 tigertv fetch --site "🎬站点完整名称" --video-id 73480
 
 # 生成 Quantumult X 直连规则
-tigertv quanx 嫁金钗
+tigertv quanx 嫁金钗 > first.list
+tigertv quanx --merge first.list 逐玉 > combined.list
 
 # 查看日志
 tigertv logs

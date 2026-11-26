@@ -1,3 +1,4 @@
+import networkTimeouts from '../../shared/network-timeouts.json' with { type: 'json' }
 import { isIP } from 'node:net'
 import { object, parseJson, readBounded, readText } from '../common/http.ts'
 
@@ -41,7 +42,7 @@ export async function configuredMetadata() {
 const validNumber = (value: string, max: number) => /^[1-9]\d*$/.test(value) && Number(value) <= max
 const pick = (value: Record<string, unknown>, fields: string[]) => Object.fromEntries(fields.map(key => [key, value[key]]))
 
-export function createMetadata(sites: Map<string, Site>, origin = '', requestUpstream = fetch, timeout = 12_000) {
+export function createMetadata(sites: Map<string, Site>, origin = '', requestUpstream = fetch, timeout?: number) {
   let pending = 0
   return async (request: Request): Promise<Response> => {
     const headers = new Headers({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
@@ -102,7 +103,7 @@ export function createMetadata(sites: Map<string, Site>, origin = '', requestUps
     try {
       const response = await requestUpstream(target, {
         headers: upstreamHeaders, redirect: 'error',
-        signal: AbortSignal.any([request.signal, AbortSignal.timeout(timeout)]),
+        signal: AbortSignal.any([request.signal, AbortSignal.timeout(timeout ?? (operation === 'hot' ? networkTimeouts.recommendationRequestMs : networkTimeouts.catalogRequestMs))]),
       })
       if (poster) {
         if (response.headers.get('Content-Type')?.split(';', 1)[0].toLowerCase() !== 'image/jpeg') {

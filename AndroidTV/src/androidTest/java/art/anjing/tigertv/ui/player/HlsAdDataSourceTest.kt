@@ -96,7 +96,7 @@ class HlsAdDataSourceTest {
         assertNull(session.timeline)
     }
 
-    @Test fun usesGenericEvidenceForAnySource() {
+    @Test fun keepsCueMarkersWithoutGamblingEvidence() {
         val session = HlsPlaybackSession(uri, "🎬魔都动漫")
         assertEquals(playlist(), read(HlsAdDataSource(Fake(playlist().toByteArray(), uri), session)))
         assertNull(session.timeline)
@@ -109,10 +109,7 @@ class HlsAdDataSourceTest {
                 else -> "#EXTINF:20,\npart$index.ts\n"
             }
         } + "#EXT-X-ENDLIST\n"
-        val filtered = read(HlsAdDataSource(Fake(tagged.toByteArray(), uri), session))
-        assertFalse(filtered.contains("part3.ts"))
-        assertTrue(filtered.contains("part5.ts"))
-        assertEquals(68_000L, session.timeline!!.effectiveToVideo(60_000))
+        assertEquals(tagged, read(HlsAdDataSource(Fake(tagged.toByteArray(), uri), session)))
+        assertNull(session.timeline)
     }
-
 }

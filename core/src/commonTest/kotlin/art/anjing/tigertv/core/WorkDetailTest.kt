@@ -9,6 +9,25 @@ import kotlinx.serialization.json.jsonObject
 import kotlin.test.*
 
 class WorkDetailTest {
+    @Test fun searchPublishesFirstPageBeforeTheSecondPageSettles() = runTest {
+        val store = MemoryStorage().apply { files["source"] = """{"api_site":{"a":{"name":"🎬甲","api":"https://site.test"}}}""" }
+        val updates = mutableListOf<SearchResponse>()
+        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine { request ->
+            val second = request.url.parameters["pg"] == "2"
+            if (second) {
+                assertEquals(listOf("首页作品"), updates.single().works.map { it.title })
+                assertTrue(updates.single().settledSites.isEmpty())
+            }
+            val name = if (second) "次页作品" else "首页作品"
+            respond("""{"code":1,"pagecount":2,"list":[{"vod_id":${if (second) 2 else 1},"vod_name":"$name","vod_year":"2026"}]}""")
+        })))
+        try {
+            val result = core.search("作品") { updates += it }
+            assertEquals(listOf("首页作品", "次页作品"), result.works.map { it.title })
+            assertEquals(setOf("🎬甲"), updates.last().settledSites)
+        } finally { core.close() }
+    }
+
     @Test fun searchPublishesFastSitesBeforeSlowSitesAndKeepsConfiguredOrder() = runTest {
         val store = MemoryStorage().apply { files["source"] = """{"api_site":{"a":{"name":"🎬慢","api":"https://slow.test"},"b":{"name":"🎬快","api":"https://fast.test"}}}""" }
         val updates = mutableListOf<SearchResponse>()
@@ -67,6 +86,24 @@ class WorkDetailTest {
         assertEquals("""{"query":"x","works":[]}""", json)
     }
 
+    @Test fun aLaterPageFailureKeepsEarlierResultsWithoutCaching() = runTest {
+        val storage = MemoryStorage().apply {
+            files["sources"] = """{"api_site":{"a":{"name":"🎬一","api":"https://a.test"}}}"""
+        }
+        var requests = 0
+        val core = CoreService("cache", "sources", storage, configureClient(HttpClient(testEngine { request ->
+            requests++
+            if (request.url.parameters["pg"] == "1") {
+                respond("""{"code":1,"pagecount":2,"list":[{"vod_id":1,"vod_name":"第一部"}]}""")
+            } else respond("""{"code":0,"msg":"upstream failed"}""")
+        })))
+        try {
+            assertEquals(listOf("第一部"), core.search("关键词").works.map { it.title })
+            assertEquals(listOf("第一部"), core.search("关键词").works.map { it.title })
+            assertEquals(4, requests)
+        } finally { core.close() }
+    }
+
     @Test fun mismatchedDetailIdIsRejected() = runTest {
         val store = MemoryStorage().apply { files["source"] = """{"api_site":{"a":{"name":"🎬一","api":"https://a.test"}}}""" }
         val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine {
@@ -84,7 +121,7 @@ class WorkDetailTest {
             a.copy(vodId = 5, vodYear = "")))
         assertEquals(4, works.size)
         assertEquals(listOf(1, 99, 3), works.first().sources.map { it.vodId })
-        assertEquals(b, works.first().defaultSource)
+        assertEquals(a, works.first().defaultSource)
         assertEquals(works, wireJson.decodeFromString<SearchResponse>(wireJson.encodeToString(SearchResponse("逐玉", aggregateWorks(listOf(a, b, a,
             a.copy(vodId = 2, vodYear = "2020"), a.copy(vodId = 3, typeName = "电影"),
             a.copy(vodId = 4, vodName = "逐玉第二季"), a.copy(vodId = 5, vodYear = "")))))).works)
@@ -116,21 +153,38 @@ class WorkDetailTest {
         } finally { core.close() }
     }
 
-    @Test fun sourcePriorityIsLastPlayedThenFirstPosterThenConfigurationOrder() {
-        val first = SearchResult("First", 1, "同一作品")
-        val second = first.copy(site = "Second", vodId = 2, vodPic = "https://second.test/poster.jpg")
-        val third = second.copy(site = "Third", vodId = 3)
+    @Test fun sourcePriorityUsesSuccessfulPlaybackAndRecommendationsWithoutLookingAtPosters() {
+        val first = SearchResult("普通资源", 1, "同一作品", vodPic = "https://example.test/poster.jpg")
+        val second = first.copy(site = "🎬360 资源", vodId = 2, vodPic = "")
+        val third = second.copy(site = "🎬红牛资源", vodId = 3)
         val work = aggregateWorks(listOf(first, second, third)).single()
         assertEquals(second, work.defaultSource)
-        assertEquals(first, work.copy(recentPlayedSite = first.site).defaultSource)
-        assertEquals(third, work.copy(lastPlayedSite = third.site, recentPlayedSite = first.site).defaultSource)
-        val watchedWithoutPoster = work.copy(lastPlayedSite = first.site, recentPlayedSite = third.site)
-        assertEquals(first, watchedWithoutPoster.defaultSource)
-        assertEquals(listOf(second, third), watchedWithoutPoster.orderedSources.filter { it.vodPic.isNotBlank() })
-        assertEquals(first, work.copy(lastPlayedSite = first.site).defaultSource)
-        assertEquals(third, work.copy(lastPlayedSite = third.site).defaultSource)
-        assertEquals(second, work.copy(lastPlayedSite = "removed-site-99").defaultSource)
-        assertEquals(first, work.copy(sources = listOf(first, second.copy(vodPic = " "))).defaultSource)
+        assertEquals(second, work.copy(recentPlayedSite = first.site).defaultSource)
+        assertEquals(third, work.copy(recentPlayedSite = third.site).defaultSource)
+        assertEquals(third, work.preferredSource(filterAds = false))
+        assertEquals(first, work.copy(lastPlayedSourceKey = first.coverKey).defaultSource)
+        assertEquals(third, work.copy(lastPlayedSourceKey = second.coverKey).preferredSource(available = listOf(first, third)))
+    }
+
+    @Test fun qualifiedPositionsSeparateDuplicateNamesAndSameSiteWorks() {
+        val a = SearchResult("A", 1, "同一作品")
+        val b = a.copy(vodId = 2)
+        val line = PlaybackSource("line", "", listOf(EpisodeLink("", "a"), EpisodeLink("", "b"), EpisodeLink("唯一", "c")))
+        val work = aggregateWorks(listOf(a, b)).single().copy(
+            lastPlayedSourceKey = b.coverKey,
+            playback = mapOf(a.coverKey to PlaybackBookmark("line", "", 1)),
+            playbackPositions = mapOf(
+                a.coverKey to mapOf("line" to mapOf(episodePositionKey("", 0) to 11L, episodePositionKey("", 1) to 22L)),
+                "A" to mapOf("line" to mapOf("" to 999L, "唯一" to 33L))
+            )
+        )
+        assertEquals(b, work.defaultSource)
+        assertEquals(1, line.bookmarkedIndex(work.bookmarkFor(a)))
+        assertNull(line.bookmarkedIndex(PlaybackBookmark("line", "")))
+        assertEquals(11L, work.positionFor(a, line, 0))
+        assertEquals(22L, work.positionFor(a, line, 1))
+        assertEquals(0L, work.positionFor(b, line, 1))
+        assertEquals(33L, work.copy(sources = listOf(a), lastPlayedSourceKey = null).positionFor(a, line, 2))
     }
 
     @Test fun bookmarksPersistPerResourceAndRefreshCachedSearch() = runTest {
@@ -152,7 +206,7 @@ class WorkDetailTest {
             assertEquals(2, requests)
             val unwatched = core.search("其他关键词").works.single()
             assertNull(unwatched.lastPlayedSite)
-            assertEquals("🎬B", unwatched.defaultSource.site)
+            assertEquals("🎬A", unwatched.defaultSource.site)
             core.recordPlayback(work.id, "🎬A", "2", "02")
             core.recordPlaybackPosition(work.id, "🎬A", "2", "02", 12000)
             core.recordPlayback(work.id, "🎬A", "2", "03")

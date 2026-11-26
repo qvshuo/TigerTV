@@ -2,18 +2,24 @@ import selectionRules from '../../shared/danmaku-selection.json' with { type: 'j
 import { foldWidth as fold, getJson, object, scalar } from './api.ts'
 
 export type Title = { id: number; title: string; source: string }
-export type DanmakuEpisode = { id: number; title: string; number: string; season?: number; seasonId: string }
+export type DanmakuEpisode = { id: number; title: string; number: string }
 export type Comment = { time: number; mode: number; color: number; text: string }
 export type Track = { duration: number; comments: Comment[] }
-const numeral = '[0-9零〇一二两三四五六七八九十百]+'
-const seasonPattern = new RegExp(`第\\s*(${numeral})\\s*季|(?<![a-z0-9])(?:season\\s*|s)([0-9]+)(?=e[0-9]|[^a-z0-9]|$)`, 'i')
-const ordinal = new RegExp(`第\\s*(${numeral})\\s*([集期话話])`, 'g')
-const special = /特别篇?|番外|加更|预告|花絮|特辑|特典|先导|前采|抢鲜|抢先|沉浸|彩蛋|\b(?:trailer|preview|ova|oad|extra|sp|special)(?=\b|\d)/i
-const platforms = 'qiyi|iqiyi|youku|qq|tencent|imgo|mgtv|mango|360|bilibili|bili|douban|dandan|renren|sohu|letv|pptv|爱奇艺|优酷|腾讯(?:视频)?|芒果\\s*tv|哔哩哔哩'
-const metadata = new RegExp(`[【\\[(]\\s*(?:${platforms}|国产剧|电视剧|电影|综艺|纪录片|动漫|动画|[日韩欧美港台]剧|短剧|高清|超清|蓝光|全集|完结|\\d{3,4}p|[248]k)\\s*[\\]】)]`, 'gi')
-const fromTag = new RegExp(`(?:\\s+from\\s+(?:${platforms})|(?<=】)from\\s+[a-z0-9_+.-]+)\\s*$`, 'i')
-const yearPattern = /[【\[(]((?:19|20)\d{2})[\]】)]|\s+((?:19|20)\d{2})\s*$/g
-const aliasPattern = /[【\[(](?:又名|别名|英文名|原名|aka)\s*[:：]?\s*([^】)\]]+)[\]】)]/gi
+export type DanmakuMatch = { title: Title; episode: DanmakuEpisode; episodes: DanmakuEpisode[] }
+export type SavedDanmakuEpisode = { title: number; id: number; titleItem?: Title; episodeItem?: DanmakuEpisode }
+const textPatterns = selectionRules.textPatterns
+const seasonPattern = new RegExp(textPatterns.season, 'i')
+const ordinal = new RegExp(textPatterns.ordinal, 'g')
+const special = new RegExp(textPatterns.special, 'i')
+const metadata = new RegExp(textPatterns.metadata, 'gi')
+const fromTag = new RegExp(textPatterns.sourceSuffix, 'i')
+const yearPattern = new RegExp(textPatterns.year, 'g')
+const aliasPattern = new RegExp(textPatterns.alias, 'gi')
+const datePattern = new RegExp(textPatterns.date)
+const bonusPattern = new RegExp(textPatterns.bonus)
+const blooperPattern = new RegExp(textPatterns.blooper)
+const partPattern = new RegExp(textPatterns.part)
+const englishEpisode = new RegExp(textPatterns.englishEpisode, 'i')
 
 function number(text = ''): number | undefined {
   if (/^\d+$/.test(text)) {
@@ -38,69 +44,120 @@ export function season(text: string) {
   return number(match?.[1] ?? match?.[2])
 }
 
+function matchKey(text: string) {
+  return text.toLowerCase().replace(/(?<=[0-9])[\p{P}\p{Z}\s・]+(?=[0-9])/gu, '+')
+    .replace(/[0-9]+/g, run => run.replace(/^0+(?=\d)/, ''))
+    .replace(/[\p{P}\p{Z}\s・]+/gu, '')
+}
+
+function similarity(left: string, right: string) {
+  if (!left || !right) return 0
+  if (left === right) return 1
+  const size = Math.max(left.length, right.length)
+  const length = Math.min(left.length, right.length)
+  if (length < selectionRules.minimumFuzzyLength || length < size * selectionRules.matchThreshold ||
+    (left.match(/[0-9]+/g) ?? []).join(',') !== (right.match(/[0-9]+/g) ?? []).join(',')) return 0
+  const row = Array.from({ length: right.length + 1 }, (_, index) => index)
+  for (let i = 0; i < left.length; i++) {
+    let diagonal = row[0]
+    row[0] = i + 1
+    for (let j = 0; j < right.length; j++) {
+      const previous = row[j + 1]
+      row[j + 1] = Math.min(previous + 1, row[j] + 1, diagonal + Number(left[i] !== right[j]))
+      diagonal = previous
+    }
+  }
+  return 1 - row[right.length] / size
+}
+
 function titleParts(raw: string) {
   const text = fold(raw).replace(fromTag, '').replace(metadata, '')
   const year = [...text.matchAll(yearPattern)][0]
   const aliases = [...text.matchAll(aliasPattern)].map(match => match[1])
   const main = text.replace(aliasPattern, '').replace(yearPattern, '').trim()
-  const names = [main, ...aliases].map(name => name.toLowerCase().replace(seasonPattern, '')
-    .replace(/[\s·・:：_\-《》〈〉【】\[\]()、，,。.!?！？‘’“”'"—]+/g, '')).filter(Boolean)
+  const names = [main, ...aliases].map(name => matchKey(name.replace(seasonPattern, ''))).filter(Boolean)
   return { main: main.replace(/[《》]/g, '').trim(), names, year: Number(year?.[1] ?? year?.[2]) || undefined, season: season(text) }
 }
 
-export function titleRank(query: string, candidate: string, year: string, desiredSeason?: number) {
-  const expected = titleParts(query)
-  const actual = titleParts(candidate)
+function titleMatch(expected: ReturnType<typeof titleParts>, actual: ReturnType<typeof titleParts>, year: string, desiredSeason?: number) {
   const expectedYear = expected.year ?? (/^(19|20)\d{2}$/.test(year) ? Number(year) : undefined)
   const expectedSeason = desiredSeason ?? expected.season
-  if (!expected.names.some(name => actual.names.includes(name)) ||
-    (special.test(actual.main) && expected.main !== actual.main) ||
-    (expectedYear && actual.year && expectedYear !== actual.year) ||
-    (expectedSeason ?? 1) !== (actual.season ?? 1)) return
-  return expectedSeason !== actual.season ? 2 : expectedYear && expectedYear === actual.year ? 0 : 1
+  if ((expectedYear && actual.year && expectedYear !== actual.year) ||
+    (expectedSeason ?? 1) !== (actual.season ?? 1) || !actual.names.length) return
+  let score = 0
+  for (const left of expected.names) for (const right of actual.names) score = Math.max(score, similarity(left, right))
+  if (score < selectionRules.matchThreshold ||
+    special.exec(expected.main)?.[0].toLowerCase() !== special.exec(actual.main)?.[0].toLowerCase()) return
+  const rank = score < 1 ? 3 : expectedSeason !== actual.season ? 2 : expectedYear && expectedYear === actual.year ? 0 : 1
+  return { rank, score, identity: actual.names[0] }
+}
+
+export function titleRank(query: string, candidate: string, year: string, desiredSeason?: number) {
+  return titleMatch(titleParts(query), titleParts(candidate), year, desiredSeason)?.rank
+}
+
+export function titleCandidates(query: string, candidates: Title[], year: string, desiredSeason?: number) {
+  const expected = titleParts(query)
+  const matches = candidates.flatMap(item => {
+    const match = titleMatch(expected, titleParts(item.title), year, desiredSeason)
+    return match ? [{ ...match, item }] : []
+  })
+  const exact = matches.filter(match => match.rank < 3)
+  if (exact.length) {
+    const canonical = exact.filter(match => expected.names.includes(match.identity))
+    if (canonical.length) return canonical
+    const rank = Math.min(...exact.map(match => match.rank))
+    const identities = new Set(exact.filter(match => match.rank === rank).map(match => match.identity))
+    return identities.size === 1 ? exact.filter(match => identities.has(match.identity)) : []
+  }
+  const identities = new Map<string, number>()
+  for (const { identity, score } of matches) identities.set(identity, Math.max(score, identities.get(identity) ?? 0))
+  const [best, runnerUp] = [...identities].sort((a, b) => b[1] - a[1])
+  return best && (!runnerUp || best[1] - runnerUp[1] >= selectionRules.ambiguityGap)
+    ? matches.filter(match => match.identity === best[0]) : []
 }
 
 function label(raw: string) {
   const text = fold(raw).replace(metadata, '').trim()
   const [heading, subtitle = ''] = text.split(':', 2)
-  if (special.test(heading) || /上下篇|上中下/.test(heading) || special.exec(subtitle.trimStart())?.index === 0) return
-  const date = text.match(/(?<!\d)(20\d{2})[-./年]?(0[1-9]|1[0-2])[-./月]?(0[1-9]|[12]\d|3[01])(?!\d)/)?.slice(1).join('')
-  const part = heading.match(/[集期话話]\s*[(【\[]?\s*([上下中])(?=篇|集|部|[)】\]:：\s]|$)/)?.[1]
+  const variant = bonusPattern.test(heading) ? '加更' : blooperPattern.test(heading) ? '花絮特辑' : undefined
+  if (special.test(variant ? heading.replace(variant, '') : heading) || /上下篇|上中下/.test(heading) || special.exec(subtitle.trimStart())?.index === 0) return
+  const date = text.match(datePattern)?.slice(1).join('')
+  const part = heading.match(partPattern)?.[1]
   const ordinalMatch = [...heading.matchAll(ordinal)].find(match => {
     const value = number(match[1])
     return value !== undefined && value < 10000
   })
   const n = number(ordinalMatch?.[1])
-  const english = heading.match(/(?<![a-z0-9])(?:s\d+\s*)?(?:episode|ep|e)\s*(\d+)(?![\d.])/i)
-  return { date, part, season: season(heading), kind: ordinalMatch ? ordinalMatch[2] === '期' ? 'period' : 'episode' : undefined,
+  const english = heading.match(englishEpisode)
+  return { date, part, variant, season: season(heading), kind: ordinalMatch ? ordinalMatch[2] === '期' ? 'period' : 'episode' : undefined,
     number: n && n < 10000 ? n : number(english?.[1]) ?? (!date && /^\d+$/.test(heading) ? number(heading) : undefined) }
 }
 
 export function matchingEpisode(episodes: DanmakuEpisode[], name: string, workSeason?: number) {
   const target = label(name)
-  if (!target || (!target.number && !target.date) || (target.season && workSeason && target.season !== workSeason)) return
-  const expectedSeason = target.season ?? workSeason ?? 1
-  const multipleSeasons = new Set(episodes.map(episode => episode.seasonId).filter(value => value.trim())).size > 1
+  if (!target || (target.season && workSeason && target.season !== workSeason)) return
+  const expectedSeason = target.season ?? workSeason
   const matches = episodes.flatMap(episode => {
     const title = label(episode.title)
-    const numberLabel = label(episode.number)
-    if (!title || !numberLabel) return []
-    const seasons = [episode.season, title.season, numberLabel.season].filter(Boolean)
-    if (seasons.some(value => value !== expectedSeason) || (multipleSeasons && !seasons.length)) return []
-    if ((target.kind && title.kind && target.kind !== title.kind) ||
-      (title.part && numberLabel.part && title.part !== numberLabel.part) ||
-      target.part !== (title.part ?? numberLabel.part) ||
-      (title.date && numberLabel.date && title.date !== numberLabel.date)) return []
-    const date = title.date ?? numberLabel.date
-    const dateAgrees = Boolean(target.date && target.date === date)
-    if ((target.date && !dateAgrees) || (target.part && !dateAgrees && title.number !== target.number)) return []
-    if (title.number && numberLabel.number && title.number !== numberLabel.number && !(title.kind === 'period' && dateAgrees)) return []
-    if (target.number ? target.number !== (title.number ?? numberLabel.number) : !dateAgrees) return []
-    return [{ episode, explicit: dateAgrees || Boolean(title.number) }]
-  })
-  const explicit = matches.filter(match => match.explicit)
-  const candidates = explicit.length ? explicit : matches
-  return candidates.length === 1 ? candidates[0].episode : undefined
+    if (!title || (title.season && title.season !== (expectedSeason ?? 1))) return []
+    if (target.variant !== title.variant || target.part !== title.part) return []
+    if (target.kind && title.kind && target.kind !== title.kind) return []
+    const dateAgrees = Boolean(target.date && target.date === title.date)
+    if ((target.date || target.variant === '加更') && !dateAgrees) return []
+    if (!target.number && !target.date) {
+      if (title.number || title.date) return []
+      const key = (text: string) => matchKey(fold(text).replace(metadata, '').replace(seasonPattern, ''))
+      const score = similarity(key(name), key(episode.title))
+      return score >= selectionRules.matchThreshold ? [{ episode, score }] : []
+    }
+    if (!target.number) return [{ episode, score: 1 }]
+    if (title.number) return title.number === target.number ? [{ episode, score: 1 }] : []
+    if (target.part || target.date || target.variant) return []
+    return /^\d+$/.test(episode.number.trim()) && Number(episode.number) === target.number ? [{ episode, score: .5 }] : []
+  }).sort((a, b) => b.score - a.score)
+  const [best, next] = matches
+  return best && (!next || best.score - next.score >= selectionRules.ambiguityGap) ? best.episode : undefined
 }
 
 function rows(input: unknown) { return Array.isArray(input) ? input.map(object) : [] }
@@ -111,9 +168,9 @@ const recentTracks = new Map<string, { expires: number; track: Track }>()
 export type DanmakuPhase = 'search' | 'episodes' | 'track'
 
 export const danmakuLoading: Record<DanmakuPhase, string> = {
-  search: '正在查找弹幕来源…',
-  episodes: '正在匹配本集弹幕…',
-  track: '正在接收弹幕…',
+  search: '正在匹配弹幕…',
+  episodes: '正在匹配弹幕…',
+  track: '正在加载弹幕…',
 }
 
 export class DanmakuClient {
@@ -126,20 +183,20 @@ export class DanmakuClient {
   }
   async search(keyword: string) {
     this.onPhase?.('search')
-    const raw = object(await getJson(`${this.base}/api/v2/search/anime?${new URLSearchParams({ keyword })}`, this.signal))
+    const raw = object(await getJson(`${this.base}/api/v2/search/anime?${new URLSearchParams({ keyword })}`, this.signal, selectionRules.searchTimeoutMs))
     if (raw.success !== true) throw new Error('弹幕搜索失败')
     return rows(raw.animes).map(item => ({ id: id(item.animeId), title: scalar(item.animeTitle), source: scalar(item.source) })).filter(item => item.id)
   }
   async episodes(titleId: number) {
     this.onPhase?.('episodes')
-    const raw = object(await getJson(`${this.base}/api/v2/bangumi/${titleId}`, this.signal, 20_000))
+    const raw = object(await getJson(`${this.base}/api/v2/bangumi/${titleId}`, this.signal, selectionRules.episodesTimeoutMs))
     if (raw.success !== true) throw new Error('弹幕选集加载失败')
     const bangumi = object(raw.bangumi)
-    const seasons = new Map(rows(bangumi.seasons).map(row => [scalar(row.id), season(scalar(row.name))]))
-    return rows(bangumi.episodes).map(row => ({ id: id(row.episodeId), title: scalar(row.episodeTitle), number: scalar(row.episodeNumber),
-      seasonId: scalar(row.seasonId), season: seasons.get(scalar(row.seasonId)) })).filter(item => item.id)
+    return rows(bangumi.episodes).map(row => ({
+      id: id(row.episodeId), title: scalar(row.episodeTitle), number: scalar(row.episodeNumber),
+    })).filter(item => item.id)
   }
-  async track(episodeId: number): Promise<Track> {
+  async track(episodeId: number, timeout = selectionRules.trackTimeoutMs): Promise<Track> {
     this.onPhase?.('track')
     this.signal.throwIfAborted()
     const url = `${this.base}/api/v2/comment/${episodeId}?format=json&duration=true`
@@ -151,7 +208,8 @@ export class DanmakuClient {
         return cached.track
       }
     }
-    const raw = object(await getJson(url, this.signal, 50_000, JSON.parse))
+    const raw = object(await getJson(url, this.signal, timeout, JSON.parse))
+    this.signal.throwIfAborted()
     const comments: Comment[] = []
     for (const item of Array.isArray(raw.comments) ? raw.comments : []) {
       const row = object(item)
@@ -159,7 +217,7 @@ export class DanmakuClient {
       if (fields.length !== 3 || fields.some(field => !field.trim())) continue
       const time = Number(fields[0]), mode = Number(fields[1]), color = Number(fields[2])
       const text = scalar(row.m)
-      if (Number.isFinite(time) && time >= 0 && time <= 604800 && (mode === 1 || mode === 4 || mode === 5) &&
+      if (Number.isFinite(time) && time >= 0 && time <= 604800 && mode === 1 &&
         Number.isInteger(color) && color >= 0 && color <= 0xffffff && text.trim()) comments.push({ time, mode, color, text })
     }
     comments.sort((a, b) => a.time - b.time)
@@ -190,140 +248,176 @@ export function shouldUpgrade(current: Track, next: Track) {
 }
 
 export async function autoMatch(client: DanmakuClient, query: string, year: string, episodeName: string,
-  memory: { title?: number; episode?: { title: number; id: number } }, publish: (track: Track) => void, signal: AbortSignal) {
-  let budget = 12
+  memory: { title?: number; episode?: SavedDanmakuEpisode }, publish: (track: Track, match: DanmakuMatch) => void,
+  signal: AbortSignal, onTitles?: (titles: Title[]) => void) {
+  let budget = selectionRules.requestBudget
+  let loadError: unknown
+  let blocked = false
+  function failed(error: unknown) {
+    if (signal.aborted) return
+    loadError = error
+    blocked ||= error instanceof Error && /^HTTP (401|403|429)$/.test(error.message)
+  }
   const expectedSeason = season(query) ?? season(episodeName)
-  async function load(title: number) {
+  async function resolveEpisode(title: Title): Promise<DanmakuMatch | undefined> {
+    try {
+      if (!budget || blocked) return
+      budget--
+      const episodes = await client.episodes(title.id)
+      const episode = matchingEpisode(episodes, episodeName, expectedSeason)
+      if (episode) return { title, episode, episodes }
+    } catch (error) {
+      failed(error)
+    }
+  }
+  async function loadTrack(episodeId: number) {
     try {
       if (!budget) return
       budget--
-      const episodes = await client.episodes(title)
-      const episode = matchingEpisode(episodes, episodeName, expectedSeason)
-      if (!episode || !budget) return
-      budget--
-      const track = await client.track(episode.id)
+      const track = await client.track(episodeId)
       if (scrollingCount(track)) return track
-    } catch (error) { if (signal.aborted) throw error }
+    } catch (error) {
+      failed(error)
+    }
   }
   if (memory.episode) {
-    try {
-      budget--
-      const track = await client.track(memory.episode.id)
-      if (scrollingCount(track)) { publish(track); return }
-    } catch (error) { if (signal.aborted) throw error }
+    const track = await loadTrack(memory.episode.id)
+    if (track) {
+      const title = memory.episode.titleItem ?? { id: memory.episode.title, title: query, source: '' }
+      const episode = memory.episode.episodeItem ?? { id: memory.episode.id, title: episodeName, number: '' }
+      publish(track, { title, episode, episodes: [episode] })
+      return
+    }
   }
   if (memory.title) {
-    const track = await load(memory.title)
-    if (track) { publish(track); return }
+    const match = await resolveEpisode({ id: memory.title, title: query, source: '' })
+    const track = match && await loadTrack(match.episode.id)
+    if (match && track) { publish(track, match); return }
   }
   const seen = new Set(memory.title ? [memory.title] : [])
   const normalized = titleParts(query).main
   for (const keyword of new Set([query, normalized].filter(Boolean))) {
-    if (!budget) return
+    signal.throwIfAborted()
+    if (!budget || blocked) break
     budget--
-    const candidates = (await client.search(keyword)).flatMap(item => {
-      const rank = titleRank(query, item.title, year, expectedSeason)
-      if (rank === undefined || seen.has(item.id)) return []
+    const titles = await client.search(keyword).catch(error => { failed(error); return [] })
+    if (!signal.aborted) onTitles?.(titles)
+    const candidates = titleCandidates(query, titles.filter(item => {
+      if (seen.has(item.id)) return false
       seen.add(item.id)
-      return [{ item, rank }]
-    }).sort((a, b) => a.rank - b.rank || priority(a.item.source) - priority(b.item.source))
+      return true
+    }), year, expectedSeason).sort((a, b) => a.rank - b.rank || priority(a.item.source) - priority(b.item.source))
     let best: Track | undefined
     let bestRank: number | undefined
-    for (const { item, rank } of candidates) {
-      if (!budget || (bestRank !== undefined && rank > bestRank)) break
-      const track = await load(item.id)
-      if (track && (!best || shouldUpgrade(best, track))) {
-        best = track
-        bestRank = rank
-        publish(track)
+    let index = 0
+    while (index < candidates.length && budget && !blocked) {
+      const { rank } = candidates[index]
+      if (bestRank !== undefined && rank > bestRank) break
+      let publishOrder = Promise.resolve()
+      let downloads = 0
+      // Only matching episodes occupy download slots. Consume results in source priority order.
+      while (downloads < 2 && budget && !blocked && candidates[index]?.rank === rank) {
+        const match = await resolveEpisode(candidates[index++].item)
+        signal.throwIfAborted()
+        if (!match || !budget || blocked) continue
+        downloads++
+        const fetched = loadTrack(match.episode.id)
+        publishOrder = publishOrder.then(async () => {
+          const track = await fetched
+          if (!signal.aborted && track && (!best || shouldUpgrade(best, track))) {
+            best = track
+            bestRank = rank
+            publish(track, match)
+          }
+        })
       }
+      await publishOrder
+      signal.throwIfAborted()
     }
     if (best) return
   }
+  if (loadError) throw loadError
 }
 
-type PositionedComment = Comment & { x: number; y: number; end: number }
-type CommentLayout = {
-  track: Track; width: number; height: number; font: string; velocity: number; comments: PositionedComment[]
-  pending?: Generator<void>
-}
-const layouts = new WeakMap<HTMLCanvasElement, CommentLayout>()
 
-function layoutComments(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, track: Track, width: number, height: number) {
-  const cached = layouts.get(canvas)
-  if (cached?.track === track && cached.width === width && cached.height === height) return cached
-  const fontSize = Math.max(14, Math.min(26, height / 4.25))
-  const rowHeight = fontSize * 1.4
-  const lanes = new Array<number>(Math.max(1, Math.floor((height - 3) / rowHeight))).fill(0)
-  const fixed = { 4: 0, 5: 0 }
-  const velocity = width / 6
-  const font = `600 ${fontSize}px system-ui, sans-serif`
-  const comments: PositionedComment[] = []
-  function* positionComments() {
-    let count = 0
-    for (const item of track.comments) {
-      if (++count % 128 === 0) yield
-      const text = item.text.slice(0, 100)
-      if (item.mode === 1) {
-        const row = lanes.findIndex(until => until <= item.time)
-        if (row < 0) continue
-        const size = ctx.measureText(text).width
-        if (size > width * 1.65) continue
-        lanes[row] = item.time + (size + 18) / velocity
-        comments.push({ ...item, text, x: width, y: (row + 1) * rowHeight, end: item.time + (width + size) / velocity })
-      } else if ((item.mode === 4 || item.mode === 5) && fixed[item.mode] <= item.time) {
-        const size = ctx.measureText(text).width
-        if (size > width) continue
-        fixed[item.mode] = item.time + 4
-        comments.push({ ...item, text, x: (width - size) / 2, y: item.mode === 5 ? rowHeight : height - 4, end: item.time + 4 })
-      }
-    }
-  }
-  const layout: CommentLayout = { track, width, height, font, velocity, comments, pending: positionComments() }
-  layouts.set(canvas, layout)
-  return layout
+const render = selectionRules.render
+const lifetime = render.lifetimeMs / 1000
+type Active = { comment: Comment; text: string; width: number; lane: number }
+type Layout = {
+  track: Track; width: number; height: number; time: number; cursor: number;
+  widths: Map<string, number>; active: Active[]; lanes: (Active | undefined)[]
+}
+const layouts = new WeakMap<HTMLCanvasElement, Layout>()
+
+export function fitsDanmaku(width: number, previous: number, incoming: number, elapsed: number, gap: number) {
+  if (elapsed >= lifetime) return true
+  const phase = elapsed / lifetime
+  return phase * (width + previous) - previous >= gap &&
+    width - (1 - phase) * (width + incoming) >= gap
 }
 
-export function drawComments(canvas: HTMLCanvasElement, track: Track | undefined, time: number) {
+export function drawComments(canvas: HTMLCanvasElement, track: Track | undefined, time: number, reset = false) {
   const width = canvas.clientWidth
   const height = canvas.clientHeight
   const scale = Math.min(2, devicePixelRatio)
   if (canvas.width !== Math.round(width * scale)) canvas.width = Math.round(width * scale)
   if (canvas.height !== Math.round(height * scale)) canvas.height = Math.round(height * scale)
   const ctx = canvas.getContext('2d')
-  if (!ctx) return false
+  if (!ctx) return Infinity
   ctx.setTransform(scale, 0, 0, scale, 0, 0)
   ctx.clearRect(0, 0, width, height)
-  if (!track) layouts.delete(canvas)
-  if (!track || time < 0 || !width || !height) return false
-  const layout = layoutComments(canvas, ctx, track, width, height)
-  const { comments, velocity, font, pending } = layout
-  ctx.font = font
-  if (pending) {
-    // Share each paint with the video instead of laying out the entire track at once.
-    const deadline = performance.now() + 6
-    do {
-      if (pending.next().done) { layout.pending = undefined; break }
-    } while (performance.now() < deadline)
+  if (!track || !width || !height) { layouts.delete(canvas); return Infinity }
+  const font = height / render.areaRatio * render.fontRatio
+  const row = font * render.lineHeight
+  const lanes = Math.max(1, Math.min(render.lanes, Math.floor(height / row)))
+  ctx.font = `700 ${font}px system-ui, sans-serif`
+  let layout = layouts.get(canvas)
+  if (!layout || layout.track !== track || layout.width !== width || layout.height !== height ||
+      reset || time < layout.time || time - layout.time > 1.5) {
+    let low = 0
+    let high = track.comments.length
+    while (low < high) {
+      const mid = (low + high) >>> 1
+      if (track.comments[mid].time < time - 2 * lifetime) low = mid + 1
+      else high = mid
+    }
+    const widths = layout?.height === height ? layout.widths : new Map<string, number>()
+    layout = { track, width, height, time, cursor: low, widths, active: [], lanes: Array(lanes) }
+    layouts.set(canvas, layout)
   }
-  let low = 0
-  let high = comments.length
-  while (low < high) {
-    const middle = (low + high) >>> 1
-    if (comments[middle].time < time - 16) low = middle + 1
-    else high = middle
+  const state = layout
+  while (state.cursor < track.comments.length && track.comments[state.cursor].time <= time) {
+    const comment = track.comments[state.cursor++]
+    if (comment.mode !== 1) continue
+    state.active = state.active.filter(item => comment.time - item.comment.time < lifetime)
+    if (state.active.length >= render.visibleLimit) continue
+    const text = comment.text.slice(0, 100)
+    let size = state.widths.get(text)
+    if (size === undefined) {
+      size = ctx.measureText(text).width
+      if (state.widths.size >= 256) state.widths.delete(state.widths.keys().next().value!)
+      state.widths.set(text, size)
+    }
+    const lane = state.lanes.findIndex(previous => !previous ||
+      fitsDanmaku(width, previous.width, size, comment.time - previous.comment.time, font * render.gapEm))
+    if (lane < 0) continue
+    const item = { comment, text, width: size, lane }
+    state.lanes[lane] = item
+    state.active.push(item)
   }
-  ctx.lineWidth = 1
+  state.active = state.active.filter(item => time - item.comment.time < lifetime)
+  state.time = time
+  ctx.lineWidth = render.stroke
   ctx.lineJoin = 'round'
-  ctx.strokeStyle = 'rgba(0, 0, 0, .85)'
-  for (let index = low; index < comments.length; index++) {
-    const item = comments[index]
-    if (item.time > time) break
-    if (item.end <= time) continue
-    const x = item.mode === 1 ? item.x - (time - item.time) * velocity : item.x
-    ctx.strokeText(item.text, x, item.y)
-    ctx.fillStyle = '#' + item.color.toString(16).padStart(6, '0')
-    ctx.fillText(item.text, x, item.y)
+  ctx.strokeStyle = '#000'
+  for (const item of state.active) {
+    const x = width - (time - item.comment.time) / lifetime * (width + item.width)
+    const y = font * 1.3 + item.lane * row
+    ctx.strokeText(item.text, x, y)
+    ctx.fillStyle = '#' + item.comment.color.toString(16).padStart(6, '0')
+    ctx.fillText(item.text, x, y)
   }
-  return layout.pending !== undefined
+  let next = state.cursor
+  while (next < track.comments.length && track.comments[next].mode !== 1) next++
+  return state.active.length ? 0 : track.comments[next]?.time ?? Infinity
 }

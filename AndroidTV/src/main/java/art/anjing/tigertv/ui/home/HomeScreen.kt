@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,15 +27,12 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
 import androidx.tv.material3.IconButtonDefaults
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.gestures.BringIntoViewSpec
-import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -43,9 +42,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -60,8 +57,8 @@ import art.anjing.tigertv.ui.components.LoadingOverlay
 import art.anjing.tigertv.ui.components.ActionButton
 import art.anjing.tigertv.ui.components.ScreenTitle
 import art.anjing.tigertv.ui.components.UiMetrics
+import art.anjing.tigertv.ui.components.UiSpacing
 import art.anjing.tigertv.ui.components.SelectionChip
-import art.anjing.tigertv.ui.components.CardFocusScroll
 import art.anjing.tigertv.ui.components.SearchButton
 import art.anjing.tigertv.ui.components.TvTextInput
 import art.anjing.tigertv.R
@@ -77,10 +74,9 @@ fun HomeScreen(viewModel: TigerTVViewModel, onSearch: () -> Unit, onSettings: ()
     val searchFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
     val cardFocus = remember { FocusRequester() }
-    val density = LocalDensity.current
+    val listState = rememberLazyListState()
     val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
     val active = lifecycle == Lifecycle.State.RESUMED && LocalWindowInfo.current.isWindowFocused
-    var hotContentHeight by remember { mutableStateOf(72.dp) }
     var returningFromSearch by rememberSaveable { mutableStateOf(false) }
     var entryFocusPending by rememberSaveable { mutableStateOf(true) }
     var returnCard by rememberSaveable { mutableStateOf<String?>(null) }
@@ -96,6 +92,7 @@ fun HomeScreen(viewModel: TigerTVViewModel, onSearch: () -> Unit, onSettings: ()
     LaunchedEffect(active) {
         if (!active || returnCard != null || returnRecent != null) return@LaunchedEffect
         if (entryFocusPending || returningFromSearch) {
+            if (listState.firstVisibleItemIndex != 0) listState.scrollToItem(0)
             requestFocusSafely(searchFocus)
             entryFocusPending = false
             returningFromSearch = false
@@ -110,42 +107,52 @@ fun HomeScreen(viewModel: TigerTVViewModel, onSearch: () -> Unit, onSettings: ()
     val desiredCard = if (active && desiredRecent == null && viewModel.recentPlaybackLoaded && !viewModel.isLoadingHotSearches) {
         returnCard
     } else null
-    LaunchedEffect(desiredCard, viewModel.hotSearches) {
-        if (desiredCard != null && viewModel.hotSearches.none { it.id == desiredCard }) {
+    val hotItems = viewModel.hotSearches
+    LaunchedEffect(desiredCard, hotItems, recent.isNotEmpty()) {
+        if (desiredCard == null) return@LaunchedEffect
+        val index = hotItems.indexOfFirst { it.id == desiredCard }
+        if (index >= 0) {
+            val rowIndex = index / 5 + if (recent.isEmpty()) 2 else 3
+            if (listState.layoutInfo.visibleItemsInfo.none { it.index == rowIndex }) listState.scrollToItem(rowIndex)
+            requestFocusSafely(cardFocus)
+        } else {
             requestFocusSafely(contentFocus)
-            returnCard = null
-            entryFocusPending = false
         }
+        returnCard = null
+        entryFocusPending = false
     }
 
-    CompositionLocalProvider(LocalBringIntoViewSpec provides HomeFocusScroll) {
-        Column(Modifier.fillMaxSize().onPreviewKeyEvent {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().onPreviewKeyEvent {
             if (it.type == KeyEventType.KeyDown && it.key in homeNavigationKeys) {
                 entryFocusPending = false
                 returnCard = null
                 returnRecent = null
             }
             false
-        }) {
-            Column(
-                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
-                    .padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding)
-            ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    ScreenTitle(stringResource(R.string.app_name), Modifier.weight(1f))
-                    IconButton(scale = IconButtonDefaults.scale(focusedScale = 1.02f), onClick = { returningFromSearch = true; onSearch() },
-                        modifier = Modifier.size(UiMetrics.controlHeight).focusRequester(searchFocus).testTag("home-search")) {
-                        Icon(Icons.Rounded.Search, contentDescription = "搜索")
-                    }
-                    IconButton(scale = IconButtonDefaults.scale(focusedScale = 1.02f), onClick = { entryFocusPending = false; onSettings() },
-                        modifier = Modifier.size(UiMetrics.controlHeight).testTag("home-settings")) {
-                        Icon(Icons.Rounded.Settings, contentDescription = "设置")
-                    }
+        },
+        state = listState,
+        contentPadding = PaddingValues(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding),
+        verticalArrangement = Arrangement.spacedBy(UiMetrics.cardGap),
+    ) {
+        item("home-header") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                ScreenTitle(stringResource(R.string.app_name), Modifier.weight(1f))
+                IconButton(scale = IconButtonDefaults.scale(focusedScale = 1f), onClick = { returningFromSearch = true; onSearch() },
+                    modifier = Modifier.size(UiMetrics.controlHeight).focusRequester(searchFocus).testTag("home-search")) {
+                    Icon(Icons.Rounded.Search, contentDescription = "搜索")
                 }
-                if (recent.isNotEmpty()) {
-                    Spacer(Modifier.height(UiMetrics.cardGap))
-                    RecentPlaybackRow(recent, viewModel::workCover, viewModel::rememberWorkCover, desiredRecent, onFocusRestored = {
+                IconButton(scale = IconButtonDefaults.scale(focusedScale = 1f), onClick = { entryFocusPending = false; onSettings() },
+                    modifier = Modifier.size(UiMetrics.controlHeight).testTag("home-settings")) {
+                    Icon(Icons.Rounded.Settings, contentDescription = "设置")
+                }
+            }
+        }
+        if (recent.isNotEmpty()) {
+            item("home-recent") {
+                Column {
+                    RecentPlaybackRow(recent, viewModel::workCover, viewModel::rememberRecentCover, desiredRecent, onFocusRestored = {
                         returnRecent = null
                         entryFocusPending = false
                     }) {
@@ -153,44 +160,42 @@ fun HomeScreen(viewModel: TigerTVViewModel, onSearch: () -> Unit, onSettings: ()
                         onRecent(it)
                     }
                 }
-                Spacer(Modifier.height(UiMetrics.cardGap))
-                if (viewModel.hotSearchCategories.isNotEmpty()) {
-                    Column(Modifier.fillMaxWidth()) {
-                        Text("热门推荐", style = MaterialTheme.typography.titleLarge)
-                        LazyRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {
-                            items(viewModel.hotSearchCategories, key = { it.id }) { category ->
-                                SelectionChip(selected = category.id == viewModel.selectedHotCategory,
-                                    onClick = { viewModel.selectHotSearchCategory(category.id) },
-                                    modifier = Modifier
-                                        .then(if (category.id == viewModel.selectedHotCategory) Modifier.focusRequester(contentFocus) else Modifier)
-                                        .heightIn(min = UiMetrics.chipHeight)) {
-                                    Box(Modifier.heightIn(min = UiMetrics.chipHeight - 16.dp), contentAlignment = Alignment.Center) {
-                                        Text(category.name)
-                                    }
+            }
+        }
+        if (viewModel.hotSearchCategories.isNotEmpty()) {
+            item("hot-categories") {
+                Column(Modifier.fillMaxWidth()) {
+                    Text("热门推荐", style = MaterialTheme.typography.titleLarge)
+                    LazyRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(UiSpacing.choiceColumn),
+                        contentPadding = PaddingValues(horizontal = UiSpacing.sm, vertical = UiSpacing.choiceRow)) {
+                        items(viewModel.hotSearchCategories, key = { it.id }) { category ->
+                            SelectionChip(selected = category.id == viewModel.selectedHotCategory,
+                                onClick = { viewModel.selectHotSearchCategory(category.id) },
+                                modifier = Modifier
+                                    .then(if (category.id == viewModel.selectedHotCategory) Modifier.focusRequester(contentFocus) else Modifier)
+                                    .heightIn(min = UiMetrics.chipHeight)) {
+                                Box(Modifier.heightIn(min = UiMetrics.chipHeight - 16.dp), contentAlignment = Alignment.Center) {
+                                    Text(category.name)
                                 }
                             }
                         }
-                        Box(Modifier.fillMaxWidth().heightIn(min = hotContentHeight), contentAlignment = Alignment.Center) {
-                            if (viewModel.isLoadingHotSearches) {
-                                LoadingOverlay(message = "正在加载热门内容…", modifier = Modifier.fillMaxWidth().height(hotContentHeight))
-                            } else if (viewModel.hotSearches.isEmpty()) {
-                                ErrorMessage(message = "热门内容暂不可用，请重试", onRetry = viewModel::retryHotSearches, compact = true, focusRetry = false)
-                            } else {
-                                HotSearchGrid(viewModel.hotSearches, Modifier.onSizeChanged {
-                                    hotContentHeight = with(density) { it.height.toDp() }.coerceAtLeast(72.dp)
-                                }, restoreCardId = desiredCard, cardFocus = cardFocus, onFocusRestored = {
-                                    returnCard = null
-                                    entryFocusPending = false
-                                }) { item ->
-                                    viewModel.onKeywordChange(item.title)
-                                    if (viewModel.search()) {
-                                        returnCard = item.id
-                                        onResults()
-                                    }
-                                }
-                            }
-                        }
+                    }
+                }
+            }
+            if (hotItems.isEmpty()) {
+                item("hot-status") {
+                    if (viewModel.isLoadingHotSearches) {
+                        LoadingOverlay("加载推荐…", Modifier.fillMaxWidth().height(72.dp))
+                    } else {
+                        ErrorMessage("推荐暂不可用", onRetry = viewModel::retryHotSearches, compact = true, focusRetry = false)
+                    }
+                }
+            } else {
+                hotSearchRows(hotItems, desiredCard, cardFocus) { item ->
+                    viewModel.onKeywordChange(item.title)
+                    if (viewModel.search()) {
+                        returnCard = item.id
+                        onResults()
                     }
                 }
             }
@@ -199,15 +204,6 @@ fun HomeScreen(viewModel: TigerTVViewModel, onSearch: () -> Unit, onSettings: ()
 }
 
 private val homeNavigationKeys = setOf(Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight)
-
-@OptIn(ExperimentalFoundationApi::class)
-private object HomeFocusScroll : BringIntoViewSpec {
-    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        val focusMargin = size * 0.05f
-        if (offset >= focusMargin && offset + size + focusMargin <= containerSize) return 0f
-        return CardFocusScroll.calculateScrollDistance(offset, size, containerSize)
-    }
-}
 
 @Composable
 internal fun SearchScreen(viewModel: TigerTVViewModel, onResults: () -> Unit) {

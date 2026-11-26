@@ -53,16 +53,23 @@ class DanmakuProgressiveTest {
             withTimeout(5_000){while(state.track==null)delay(10)}
             state.select(state.titles.first{it.id==1L})
             withTimeout(5_000){while(state.busy)delay(10)}
+            assertTrue(writes.isEmpty())
+            state.select(state.episodes.single())
+            withTimeout(5_000){while(state.busy)delay(10)}
             gate.complete(Unit);delay(50)
             assertEquals(1L,state.selectedTitle?.id);assertEquals(listOf(1L),writes)
             state.select(DanmakuTitle(3,"示例",""))
+            withTimeout(5_000){while(state.busy)delay(10)}
+            state.select(state.episodes.single())
             state.toggleEnabled()
             assertFalse(state.enabled);assertTrue(state.busy)
             manualGate.complete(Unit)
             withTimeout(5_000){while(state.busy)delay(10)}
             assertEquals(listOf(1L),writes)
-            assertFalse(state.hasComments)
+            assertTrue(state.hasComments)
             state.select(state.titles.first{it.id==1L})
+            withTimeout(5_000){while(state.busy)delay(10)}
+            state.select(state.episodes.single())
             withTimeout(5_000){while(state.busy)delay(10)}
             assertFalse(state.enabled);assertTrue(state.hasComments)
             state.close()
@@ -81,13 +88,16 @@ class DanmakuProgressiveTest {
         }))
         try {
             val state = DanmakuState(this, { DanmakuClient(Network(http), it) },
-                episodeLabel = "正片", preferredEpisode = { 3L to 42L })
+                episodeLabel = "正片", preferredEpisode = {
+                    DanmakuChoice(DanmakuTitle(3, "示例", "test"), DanmakuEpisode(42, "第5集", "5"))
+                })
             state.configure("https://example.test")
             state.search("示例")
             withTimeout(5_000) { while (state.busy) delay(10) }
             assertEquals(42L, state.selectedEpisode?.id)
+            assertEquals("test", state.selectedTitle?.source)
             assertTrue(state.hasComments)
-            assertEquals(listOf("/api/v2/bangumi/3", "/api/v2/comment/42"), calls)
+            assertEquals(listOf("/api/v2/comment/42"), calls)
             state.close()
         } finally { http.close() }
     }
@@ -143,7 +153,7 @@ class DanmakuProgressiveTest {
         try {
             val state=DanmakuState(this,{DanmakuClient(Network(http),it)},true,"1")
             state.configure("https://example.test");state.search("示例")
-            withTimeout(5_000){secondStarted.await()}
+            withTimeout(5_000){secondStarted.await(); while (!state.hasComments) delay(10)}
             val loaded=state.track;assertNotNull(loaded)
             state.toggleEnabled()
             withTimeout(5_000){cancelled.await()}

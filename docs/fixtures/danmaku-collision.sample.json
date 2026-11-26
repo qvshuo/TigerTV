@@ -1,0 +1,7 @@
+[
+  {"width":500,"previous":100,"incoming":100,"elapsedMs":2000,"gap":20,"fits":true},
+  {"width":500,"previous":300,"incoming":50,"elapsedMs":2000,"gap":20,"fits":false},
+  {"width":500,"previous":50,"incoming":300,"elapsedMs":2000,"gap":20,"fits":false},
+  {"width":500,"previous":40,"incoming":40,"elapsedMs":0,"gap":20,"fits":false},
+  {"width":500,"previous":300,"incoming":300,"elapsedMs":8000,"gap":20,"fits":true}
+]

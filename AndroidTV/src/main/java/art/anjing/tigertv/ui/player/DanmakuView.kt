@@ -8,25 +8,31 @@ import android.view.View
 import android.util.LruCache
 import androidx.media3.common.Player
 import art.anjing.tigertv.core.DanmakuComment
+import art.anjing.tigertv.core.DanmakuPhase
 import art.anjing.tigertv.core.DanmakuTrack
 import art.anjing.tigertv.core.MediaTimeline
+import art.anjing.tigertv.core.danmakuRenderRules
 
 /** One draw loop; positions derive from the actual Media3 clock, never wall time. */
 internal class DanmakuView(context: Context) : View(context) {
+    private val render = danmakuRenderRules
+    private val lifetime = render.lifetimeMs
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 22f, resources.displayMetrics)
+        textSize = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 20f, resources.displayMetrics)
         typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
-        strokeWidth = 1 * resources.displayMetrics.density
+        strokeWidth = render.stroke * resources.displayMetrics.density
     }
+    private val loadingPaint = Paint(paint).apply { textSize *= .85f }
     private data class Item(val comment: DanmakuComment, val text: String, val width: Float, val lane: Int)
     private val widths = LruCache<String, Float>(256)
-    private val lastInLane = arrayOfNulls<Item>(4)
+    private val lastInLane = arrayOfNulls<Item>(render.lanes)
     private val wake = Runnable { invalidate() }
     internal var drawCount = 0L; private set
     private val active = mutableListOf<Item>()
     private var comments: List<DanmakuComment> = emptyList()
     private var track: DanmakuTrack? = null
     private var cursor = 0
+    private var contentWidthForLanes = 0f
     private var lastTime = Long.MIN_VALUE
     private var loadingLabel: String? = null
     private var loadingLabelWidth = 0f
@@ -43,7 +49,7 @@ internal class DanmakuView(context: Context) : View(context) {
             reset(); invalidate()
         }
     }
-    fun bind(media: Player, data: DanmakuTrack?, enabled: Boolean, loading: DanmakuLoadingStep? = null, timeline: () -> MediaTimeline?) {
+    fun bind(media: Player, data: DanmakuTrack?, enabled: Boolean, loading: DanmakuPhase? = null, timeline: () -> MediaTimeline?) {
         var changed = false
         if (player !== media) { player?.removeListener(listener); player = media; media.addListener(listener); reset(); changed = true }
         if (track !== data) {
@@ -55,7 +61,7 @@ internal class DanmakuView(context: Context) : View(context) {
         val status = loading?.label?.takeIf { enabled }
         if (loadingLabel != status) {
             loadingLabel = status
-            loadingLabelWidth = status?.let(paint::measureText) ?: 0f
+            loadingLabelWidth = status?.let(loadingPaint::measureText) ?: 0f
             contentDescription = status
             changed = true
         }
@@ -63,7 +69,7 @@ internal class DanmakuView(context: Context) : View(context) {
         if (visibility != nextVisibility) { visibility = nextVisibility; if (visibility == GONE) drawnCount = 0; removeCallbacks(wake); changed = true }
         if (changed) invalidate()
     }
-    private fun drawOutlined(canvas: Canvas, text: String, x: Float, y: Float, color: Int) {
+    private fun drawOutlined(canvas: Canvas, text: String, x: Float, y: Float, color: Int, paint: Paint = this.paint) {
         paint.style = Paint.Style.STROKE
         paint.color = Color.BLACK
         canvas.drawText(text, x, y, paint)
@@ -92,48 +98,54 @@ internal class DanmakuView(context: Context) : View(context) {
         val now = clockTimeline?.invoke()?.effectiveToReference(position) ?: position
         lastClockMs = now
         if (now < lastTime || lastTime == Long.MIN_VALUE || now - lastTime > 1_500) {
-            active.clear(); lastInLane.fill(null); cursor = lowerBound(now - LIFETIME)
+            active.clear(); lastInLane.fill(null); cursor = lowerBound(now - 2 * lifetime)
         }
         val video = media.videoSize
         val aspect = if (video.height > 0) video.width * video.pixelWidthHeightRatio / video.height else width.toFloat() / height.coerceAtLeast(1)
         val contentWidth = minOf(width.toFloat(), height * aspect)
         val contentHeight = minOf(height.toFloat(), width / aspect)
+        val danmakuHeight = contentHeight * render.areaRatio
+        val size = contentHeight * render.fontRatio
+        if (size <= 0f) return
+        if (size != paint.textSize || contentWidthForLanes != contentWidth) {
+            if (size != paint.textSize) widths.evictAll()
+            paint.textSize = size
+            loadingPaint.textSize = size * .85f
+            loadingLabelWidth = loadingLabel?.let(loadingPaint::measureText) ?: 0f
+            contentWidthForLanes = contentWidth
+            active.clear(); lastInLane.fill(null); cursor = lowerBound(now - 2 * lifetime)
+        }
         val left = (width - contentWidth) / 2
         val top = (height - contentHeight) / 2
         loadingLabel?.let { label ->
             val x = (width - loadingLabelWidth) / 2
-            val y = top + contentHeight * 0.125f - (paint.ascent() + paint.descent()) / 2
-            drawOutlined(canvas, label, x, y, 0xFFFFFF)
+            val y = top + danmakuHeight / 2 - (loadingPaint.ascent() + loadingPaint.descent()) / 2
+            drawOutlined(canvas, label, x, y, 0xFFFFFF, loadingPaint)
             return
         }
-        val laneHeight = paint.textSize * 1.5f
-        val lanes = (contentHeight * 0.25f / laneHeight).toInt().coerceIn(1, 4)
-        val gap = paint.textSize
-        active.removeAll { now - it.comment.timeMs >= LIFETIME }
+        val laneHeight = paint.textSize * render.lineHeight
+        val lanes = (danmakuHeight / laneHeight).toInt().coerceIn(1, render.lanes)
+        val gap = paint.textSize * render.gapEm
         while (cursor < comments.size && comments[cursor].timeMs <= now) {
             val comment = comments[cursor++]
-            if (active.size >= 12) continue
+            active.removeAll { comment.timeMs - it.comment.timeMs >= lifetime }
+            if (comment.mode != 1 || active.size >= render.visibleLimit) continue
             val text = comment.text.take(100)
             val textWidth = widths.get(text) ?: paint.measureText(text).also { widths.put(text, it) }
             val lane = (0 until lanes).firstOrNull { lane ->
                 val previous = lastInLane[lane]
-                if (previous == null || comment.timeMs - previous.comment.timeMs >= LIFETIME) true
-                else {
-                    val elapsed = comment.timeMs - previous.comment.timeMs
-                    val previousRight = contentWidth - elapsed.toFloat() / LIFETIME * (contentWidth + previous.width) + previous.width
-                    val newLeftAtPreviousEnd = contentWidth - (LIFETIME - elapsed).toFloat() / LIFETIME * (contentWidth + textWidth)
-                    previousRight < contentWidth - gap && newLeftAtPreviousEnd >= gap
-                }
+                previous == null || render.fits(contentWidth, previous.width, textWidth, comment.timeMs - previous.comment.timeMs, gap)
             }
             if (lane == null) continue
             val item = Item(comment, text, textWidth, lane)
             active.add(item); lastInLane[lane] = item
         }
+        active.removeAll { now - it.comment.timeMs >= lifetime }
         drawnCount = active.size
         val checkpoint = canvas.save()
-        canvas.clipRect(left, top, left + contentWidth, top + contentHeight * 0.25f)
+        canvas.clipRect(left, top, left + contentWidth, top + danmakuHeight)
         for (item in active) {
-            val x = left + contentWidth - (now - item.comment.timeMs).toFloat() / LIFETIME * (contentWidth + item.width)
+            val x = left + contentWidth - (now - item.comment.timeMs).toFloat() / lifetime * (contentWidth + item.width)
             val y = top + paint.textSize * 1.3f + item.lane * laneHeight
             drawOutlined(canvas, item.text, x, y, item.comment.color)
         }
@@ -149,5 +161,4 @@ internal class DanmakuView(context: Context) : View(context) {
     }
     fun release() { removeCallbacks(wake); player?.removeListener(listener); player = null; active.clear(); lastInLane.fill(null); comments = emptyList(); track = null; widths.evictAll() }
     override fun onDetachedFromWindow() { release(); super.onDetachedFromWindow() }
-    private companion object { const val LIFETIME = 8_000L }
 }

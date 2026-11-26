@@ -125,10 +125,10 @@ class HotSearchTest {
             firstGate.complete(Unit)
             runCurrent()
             assertTrue(visible.await().isNotEmpty())
-            assertEquals(6, requests.size)
+            assertEquals(2, requests.size)
             val selected = async { core.hotSearches("korean") }
             runCurrent()
-            assertEquals(6, requests.size)
+            assertEquals(3, requests.size)
             backgroundGate.complete(Unit)
             warming.await()
             assertTrue(selected.await().isNotEmpty())
@@ -155,9 +155,9 @@ class HotSearchTest {
         try {
             val job = launch { core.warmHotSearches("chinese") }
             runCurrent()
-            assertEquals(5, started)
+            assertEquals(1, started)
             job.cancelAndJoin()
-            assertEquals(5, cancelled)
+            assertEquals(1, cancelled)
             assertTrue(store.files.containsKey("cache/hot-cards-v2-chinese.json"))
             assertFalse(store.files.containsKey("cache/hot-cards-v2-korean.json"))
         } finally { core.close() }

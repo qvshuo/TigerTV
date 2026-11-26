@@ -1,5 +1,6 @@
 package art.anjing.tigertv.ui
 
+import art.anjing.tigertv.ui.player.PlaybackPreferences
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -69,23 +70,24 @@ internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostC
             SettingsScreen()
         }
         composable(Screen.Results.route) {
+            val context = LocalContext.current
             ResultsScreen(
                 viewModel = viewModel,
                 onSearch = {
                     if (!viewModel.isSearching) {
-                        viewModel.clearResults()
                         navController.popBackStack()
+                        viewModel.clearResults()
                         if (navController.currentDestination?.route != Screen.Search.route) {
                             navController.navigate(Screen.Search.route)
                         }
                     }
                 },
                 onBack = {
-                    viewModel.clearResults()
                     navController.popBackStack()
+                    viewModel.clearResults()
                 },
                 onSelectResult = { result ->
-                    viewModel.selectResult(result)
+                    viewModel.selectRecommendedResult(result, PlaybackPreferences(context).filterAds)
                     navController.navigate(Screen.Episodes.route)
                 }
             )

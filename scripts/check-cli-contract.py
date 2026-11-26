@@ -35,7 +35,15 @@ class Handler(BaseHTTPRequestHandler):
         elif parsed.path == "/master.m3u8":
             return self.send(b"#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nchild.m3u8\n")
         elif parsed.path == "/child.m3u8":
-            return self.send(b'#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="https://keys.example/a.key"\nhttps://segments.example/1.ts\n')
+            return self.send(f'#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="http://localhost:{self.server.server_port}/a.key"\n{host}/segment.ts\n'.encode())
+        elif parsed.path == "/segment.ts":
+            self.send_response(302)
+            self.send_header("Location", f"http://localhost:{self.server.server_port}/final.ts")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        elif parsed.path in ("/a.key", "/final.ts", "/one.mp4", "/two.mp4", "/cover.jpg"):
+            return self.send(b"")
         elif query.get("ids"):
             data = {"code": 1.0, "list": [{"vod_id": int(query["ids"][0]), "vod_name": "逐玉🎬", "vod_pic": host + "/cover.jpg", "vod_play_from": "主线$$$备用", "vod_down_from": "下载", "vod_play_url": f" 第一集 ${host}/page#第二集${host}/two.mp4$$$备用${host}/master.m3u8", "vod_down_url": f"第一集${host}/one.mp4"}]}
         else:
@@ -101,8 +109,17 @@ def main():
             assert payload["download_sources"][0]["episodes"][0]["url"] == host + "/one.mp4"
             quanx = run(native, ["quanx", "逐玉"])
             assert quanx.returncode == 0 and "未完整扫描" in quanx.stderr, quanx
-            for domain in ("127.0.0.1", "keys.example", "segments.example"):
-                assert "host-suffix, " + domain + ", direct" in quanx.stdout, quanx.stdout
+            for rule in ("ip-cidr, 127.0.0.1/32, direct", "host, localhost, direct"):
+                assert quanx.stdout.splitlines().count(rule) == 1, quanx.stdout
+            assert "资源站 API 域名" in quanx.stderr and "m3u8 域名" in quanx.stderr, quanx
+            assert quanx.stdout.split("\n\n") == [
+                "ip-cidr, 127.0.0.1/32, direct", "", "host, localhost, direct\n"], quanx.stdout
+            previous = Path(temp) / "previous.list"
+            previous.write_text("; QX 关键词：上次\nhost, previous.example, direct\nhost-suffix, localhost, direct\n", encoding="utf-8")
+            merged = run(native, ["quanx", "--merge", str(previous), "这次"])
+            assert merged.returncode == 0 and "host, previous.example, direct" in merged.stdout, merged
+            assert merged.stdout.splitlines().count("host, localhost, direct") == 1 and "host-suffix" not in merged.stdout, merged
+            assert all(line.endswith(", direct") for line in merged.stdout.splitlines() if line), merged
             for arguments, code in [
                 (["logs", "--full", "--full"], 2),
                 (["logs", "--clear", "--clear"], 2),

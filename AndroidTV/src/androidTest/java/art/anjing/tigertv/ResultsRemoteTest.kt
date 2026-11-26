@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.io.File
 import org.junit.Rule
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -125,9 +126,9 @@ class ResultsRemoteTest {
                 }
             }
             compose.onNodeWithText("热门推荐").assertIsDisplayed()
-            compose.onNodeWithText("豆瓣热门").assertDoesNotExist()
+            compose.onNodeWithText("热门推荐").assertDoesNotExist()
             compose.onNodeWithText("小老虎爱看剧").assertIsDisplayed()
-            compose.onNodeWithText("最近播放").assertDoesNotExist()
+            compose.onNodeWithText("继续观看").assertDoesNotExist()
             val recommendation = hasText("热门验收 (2026)") and hasClickAction()
             compose.waitUntil(10_000) { compose.onAllNodes(recommendation).fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("home-search").assertIsFocused().assertIsDisplayed()
@@ -156,6 +157,17 @@ class ResultsRemoteTest {
             compose.onNode(recommendation).performSemanticsAction(SemanticsActions.RequestFocus) { it() }
             remote(KeyEvent.KEYCODE_DPAD_CENTER)
             val work = hasText("热门验收") and hasClickAction()
+            compose.waitUntil(10_000) { compose.onAllNodes(work and isFocused()).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(10_000) { !model.isSearching }
+            val searchBounds = compose.onNodeWithContentDescription("搜索").fetchSemanticsNode().boundsInRoot
+            remote(KeyEvent.KEYCODE_DPAD_CENTER)
+            compose.waitUntil(10_000) {
+                compose.onAllNodes(hasText("播放 · 第一集") and isFocused()).fetchSemanticsNodes().isNotEmpty()
+            }
+            assertEquals(searchBounds, compose.onNodeWithContentDescription("返回").fetchSemanticsNode().boundsInRoot)
+            remote(KeyEvent.KEYCODE_DPAD_UP)
+            compose.onNodeWithContentDescription("返回").assertIsFocused()
+            remote(KeyEvent.KEYCODE_DPAD_CENTER)
             compose.waitUntil(10_000) { compose.onAllNodes(work and isFocused()).fetchSemanticsNodes().isNotEmpty() }
             remote(KeyEvent.KEYCODE_DPAD_CENTER)
             compose.waitUntil(10_000) {
@@ -188,6 +200,12 @@ class ResultsRemoteTest {
                 compose.onAllNodes(hasTestTag("recent-card") and isFocused()).fetchSemanticsNodes().isNotEmpty()
             }
             recent.assertIsFocused()
+            val restingCard = recent.fetchSemanticsNode().boundsInRoot
+            remote(KeyEvent.KEYCODE_DPAD_UP)
+            compose.onNodeWithTag("home-search").assertIsFocused()
+            remote(KeyEvent.KEYCODE_DPAD_DOWN)
+            recent.assertIsFocused()
+            org.junit.Assert.assertEquals(restingCard, recent.fetchSemanticsNode().boundsInRoot)
             captureWhenRequested("home-recent")
         } finally {
             compose.runOnIdle { store.clear() }

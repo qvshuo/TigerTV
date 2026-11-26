@@ -8,6 +8,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -28,6 +29,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 @Composable
 internal fun SettingsScreen() {
     val context = LocalContext.current
+    val keyboard = LocalSoftwareKeyboardController.current
     val preferences = remember { context.applicationContext.getSharedPreferences("danmaku", 0) }
     val playback = remember { PlaybackPreferences(context) }
     var autoNext by remember { mutableStateOf(playback.autoNext) }
@@ -50,17 +52,18 @@ internal fun SettingsScreen() {
                 PlaybackSetting("自动下一集", autoNext) { autoNext = it; playback.autoNext = it }
                 PlaybackSetting("记忆播放速度", rememberSpeed) { rememberSpeed = it; playback.rememberSpeed = it }
                 PlaybackSetting("去广告", filterAds) { filterAds = it; playback.filterAds = it }
-                Text("弹幕 API 地址", style = MaterialTheme.typography.titleMedium)
+                Text("弹幕服务地址", style = MaterialTheme.typography.titleMedium)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     TvTextInput(draft, { draft = it }, {}, focus, Modifier.weight(1f).testTag("danmaku-server"),
                         hint = DEFAULT_DANMAKU_SERVER, imeAction = ImeAction.Done)
                     ActionButton(onClick = {
+                        keyboard?.hide()
                         preferences.edit().putString("server", address).apply()
                         saved = address
                         draft = address
                     }, enabled = valid && address != saved.trimEnd('/'), modifier = Modifier.testTag("danmaku-save")) { Text("保存") }
                 }
-                if (address.isNotEmpty() && !valid) Text("请输入有效的 HTTP 或 HTTPS 地址", color = MaterialTheme.colorScheme.error)
+                if (address.isNotEmpty() && !valid) Text("请输入有效的弹幕服务地址", color = MaterialTheme.colorScheme.error)
                 else if (saved.isNotBlank() && address == saved.trimEnd('/')) {
                     Text("已保存", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

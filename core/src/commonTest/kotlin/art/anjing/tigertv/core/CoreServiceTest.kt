@@ -327,7 +327,7 @@ class CoreServiceTest {
         try {
             assertEquals(1, core.loadConfig().apiSite.size)
             (1..30).forEach { core.addHistory("剧$it") }
-            assertEquals(20, core.history().size)
+            assertEquals((30 downTo 19).map { "剧$it" }, core.history())
         } finally { core.close() }
     }
 
@@ -446,55 +446,159 @@ class CoreServiceTest {
         } finally { core.close() }
     }
 
-    @Test fun quanxFollowsRedirectsAndAlternateMediaButOnlyProbesFirstEpisodes() = runTest {
+    @Test fun quanxFollowsFirstEpisodePerLineAndMediaRedirects() = runTest {
         val store = MemoryStorage().apply { files["source"] = config }
         val requested = mutableListOf<String>()
         val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine { request ->
             requested += "${request.method.value} ${request.url}"
             when {
                 request.url.parameters["ac"] == "list" -> respond("""{"code":1,"list":[{"vod_id":1},{"vod_id":2}]}""")
-                request.url.parameters["ids"] == "1" -> respond("""{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://entry.test/start#二${'$'}https://never.test/two.m3u8"}]}""")
+                request.url.parameters["ids"] == "1" -> respond("""{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://entry.test/start#二${'$'}https://skip.test/two.m3u8${'$'}${'$'}${'$'}一${'$'}https://backup.test/one.m3u8","vod_down_url":"一${'$'}https://download.test/file.zip#二${'$'}https://skip.test/two.zip"}]}""")
                 request.url.parameters["ids"] == "2" -> respond("""{"code":1,"list":[{"vod_id":2,"vod_play_url":"一${'$'}https://file.test/video.mp4"}]}""")
                 request.url.host == "entry.test" -> respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://page.test/player"))
-                request.url.host == "page.test" -> respond("""<video src="https://final.test/path/master.m3u8?sign=a%2Fb%2Bc%3D&amp;literal=a+b"></video>""")
+                request.url.host == "page.test" -> respond("""<video src="https://final.test/path/master.m3u8?sign=a%2Fb%2Bc%3D&amp;literal=a+b"><source src="https://html-mp4.test/v.mp4"></video>""")
+                request.url.host == "backup.test" -> respond("#EXTM3U\nhttps://backup-segments.test/1.ts")
                 request.url.encodedPath.endsWith("master.m3u8") -> respond("#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=1\nvideo.m3u8")
                 request.url.encodedPath.endsWith("audio.m3u8") -> respond("#EXTM3U\nhttps://audio-segments.test/a.aac")
-                request.url.encodedPath.endsWith("video.m3u8") -> respond("#EXTM3U\n#EXT-X-MAP:URI=\"https://init.test/init.mp4\"\n#EXT-X-KEY:URI=\"https://key.test/key\"\n#EXT-X-I-FRAME-STREAM-INF:URI=\"iframe.m3u8\"\n#EXT-X-RENDITION-REPORT:URI=\"report.m3u8\"\nhttps://segments.test/1.ts")
+                request.url.encodedPath.endsWith("video.m3u8") -> respond(buildString {
+                    appendLine("#EXTM3U")
+                    appendLine("#EXT-X-MAP:URI=\"https://init.test/init.mp4\"")
+                    appendLine("#EXT-X-KEY:URI=\"https://key.test/key\"")
+                    appendLine("#EXT-X-I-FRAME-STREAM-INF:URI=\"iframe.m3u8\"")
+                    appendLine("#EXT-X-RENDITION-REPORT:URI=\"report.m3u8\"")
+                    appendLine("https://segments.test/1.ts")
+                    repeat(1100) { appendLine("https://later-segments.test/$it.ts") }
+                })
                 request.url.encodedPath.endsWith("iframe.m3u8") || request.url.encodedPath.endsWith("report.m3u8") -> respond("#EXTM3U\nhttps://extra-segments.test/1.ts")
+                request.url.host == "segments.test" -> respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://redirected-segments.test/1.ts"))
+                request.url.host == "redirected-segments.test" && request.headers[HttpHeaders.Range] != null ->
+                    respond("", HttpStatusCode.RequestedRangeNotSatisfiable)
                 request.url.host == "file.test" -> {
-                    assertEquals(HttpMethod.Head, request.method)
+                    assertEquals(HttpMethod.Get, request.method)
+                    assertEquals("bytes=0-0", request.headers[HttpHeaders.Range])
                     respond("", headers = headersOf(HttpHeaders.ContentType, "video/mp4"))
                 }
+                request.url.host in setOf("audio-segments.test", "init.test", "key.test", "extra-segments.test",
+                    "redirected-segments.test", "backup-segments.test", "download.test", "html-mp4.test") -> respond("")
                 else -> error("Unexpected request: ${request.url}")
             }
         })))
         try {
             val domains = core.collectQuanxDomains("test")
             assertTrue(domains.incompleteSites.isEmpty())
-            assertTrue(domains.m3u8.containsAll(listOf("entry.test", "page.test", "final.test", "audio-segments.test", "init.test", "key.test", "extra-segments.test", "segments.test", "file.test")))
+            assertTrue(domains.m3u8.containsAll(listOf("entry.test", "page.test", "final.test", "audio-segments.test", "init.test", "key.test", "extra-segments.test", "segments.test", "file.test",
+                "backup.test", "backup-segments.test", "redirected-segments.test", "html-mp4.test", "download.test")))
             assertTrue(requested.any { "master.m3u8?sign=a%2Fb%2Bc%3D&literal=a+b" in it })
-            assertFalse(requested.any { "never.test" in it })
+            assertTrue(requested.none { "skip.test" in it })
+            assertFalse("skip.test" in domains.urls)
+            assertTrue("later-segments.test" in domains.m3u8)
+            assertTrue(requested.none { "later-segments.test" in it })
+            assertTrue(requested.any { "https://backup-segments.test/1.ts" in it })
             assertTrue(requested.any { "https://final.test/path/audio.m3u8" in it })
         } finally { core.close() }
+    }
+
+    @Test fun quanxBoundsMediaTimeAndProbesDistinctHostsBeforeRepeats() = runTest {
+        var inFlight = 0
+        var peak = 0
+        val core = CoreService("cache", "source", MemoryStorage().apply { files["source"] = config },
+            configureClient(HttpClient(testEngine { request ->
+                when {
+                    request.url.parameters["ac"] == "list" -> respond("""{"code":1,"list":[{"vod_id":1}]}""")
+                    request.url.parameters["ids"] == "1" -> respond("""{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://media.test/index.m3u8"}]}""")
+                    request.url.host == "media.test" -> respond(buildString {
+                        appendLine("#EXTM3U")
+                        repeat(60) { appendLine("#EXT-X-KEY:URI=\"https://segments.test/$it.key\"") }
+                        appendLine("https://other.test/a.ts")
+                    })
+                    request.url.host == "other.test" -> respond("", HttpStatusCode.Found,
+                        headersOf(HttpHeaders.Location, "https://other-cdn.test/a.ts"))
+                    else -> {
+                        peak = maxOf(peak, ++inFlight)
+                        try { delay(1000) } finally { inFlight-- }
+                        respond("")
+                    }
+                }
+            })))
+        try {
+            val domains = core.collectQuanxDomains("test")
+            assertEquals(6000, testScheduler.currentTime)
+            assertEquals(6, peak)
+            assertTrue("other-cdn.test" in domains.m3u8)
+            assertTrue(domains.incompleteReasons.values.single().any { "媒体跳转探测超过 6 秒" in it })
+        } finally { core.close() }
+    }
+
+    @Test fun quanxKeepsObservedRedirectHostWhenTheChildReturnsAnError() = runTest {
+        val core = CoreService("cache", "source", MemoryStorage().apply { files["source"] = config },
+            configureClient(HttpClient(testEngine { request ->
+                when {
+                    request.url.parameters["ac"] == "list" -> respond("""{"code":1,"list":[{"vod_id":1}]}""")
+                    request.url.parameters["ids"] == "1" -> respond("""{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://entry.test/index.m3u8"}]}""")
+                    request.url.host == "entry.test" -> respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://failed-cdn.test/rejected"))
+                    else -> respond("", HttpStatusCode.Forbidden)
+                }
+            })))
+        try {
+            val report = core.collectQuanxDomains("test")
+            assertTrue("failed-cdn.test" in report.m3u8)
+            assertEquals(listOf("🎬一"), report.incompleteSites)
+            assertEquals(listOf("HTTP 403"), report.incompleteReasons.values.single())
+        } finally { core.close() }
+    }
+
+    @Test fun quanxRendersExactHostsAndIpRulesAndMergesACumulativeFile() {
+        val scan = QuanxDomains(setOf("api.example", "[2001:0db8:0:0:0:0:0:1]"), setOf("API.EXAMPLE.", "127.0.0.1"),
+            setOf("api.example", "2001:db8::1"), listOf("资源站"))
+        val groups = scan.ruleGroups("""
+            ; QX 关键词：以前
+            host-suffix, previous.example, direct
+            ; m3u8 域名
+            host, segment.example, direct
+            host, api.example, direct
+            ip6-cidr, [2001:db8::0001]/128, direct
+            ip-cidr, 10.0.0.0/8, direct
+            host, unrelated.example, proxy
+        """.trimIndent())
+        assertEquals(listOf("资源站 API 域名", "播放/下载域名", "m3u8 域名", "历史规则"), groups.keys.toList())
+        assertEquals(listOf(
+            listOf("ip6-cidr, 2001:db8::1/128, direct", "host, api.example, direct"),
+            listOf("ip-cidr, 127.0.0.1/32, direct"),
+            listOf("host, segment.example, direct"),
+            listOf("host, previous.example, direct"),
+        ), groups.values.toList())
+        val empty = QuanxDomains(emptySet(), emptySet(), emptySet())
+        val exported = groups.values.joinToString("\n\n", postfix = "\n") { it.joinToString("\n") }
+        assertEquals(groups, empty.ruleGroups(exported))
     }
 
     @Test fun quanxStopsAtBudgetAfterProbingEarlierWorks() = runTest {
         val store = MemoryStorage().apply { files["source"] = config }
         var requests = 0
+        var details = 0
         var errors = 0
         val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine { request ->
             requests++
+            if (request.url.parameters["ac"] == "list" && request.url.host == "a.test") {
+                return@testEngine respond("", HttpStatusCode.Found,
+                    headersOf(HttpHeaders.Location, request.url.toString().replace("a.test", "redirected-api.test")))
+            }
             respond(when {
                 request.url.parameters["ac"] == "list" -> """{"code":1,"list":[${(1..1500).joinToString(",") { """{"vod_id":$it}""" }}]}"""
-                request.url.parameters["ids"] != null -> """{"code":1,"list":[{"vod_id":${request.url.parameters["ids"]},"vod_play_url":"一${'$'}https://media.test/first.m3u8"}]}"""
+                request.url.parameters["ids"] != null -> {
+                    details++
+                    """{"code":1,"list":[{"vod_id":${request.url.parameters["ids"]},"vod_play_url":"一${'$'}https://media.test/first.m3u8"}]}"""
+                }
                 else -> "#EXTM3U\n#EXT-X-KEY:URI=\"data:text/plain;base64,AAAA\"\nhttps://segments.test/1.ts"
             })
         })), logger = Logger { _, _, _ -> errors++ })
         try {
             val result = core.collectQuanxDomains("test")
-            assertEquals(1000, requests)
+            assertEquals(1002, requests)
+            assertEquals(998, details)
             assertEquals(1, errors)
             assertEquals(listOf("🎬一"), result.incompleteSites)
+            assertTrue("redirected-api.test" in result.api)
             assertTrue("segments.test" in result.m3u8)
             assertFalse(result.m3u8.any { "data:" in it })
         } finally { core.close() }

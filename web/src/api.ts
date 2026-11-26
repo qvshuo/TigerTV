@@ -1,8 +1,10 @@
+import networkTimeouts from '../../shared/network-timeouts.json' with { type: 'json' }
 import { object, parseJson, readText } from '../common/http.ts'
 import { hotLimit, posterKey } from '../common/douban.ts'
 export { object, parseJson }
 
 export type Site = { name: string; api: string; gateway?: string }
+export const displaySourceName = (name: string) => name.replaceAll("🎬", "").trim()
 export type Source = { site: Site; id: number; title: string; year: string; poster: string; remarks: string; category?: string; area?: string }
 export type Work = { id: string; display: Source; sources: Source[] }
 export type Episode = { name: string; url: string }
@@ -72,8 +74,11 @@ export function parseConfig(raw: unknown): GatewaySite[] {
 }
 
 let config: Promise<GatewaySite[]> | undefined
-function sites(): Promise<GatewaySite[]> {
-  return config ??= getJson(gatewayUrl('config'), undefined, 4000).then(parseConfig)
+let configExpires = 0
+export function catalogSites(): Promise<GatewaySite[]> {
+  if (config && Date.now() >= configExpires) config = undefined
+  if (!config) configExpires = Date.now() + 24 * 3600_000
+  return config ??= getJson(gatewayUrl('config'), undefined, networkTimeouts.configRequestMs).then(parseConfig)
     .catch(error => { config = undefined; throw error })
 }
 
@@ -91,10 +96,6 @@ function sourceFrom(site: Site, value: unknown): Source {
 function workIdentity(title: string, year: string, source: Source) {
   const text = title.replace(/[\s\u001c-\u001f]/gu, '').toLowerCase()
   return JSON.stringify(text ? [text, year] : [null, `${source.site.name}-${source.id}`])
-}
-export function legacyWorkId(source: Source) {
-  const year = source.year.trim()
-  return workIdentity(source.title, year === '0' ? '' : year, source)
 }
 export function foldWidth(text: string) {
   return text.replace(/[\u3000\uff01-\uff5e]/g, char => char === '\u3000' ? ' ' : String.fromCharCode(char.charCodeAt(0) - 0xfee0))
@@ -118,48 +119,82 @@ function vodPage(value: unknown) {
   return { rows: (page.list ?? []) as unknown[], pages: 'pagecount' in page ? integer(page.pagecount) : 1 }
 }
 
-export async function search(query: string, signal: AbortSignal, publish: (works: Work[]) => void) {
-  const config = await sites()
+const searchCache = new Map<string, { expires: number; works: Work[]; sites: Set<string> }>()
+const searchCacheTtl = 10 * 60_000
+
+export async function search(query: string, signal: AbortSignal, publish: (works: Work[], settled: Set<string>) => void) {
   signal.throwIfAborted()
+  const now = Date.now()
+  for (const [key, value] of searchCache) if (value.expires <= now) searchCache.delete(key)
+  const cached = searchCache.get(query)
+  if (cached) {
+    publish(cached.works, cached.sites)
+    return { failed: 0, total: cached.sites.size }
+  }
+  const config = await catalogSites()
+  signal.throwIfAborted()
+  const order = new Map(config.map((site, index) => [site.api, index]))
   const works = new Map<string, Work>()
-  const failures: string[] = []
+  const settled = new Set<string>()
+  let snapshot: Work[] = []
+  let failures = 0
   async function searchSite(site: GatewaySite, siteIndex: number) {
-    const budget = AbortSignal.any([signal, AbortSignal.timeout(60_000)])
-    const found: Source[] = []
+    const budget = AbortSignal.any([signal, AbortSignal.timeout(networkTimeouts.searchSiteMs)])
     try {
       for (let page = 1; page <= 100; page++) {
         const url = gatewayUrl(`search/${encodeURIComponent(site.gateway)}`, { q: query, page: String(page) })
-        const { rows, pages } = vodPage(await getJson(url, budget, 20_000))
-        found.push(...rows.map(row => sourceFrom(site, row)))
+        const { rows, pages } = vodPage(await getJson(url, budget, networkTimeouts.catalogRequestMs))
+        signal.throwIfAborted()
+        let changed = false
+        for (const row of rows) {
+          const source = sourceFrom(site, row)
+          const id = workId(source)
+          const group = works.get(id)
+          if (!group) {
+            works.set(id, { id, display: source, sources: [source] })
+            changed = true
+          } else if (!group.sources.some(item => item.site.name === site.name && item.id === source.id)) {
+            const insert = group.sources.findIndex(item => (order.get(item.site.api) ?? 0) > siteIndex)
+            const sources = [...group.sources]
+            sources.splice(insert < 0 ? sources.length : insert, 0, source)
+            works.set(id, { ...group, sources })
+            changed = true
+          }
+        }
+        if (changed) {
+          snapshot = [...works.values()]
+          publish(snapshot, new Set(settled))
+        }
         if (!rows.length || page >= pages) break
+        if (page === 100) throw new Error('搜索分页超过 100 页')
       }
     } catch (error) {
       if (signal.aborted) return
-      failures.push(site.name)
+      failures++
       console.info('资源站搜索失败', site.name, error)
-      return
     }
-    if (signal.aborted) return
-    for (const source of found) {
-      const id = workId(source)
-      const group = works.get(id)
-      if (!group) works.set(id, { id, display: source, sources: [source] })
-      else if (!group.sources.some(item => item.site.name === site.name && item.id === source.id)) {
-        const insert = group.sources.findIndex(item => config.findIndex(configured => configured.api === item.site.api) > siteIndex)
-        group.sources.splice(insert < 0 ? group.sources.length : insert, 0, source)
-      }
+    if (!signal.aborted) {
+      settled.add(site.name)
+      publish(snapshot, new Set(settled))
     }
-    publish([...works.values()].map(work => ({ ...work, sources: [...work.sources] })))
   }
   let next = 0
-  await Promise.all(Array.from({ length: Math.min(8, config.length) }, async () => {
+  await Promise.all(Array.from({ length: Math.min(12, config.length) }, async () => {
     while (!signal.aborted && next < config.length) {
       const index = next++
       await searchSite(config[index], index)
     }
   }))
   signal.throwIfAborted()
-  return { failed: failures.length, total: config.length }
+  const count = (items: Work[]) => items.reduce((total, work) => total + work.sources.length, 0)
+  if (!failures && count(snapshot) <= 10_000) {
+    searchCache.delete(query)
+    searchCache.set(query, { expires: Date.now() + searchCacheTtl, works: snapshot, sites: settled })
+    while (searchCache.size > 5 || [...searchCache.values()].reduce((total, entry) => total + count(entry.works), 0) > 10_000) {
+      searchCache.delete(searchCache.keys().next().value!)
+    }
+  }
+  return { failed: failures, total: config.length }
 }
 
 export function parseLines(raw: string, from: string): Line[] {
@@ -175,11 +210,10 @@ export function parseLines(raw: string, from: string): Line[] {
 }
 
 export async function getDetail(source: Source, signal: AbortSignal): Promise<Detail> {
-  // Older recent records may only have the source API URL.
-  const site = (await sites()).find(item => item.api === source.site.api)
+  const site = (await catalogSites()).find(item => item.gateway === source.site.gateway)
   if (!site) throw new Error('来源未启用')
   const url = gatewayUrl(`detail/${encodeURIComponent(site.gateway)}`, { id: String(source.id) })
-  const { rows } = vodPage(await getJson(url, signal, 20_000))
+  const { rows } = vodPage(await getJson(url, signal, networkTimeouts.catalogRequestMs))
   const value = rows.find(row => integer(object(row).vod_id) === source.id)
   if (!value) throw new Error('来源未返回指定作品')
   const row = object(value)
@@ -199,10 +233,17 @@ export function doubanPoster(url: string) {
   return route ? gatewayUrl(route) : ''
 }
 
+function hotCache(category: string): { at: number; items: HotItem[] } | undefined {
+  try { return JSON.parse(localStorage.getItem(`tigertv:hot:all:${category}`) ?? 'null') ?? undefined } catch { }
+}
+
+export function cachedHot(category: string): HotItem[] | undefined {
+  const cached = hotCache(category)
+  if (cached && Date.now() - cached.at < 24 * 3600_000) return cached.items
+}
+
 export async function hot(category: string, signal: AbortSignal, onUpdate: (items: HotItem[]) => void): Promise<HotItem[]> {
-  const key = `tigertv:hot:all:${category}`
-  let cached: { at: number; items: HotItem[] } | undefined
-  try { cached = JSON.parse(localStorage.getItem(key) ?? 'null') ?? undefined } catch { /* Storage is optional. */ }
+  const cached = hotCache(category)
   if (cached && Date.now() - cached.at < 6 * 3600_000) return cached.items
   const items = new Map<string, HotItem>()
   try {
@@ -210,7 +251,7 @@ export async function hot(category: string, signal: AbortSignal, onUpdate: (item
     while (true) {
       const url = new URL(gatewayUrl(`hot/${category}`), location.href)
       url.searchParams.set('start', String(start))
-      const raw = object(await getJson(url.href, signal))
+      const raw = object(await getJson(url.href, signal, networkTimeouts.recommendationRequestMs))
       const page = raw.subject_collection_items
       if (!Array.isArray(page)) throw new Error('豆瓣响应异常')
       const previousSize = items.size
@@ -229,7 +270,7 @@ export async function hot(category: string, signal: AbortSignal, onUpdate: (item
     }
     const complete = [...items.values()]
     if (complete.length) {
-      try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), items: complete })) } catch { /* Cache is optional. */ }
+      try { localStorage.setItem(`tigertv:hot:all:${category}`, JSON.stringify({ at: Date.now(), items: complete })) } catch { }
     }
     return complete
   } catch (error) {

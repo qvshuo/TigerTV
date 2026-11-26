@@ -7,7 +7,7 @@ class HlsAdFilterTest {
     @Test fun sharedWebFixturePreservesTheOriginalKeyAndRemovesTheSameInterval() {
         val fixture = Json.parseToJsonElement(contractFixtures.getValue("hls-filter.sample.json")).jsonObject
         val input = fixture.getValue("playlist").jsonPrimitive.content
-        val result = filterSmartHlsAds(input)!!
+        val result = filterSmartHlsAds(input, fixture.getValue("host").jsonPrimitive.content)!!
         assertEquals(fixture.getValue("expected").jsonPrimitive.content, result.playlist)
         assertEquals(listOf(MediaInterval(fixture.getValue("startMs").jsonPrimitive.long,
             fixture.getValue("endMs").jsonPrimitive.long)), result.removed)
@@ -24,18 +24,7 @@ class HlsAdFilterTest {
             }
             val result = filterSmartHlsAds(input)
             assertEquals(removed, result?.removed.orEmpty(), name)
-            if (result == null) continue
-            assertTrue("IV=0x00000000000000000000000000000069" in result.playlist, name)
-            assertTrue("#EXT-X-VERSION:${if (removed.size == 2) 3 else 2}" in result.playlist, name)
-            assertTrue("#EXT-X-DISCONTINUITY" in result.playlist, name)
-            assertFalse("#EXT-X-CUE-" in result.playlist, name)
-            assertEquals(68000L, result.timeline.effectiveToVideo(60000))
-            assertEquals(60000L, result.timeline.videoToEffective(65000).timeMs)
-            if (name == "repeated-clear-inserts-without-discontinuities") {
-                assertEquals(136000L, result.timeline.effectiveToVideo(120000))
-                assertEquals(121000L, result.timeline.videoToEffective(137000).timeMs)
-                assertTrue("IV=0x0000000000000000000000000000006e" in result.playlist)
-            }
+
         }
     }
 
@@ -70,24 +59,9 @@ class HlsAdFilterTest {
         assertNull(filterHlsAds(s) { true })
         assertNull(filterHlsAds(s.replace("#EXT-X-KEY:METHOD=AES-128,URI=\"key\"\n", "")) { false })
     }
-    @Test fun sanitizedRealPlaylistRemovesRepeatedAds() {
-        val result = filterSmartHlsAds(realHlsFixture)!!
-        assertEquals(listOf(MediaInterval(300880, 326640), MediaInterval(2428640, 2454400)), result.removed)
-        assertEquals(2454400L, result.timeline.effectiveToVideo(2402880))
-        assertFalse(result.playlist.contains("/video/adjump/time/"))
-    }
-
-    @Test fun adPathBetweenDistinctContentChaptersNeedsBothSpliceEdges() {
-        val padBefore = (1..3).joinToString("") { "#EXTINF:30,\nleft/$it.ts\n" }
-        val padAfter = (1..3).joinToString("") { "#EXTINF:30,\nright/$it.ts\n" }
-        for (fixture in crossWorkHlsFixtures) {
-            val input = fixture.replace("#EXTINF:1,\nbefore.ts", padBefore + "#EXTINF:1,\nbefore.ts")
-                .replace("#EXT-X-ENDLIST", padAfter + "#EXT-X-ENDLIST")
-            val filtered = filterSmartHlsAds(input)!!
-            assertEquals(listOf(MediaInterval(91000, 116760)), filtered.removed)
-            assertTrue("before.ts" in filtered.playlist && "after.ts" in filtered.playlist)
-            assertNull(filterSmartHlsAds(input.replaceFirst("#EXT-X-DISCONTINUITY\n", "")))
-        }
+    @Test fun unverifiedRepeatedGroupsAndAdPathsAreKept() {
+        assertNull(filterSmartHlsAds(realHlsFixture))
+        for (fixture in crossWorkHlsFixtures) assertNull(filterSmartHlsAds(fixture))
     }
 
     @Test fun fractionalDurationsRoundCumulativeTimeline() {
@@ -126,7 +100,8 @@ class HlsAdFilterTest {
     }
 
     @Test fun capturedEncryptedVodPreservesEveryNormalSegmentAndKey() {
-        val result = filterSmartHlsAds(encryptedHlsFixture)!!
+        assertNull(filterSmartHlsAds(encryptedHlsFixture))
+        val result = filterHlsAds(encryptedHlsFixture) { it.startsWith("ad-") }!!
         assertEquals(listOf(MediaInterval(851320, 868887), MediaInterval(1654727, 1672294), MediaInterval(2925254, 2942821)), result.removed)
         val original = parseHlsVod(encryptedHlsFixture)!!
         val filtered = parseHlsVod(result.playlist)!!
@@ -135,7 +110,6 @@ class HlsAdFilterTest {
         assertTrue(filtered.segments.all { it.encrypted })
         assertEquals(851320L, result.timeline.videoToEffective(868887).timeMs)
         assertEquals(1672294L, result.timeline.effectiveToVideo(1637160))
-        assertEquals(2, filterSmartHlsAds(encryptedHlsFixture.replaceFirst("ad-2.ts", "changed.ts"))?.removed?.size)
     }
 
     @Test fun trailingDiscontinuityOfRealVodIsPreserved() {

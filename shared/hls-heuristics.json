@@ -3,17 +3,6 @@
   "noGamblingInSamples": ["光速资源", "红牛资源", "百度云zy"],
   "minSeconds": 5,
   "maxSeconds": 60,
-  "maxFraction": 0.15,
-  "flankSegments": 3,
-  "pathTokens": [
-    "ad",
-    "ads",
-    "adjump",
-    "advert",
-    "advertising",
-    "preroll",
-    "midroll"
-  ],
   "sourceGroups": [
     {
       "manifestHost": "play\\.ly166\\.com",

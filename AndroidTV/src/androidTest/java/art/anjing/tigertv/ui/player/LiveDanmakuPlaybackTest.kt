@@ -152,7 +152,7 @@ class LiveDanmakuPlaybackTest {
             }
             val output = File(context.getExternalFilesDir(null), "danmaku-live-${work}.png")
             InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().let { bitmap -> output.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle() }
-            android.util.Log.i("TigerTVDanmakuLive", "work=$work scrollingComments=$count pause=true seek=true speed=true offset=true rendered=true bufferingObserved=$bufferFrozen")
+            android.util.Log.i("TigerTVDanmakuLive", "work=$work scrollingComments=$count pause=true seek=true speed=true rendered=true bufferingObserved=$bufferFrozen")
             main { player().pause() }
             openQuick()
             InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -167,8 +167,8 @@ class LiveDanmakuPlaybackTest {
             openMenu()
             main { preferences.edit().putString("server", service + "/missing").apply() }
             awaitRequest()
-            compose.onNodeWithTag("danmaku-options").performScrollToNode(hasText("弹幕匹配失败，请手动选择"))
-            compose.onNodeWithText("弹幕匹配失败，请手动选择").assertExists()
+            compose.onNodeWithTag("danmaku-options").performScrollToNode(hasText("无法加载弹幕"))
+            compose.onNodeWithText("无法加载弹幕").assertExists()
             val errorPosition = main { player().currentPosition }
             compose.waitUntil(10_000) { main { assertNull(player().playerError); player().currentPosition > errorPosition + 500 } }
             android.util.Log.i("TigerTVDanmakuLive", "work=$work disabledStopsDrawing=true episodeCleared=true apiFailureVideoContinues=true")

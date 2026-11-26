@@ -1,7 +1,6 @@
 package art.anjing.tigertv.core
 
 import art.anjing.tigertv.domain.*
-import art.anjing.tigertv.domain.workId as canonicalWorkId
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.*
@@ -19,7 +18,7 @@ class CoreService(
     private val clock: () -> Long = ::nowMillis,
     private val logger: Logger = FileLogger(storage, "$directory/tigertv-cli.log"),
     private val searchCacheTtlMillis: Long = 600_000,
-    private val configUrls: List<Pair<String, Long>> = listOf(CONFIG_CDN_URL to 10_000L, CONFIG_RAW_URL to 5_000L),
+    private val configUrls: List<Pair<String, Long>> = listOf(CONFIG_CDN_URL to networkTimeouts.configRequestMs, CONFIG_RAW_URL to 5_000L),
     historyDirectory: String = directory
 ) {
     private val network = Network(client)
@@ -31,7 +30,8 @@ class CoreService(
     private val logMutex = Mutex()
     private val coverSemaphore = Semaphore(4)
     private val searchCache = linkedMapOf<String, Pair<Long, SearchResponse>>()
-    private val coverCache = mutableMapOf<String, Pair<Long, String>>()
+    private val coverCache = linkedMapOf<String, Pair<Long, String>>()
+    private var coverCacheLoaded = false
     private val configPath = "$directory/tigertv-cli-config-cache.json"
     private val coverPath = "$directory/cover-fallback-cache.json"
     private val historyPath = "$historyDirectory/search-history.json"
@@ -75,12 +75,12 @@ class CoreService(
 
     fun hotSearchCategories(): List<HotSearchCategory> = HOT_SEARCH_COLLECTIONS.map { HotSearchCategory(it.id, it.name) }
 
-    suspend fun warmHotSearches(category: String) {
+    suspend fun warmHotSearches(category: String, onReady: suspend (String, List<HotSearchItem>) -> Unit = { _, _ -> }) {
         if (hotSearches(category).isEmpty()) return
-        coroutineScope {
-            HOT_SEARCH_COLLECTIONS.filter { it.id != category }.map { collection ->
-                async { hotSearches(collection.id) }
-            }.awaitAll()
+        for (collection in HOT_SEARCH_COLLECTIONS) {
+            if (collection.id == category) continue
+            val titles = hotSearches(collection.id)
+            if (titles.isNotEmpty()) onReady(collection.id, titles)
         }
     }
 
@@ -98,7 +98,7 @@ class CoreService(
                 do {
                     val raw = network.get(
                         "https://m.douban.com/rexxar/api/v2/subject_collection/${collection.collection}/items?start=$start&count=$pageSize",
-                        8_000, mapOf("Referer" to "https://m.douban.com/tv/${collection.id}")
+                        networkTimeouts.recommendationRequestMs, mapOf("Referer" to "https://m.douban.com/tv/${collection.id}")
                     )
                     val page = wireJson.decodeFromString<HotSearchPage>(raw)
                     val previousSize = items.size
@@ -138,29 +138,48 @@ class CoreService(
         val results = mutableListOf<SearchResult>()
         val updateMutex = Mutex()
         var successfulSites = 0
-        fun snapshot() = SearchResponse(keyword, aggregateWorks(results).map { work ->
-            // Keep arrival-based card identity while ordering resources by configuration.
-            work.copy(sources = work.sources.sortedBy { sourceOrder.getValue(it.site) })
-        })
+        val settledSites = mutableSetOf<String>()
+        val savedAtStart = onUpdate?.let { stateMutex.withLock { playedSources() } }
+        var indexedCount = -1
+        var indexedWorks = emptyList<VideoWork>()
+        fun snapshot(): SearchResponse {
+            if (indexedCount != results.size) {
+                indexedCount = results.size
+                indexedWorks = aggregateWorks(results).map { work ->
+                    work.copy(sources = work.sources.sortedBy { sourceOrder.getValue(it.site) })
+                }
+            }
+            return SearchResponse(keyword, indexedWorks, settledSites.toSet())
+        }
+        suspend fun publish() {
+            if (onUpdate != null && results.isNotEmpty()) onUpdate(withPlayedSources(snapshot(), checkNotNull(savedAtStart)))
+        }
         coroutineScope {
             sites.map { site -> async {
-                val batch = try {
-                    withTimeoutOrNull(60_000) { searchSite(site, keyword) } ?: error("站点搜索超过 60 秒")
-                } catch (e: CancellationException) { throw e }
-                catch (e: Exception) { log(site.name, e); return@async }
-                updateMutex.withLock {
-                    successfulSites++
-                    if (batch.isNotEmpty()) {
-                        results += batch
-                        onUpdate?.invoke(withPlayedSources(snapshot()))
+                try {
+                    val complete = withTimeoutOrNull(networkTimeouts.searchSiteMs) {
+                        searchSite(site, keyword) { page, complete ->
+                            updateMutex.withLock {
+                                results += page
+                                if (complete) settledSites += site.name
+                                publish()
+                            }
+                        }
+                        true
                     }
+                    check(complete == true) { "站点搜索超过 60 秒" }
+                    updateMutex.withLock { successfulSites++ }
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) { log(site.name, e) }
+                updateMutex.withLock {
+                    if (settledSites.add(site.name)) publish()
                 }
             } }.awaitAll()
         }
-        check(successfulSites > 0) { "所有资源搜索失败" }
+        check(successfulSites > 0 || results.isNotEmpty()) { "所有资源搜索失败" }
         val response = snapshot()
         stateMutex.withLock {
-            if (searchCacheTtlMillis > 0 && results.size <= MAX_CACHED_RESULTS) {
+            if (searchCacheTtlMillis > 0 && successfulSites == sites.size && results.size <= MAX_CACHED_RESULTS) {
                 searchCache.remove(keyword)
                 searchCache[keyword] = clock() to response
                 while (searchCache.size > MAX_CACHED_SEARCHES || searchCache.values.sumOf { entry ->
@@ -171,92 +190,81 @@ class CoreService(
         return withPlayedSources(response)
     }
 
-    private fun playedSources(): PlayedSources {
-        val saved = cacheRead {
-            wireJson.decodeFromString<PlayedSources>(storage.read(playedSourcesPath) ?: "{}")
-        } ?: PlayedSources()
-        val normalized = mutableMapOf<String, WorkPlayback>()
-        for ((id, record) in saved.byWork) {
-            val source = record.recent?.source
-            val key = if (source != null && legacyWorkId(source) == id) canonicalWorkId(source) else id
-            normalized[key] = mergePlayback(normalized[key], record)
-        }
-        return saved.copy(byWork = normalized)
-    }
-
-    private fun mergePlayback(first: WorkPlayback?, second: WorkPlayback): WorkPlayback {
-        if (first == null) return second
-        val recentSecond = (second.recent?.playedAt ?: 0) >= (first.recent?.playedAt ?: 0)
-        val older = if (recentSecond) first else second
-        val newer = if (recentSecond) second else first
-        val positions = older.positions.toMutableMap()
-        for ((site, lines) in newer.positions) {
-            val merged = positions[site].orEmpty().toMutableMap()
-            for ((line, episodes) in lines) merged[line] = merged[line].orEmpty() + episodes
-            positions[site] = merged
-        }
-        return newer.copy(resources = older.resources + newer.resources, positions = positions)
-    }
+    private fun playedSources(): PlayedSources = cacheRead {
+        wireJson.decodeFromString<PlayedSources>(storage.read(playedSourcesPath) ?: "{}")
+    } ?: PlayedSources()
 
     private suspend fun withPlayedSources(response: SearchResponse): SearchResponse = stateMutex.withLock {
-        val saved = playedSources()
-        response.copy(works = response.works.map { work ->
-            val playback = work.sources.map(::legacyWorkId).distinct().filter { it != work.id }
-                .mapNotNull(saved.byWork::get).plus(listOfNotNull(saved.byWork[work.id]))
-                .fold(null as WorkPlayback?) { accumulated, record -> mergePlayback(accumulated, record) }
-            work.copy(lastPlayedSite = playback?.site, recentPlayedSite = saved.recentSite,
-                playback = playback?.resources.orEmpty(), playbackPositions = playback?.positions.orEmpty())
-        })
+        withPlayedSources(response, playedSources())
     }
+
+    private fun withPlayedSources(response: SearchResponse, saved: PlayedSources): SearchResponse =
+        response.copy(works = response.works.map { work ->
+            val playback = saved.byWork[work.id]
+            work.copy(lastPlayedSite = playback?.site, recentPlayedSite = saved.recentSite,
+                playback = playback?.resources.orEmpty(), playbackPositions = playback?.positions.orEmpty(),
+                lastPlayedSourceKey = playback?.sourceKey)
+        })
 
     suspend fun recentPlayback(): List<RecentPlayback> = stateMutex.withLock {
         playedSources().byWork.mapNotNull { (id, work) ->
             val recent = work.recent ?: return@mapNotNull null
-            val bookmark = work.resources[work.site] ?: return@mapNotNull null
-            RecentPlayback(id, recent.source, bookmark, work.positions[work.site].orEmpty(),
+            val resource = work.sourceKey ?: work.site
+            val bookmark = work.resources[resource] ?: return@mapNotNull null
+            RecentPlayback(id, recent.source, bookmark, work.positions[resource].orEmpty(),
                 recent.progressPercent, recent.playedAt, recent.cardSource ?: recent.source, recent.cardPoster)
         }.sortedByDescending { it.playedAt }.take(12)
     }
 
+    suspend fun rememberRecentPoster(workId: String, url: String) = stateMutex.withLock {
+        val saved = playedSources()
+        val work = saved.byWork[workId] ?: return@withLock
+        val recent = work.recent ?: return@withLock
+        if (recent.cardPoster == url) return@withLock
+        val updated = work.copy(recent = recent.copy(cardPoster = url))
+        savePlayedSources(saved.copy(byWork = saved.byWork + (workId to updated)))
+    }
+
     suspend fun recordPlayback(workId: String, site: String, line: String, episode: String,
-        source: SearchResult? = null, cardSource: SearchResult? = null, cardPoster: String? = null,
+        source: SearchResult? = null, cardSource: SearchResult? = null, cardPoster: String? = null, index: Int? = null,
     ) = stateMutex.withLock {
         require(workId.isNotBlank() && site.isNotBlank() && line.isNotBlank())
         require(source == null || source.site == site)
         val saved = playedSources()
-        val legacy = source?.takeIf { canonicalWorkId(it) == workId }?.let(::legacyWorkId)?.takeIf { it != workId }
-        val current = saved.byWork[workId]
-        val work = if (current != null) mergePlayback(legacy?.let(saved.byWork::get), current)
-            else legacy?.let(saved.byWork::get)
-        val bookmark = PlaybackBookmark(line, episode)
-        val resources = work?.resources.orEmpty() + (site to bookmark)
-        val previous = work?.recent?.takeIf { work.site == site }
-        val progress = previous?.progressPercent?.takeIf { work?.resources?.get(site) == bookmark }
+        val work = saved.byWork[workId]
+        val sourceKey = source?.coverKey?.takeIf { index != null }
+        val resource = sourceKey ?: site
+        val bookmark = PlaybackBookmark(line, episode, index)
+        val resources = work?.resources.orEmpty() + (resource to bookmark)
+        val previous = work?.recent?.takeIf { work.site == site && work.sourceKey == sourceKey }
+        val progress = previous?.progressPercent?.takeIf { work.resources[resource] == bookmark }
         val recent = if (source != null) RecentPlaybackMetadata(source, clock(), progress,
             work?.recent?.cardSource ?: cardSource, cardPoster ?: work?.recent?.cardPoster)
             else previous?.copy(progressPercent = progress)
         val updated = saved.copy(recentSite = site,
-            byWork = (saved.byWork - listOfNotNull(legacy)) + (workId to WorkPlayback(site, resources, work?.positions.orEmpty(), recent)))
+            byWork = saved.byWork + (workId to WorkPlayback(site, resources, work?.positions.orEmpty(), recent, sourceKey)))
         if (updated != saved) savePlayedSources(updated)
         Unit
     }
 
     suspend fun recordPlaybackPosition(workId: String, site: String, line: String, episode: String,
-        positionMillis: Long, progressPercent: Int? = null,
+        positionMillis: Long, progressPercent: Int? = null, sourceKey: String? = null, index: Int? = null,
     ) = stateMutex.withLock {
         require(workId.isNotBlank() && site.isNotBlank() && line.isNotBlank() && positionMillis >= 0)
         val saved = playedSources()
         val work = saved.byWork[workId] ?: return@withLock
-        val sitePositions = work.positions[site].orEmpty()
-        val priorPosition = sitePositions[line]?.get(episode)
+        val resource = sourceKey ?: site
+        val positionKey = if (sourceKey != null && index != null) episodePositionKey(episode, index) else episode
+        val sitePositions = work.positions[resource].orEmpty()
+        val priorPosition = sitePositions[line]?.get(positionKey)
         val recent = work.recent?.let {
-            if (work.site == site && work.resources[site] == PlaybackBookmark(line, episode)) {
+            if (work.site == site && work.sourceKey == sourceKey && work.resources[resource] == PlaybackBookmark(line, episode, index)) {
                 it.copy(progressPercent = progressPercent ?: it.progressPercent.takeIf { positionMillis == priorPosition })
             } else it
         }
         if (priorPosition == positionMillis && recent == work.recent) return@withLock
-        val episodes = sitePositions[line].orEmpty() + (episode to positionMillis)
-        val positions = work.positions + (site to (sitePositions + (line to episodes)))
+        val episodes = sitePositions[line].orEmpty() + (positionKey to positionMillis)
+        val positions = work.positions + (resource to (sitePositions + (line to episodes)))
         val updated = saved.copy(byWork = saved.byWork + (workId to work.copy(positions = positions, recent = recent)))
         savePlayedSources(updated)
         Unit
@@ -268,21 +276,24 @@ class CoreService(
         catch (e: Exception) { log("保存播放记录", e) }
     }
 
-    private suspend fun searchSite(site: SourceSite, keyword: String): List<SearchResult> {
-        val items = mutableListOf<SearchResult>()
+    private suspend fun searchSite(site: SourceSite, keyword: String,
+        onPage: suspend (List<SearchResult>, Boolean) -> Unit,
+    ) {
+        val seen = mutableSetOf<Int>()
         var page = 1
         do {
             // detail supports wd too and supplies year/type/poster needed for safe aggregation.
             val raw = network.get(apiUrl(site.api, mapOf("ac" to "detail", "wd" to keyword, "pg" to page.toString(), "pagesize" to "100")))
             val response = wireJson.decodeFromString<SearchPage>(raw)
             val batch = response.results(site.name)
-            items += batch
+            val added = batch.filter { seen.add(it.vodId) }
             val pageCount = response.pageCount()
-            if (batch.isEmpty() || page >= pageCount) break
+            val complete = batch.isEmpty() || page >= pageCount
+            if (added.isNotEmpty() || complete) onPage(added, complete)
+            if (complete) break
             page++
             check(page <= 100) { "搜索分页超过 100 页" }
         } while (true)
-        return items.distinctBy { it.vodId }
     }
 
     private suspend fun site(name: String): SourceSite {
@@ -309,43 +320,57 @@ class CoreService(
     suspend fun resolveCoverFallback(siteName: String, vodId: Int): String? = coverSemaphore.withPermit {
         val key = coverCacheKey(siteName, vodId)
         stateMutex.withLock {
-            coverCache[key]?.takeIf { clock() - it.first in 0 until 7 * DAY }?.let { return@withPermit it.second }
-            val disk = cacheRead { wireJson.parseToJsonElement(storage.read(coverPath) ?: "{}").jsonObject }
-            val entry = disk?.get(key) as? JsonObject
-            val time = (entry?.get("fetchedAtMillis") as? JsonPrimitive)?.longOrNull ?: 0
-            val url = entry?.text("url").orEmpty()
-            if (url.isNotEmpty() && clock() - time in 0 until 7 * DAY) {
-                coverCache[key] = time to url
-                return@withPermit url
+            val now = clock()
+            if (!coverCacheLoaded) {
+                coverCache.putAll(readCoverCache(now))
+                coverCacheLoaded = true
             }
+            coverCache.entries.removeAll { now - it.value.first !in 0 until 7 * DAY }
+            coverCache[key]?.let { return@withPermit it.second }
         }
         try {
             val item = list(site(siteName), mapOf("ac" to "detail", "ids" to vodId.toString())).firstOrNull { it.vodId() == vodId }
-            val url = item?.text("vod_pic")?.trim()?.takeIf { it.isNotEmpty() } ?: return@withPermit null
+            val url = normalizeUrl(item?.text("vod_pic")?.trim()?.takeIf { it.isNotEmpty() } ?: return@withPermit null)
             stateMutex.withLock {
-                coverCache[key] = clock() to url
+                val now = clock()
+                val entries = readCoverCache(now) + coverCache + (key to (now to url))
+                val latest = entries.entries.sortedBy { it.value.first }.takeLast(256)
+                coverCache.clear()
+                for ((id, value) in latest) coverCache[id] = value
                 cacheRead {
-                    val entries = (wireJson.parseToJsonElement(storage.read(coverPath) ?: "{}").jsonObject).toMutableMap()
-                    entries[key] = buildJsonObject { put("url", url); put("fetchedAtMillis", clock()) }
-                    storage.writeAtomic(coverPath, JsonObject(entries).toString())
+                    val stored = coverCache.mapValues { (_, value) ->
+                        buildJsonObject { put("url", value.second); put("fetchedAtMillis", value.first) }
+                    }
+                    storage.writeAtomic(coverPath, JsonObject(stored).toString())
                 }
             }
-            normalizeUrl(url)
+            url
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { log(siteName, e); null }
     }
 
-    suspend fun history(): List<String> = stateMutex.withLock {
-        cacheRead { wireJson.decodeFromString<List<String>>(storage.read(historyPath) ?: "[]").take(20) }.orEmpty()
+    private fun readCoverCache(now: Long): Map<String, Pair<Long, String>> {
+        val disk = cacheRead { wireJson.parseToJsonElement(storage.read(coverPath) ?: "{}").jsonObject }
+        return disk.orEmpty().entries.mapNotNull { (key, raw) ->
+            val entry = raw as? JsonObject ?: return@mapNotNull null
+            val time = (entry["fetchedAtMillis"] as? JsonPrimitive)?.longOrNull ?: return@mapNotNull null
+            val url = entry.text("url").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            (key to (time to url)).takeIf { now - time in 0 until 7 * DAY }
+        }.sortedBy { it.second.first }.takeLast(256).toMap()
     }
 
-    suspend fun addHistory(item: String) = updateHistory { (listOf(item) + it).distinct().take(20) }
+    suspend fun history(): List<String> = stateMutex.withLock {
+        cacheRead { wireJson.decodeFromString<List<String>>(storage.read(historyPath) ?: "[]").take(MAX_SEARCH_HISTORY) }.orEmpty()
+    }
+
+    suspend fun addHistory(item: String) = updateHistory { (listOf(item) + it).distinct() }
     suspend fun removeHistory(item: String) = updateHistory { it.filterNot { saved -> saved == item } }
     suspend fun clearHistory() = updateHistory { emptyList() }
 
     private suspend fun updateHistory(update: (List<String>) -> List<String>) = stateMutex.withLock {
-        val saved = cacheRead { wireJson.decodeFromString<List<String>>(storage.read(historyPath) ?: "[]") }.orEmpty()
-        try { storage.writeAtomic(historyPath, wireJson.encodeToString(update(saved))) }
+        val saved = cacheRead { wireJson.decodeFromString<List<String>>(storage.read(historyPath) ?: "[]") }
+            .orEmpty().take(MAX_SEARCH_HISTORY)
+        try { storage.writeAtomic(historyPath, wireJson.encodeToString(update(saved).take(MAX_SEARCH_HISTORY))) }
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { log("保存搜索历史", e) }
         Unit
@@ -360,14 +385,9 @@ class CoreService(
         // Serialize persistent read-modify-write operations across in-process services/windows.
         private val stateMutex = Mutex()
         const val DAY = 86_400_000L
+        const val MAX_SEARCH_HISTORY = 12
         private const val MAX_CACHED_SEARCHES = 5
         private const val MAX_CACHED_RESULTS = 10_000
-    }
-}
-
-data class QuanxDomains(val api: Set<String>, val urls: Set<String>, val m3u8: Set<String>, val incompleteSites: List<String> = emptyList()) {
-    fun render(): String = listOf("资源站 API 域名" to api, "播放/下载域名" to urls, "m3u8 域名" to m3u8).joinToString("\n") { (title, domains) ->
-        (listOf("; $title") + domains.sorted().map { "host-suffix, $it, direct" }).joinToString("\n")
     }
 }
 
@@ -377,7 +397,7 @@ private data class PlayedSources(val recentSite: String? = null, val byWork: Map
 @Serializable
 private data class WorkPlayback(val site: String, val resources: Map<String, PlaybackBookmark>,
     val positions: Map<String, Map<String, Map<String, Long>>> = emptyMap(),
-    val recent: RecentPlaybackMetadata? = null)
+    val recent: RecentPlaybackMetadata? = null, val sourceKey: String? = null)
 
 @Serializable
 private data class RecentPlaybackMetadata(

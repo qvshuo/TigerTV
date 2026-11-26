@@ -1,18 +1,531 @@
 {
   "titleCases": [
-    {"query":"逐玉","candidate":"逐玉(2026)【国产剧】from tencent","year":"2026","rank":0},
-    {"query":"逐玉","candidate":"逐玉 (2025)","year":"2026","rank":null},
-    {"query":"作品第二季","candidate":"作品 (2026)","year":"2026","rank":null},
-    {"query":"别称","candidate":"作品【又名：别称】 (2026)","year":"2026","rank":0}
+    {
+      "query": "逐玉",
+      "candidate": "逐玉(2026)【国产剧】from tencent",
+      "year": "2026",
+      "rank": 0
+    },
+    {
+      "query": "逐玉",
+      "candidate": "逐玉 (2025)",
+      "year": "2026",
+      "rank": null
+    },
+    {
+      "query": "作品第二季",
+      "candidate": "作品 (2026)",
+      "year": "2026",
+      "rank": null
+    },
+    {
+      "query": "别称",
+      "candidate": "作品【又名：别称】 (2026)",
+      "year": "2026",
+      "rank": 0
+    },
+    {
+      "query": "ＴＨＥ　ＳＩＬＥＮＴ－ＨＡＲＢＯＲ 【4K】",
+      "candidate": "the silent harbor",
+      "year": "",
+      "rank": 1
+    },
+    {
+      "query": "The Silent Harbor",
+      "candidate": "The Silent Harbour",
+      "year": "",
+      "rank": 3
+    },
+    {
+      "query": "失落的深海航线",
+      "candidate": "失落的深海航路",
+      "year": "",
+      "rank": 3
+    },
+    {
+      "query": "繁花",
+      "candidate": "繁华",
+      "year": "",
+      "rank": null
+    },
+    {
+      "query": "Mission 007",
+      "candidate": "MISSION 7",
+      "year": "",
+      "rank": 1
+    },
+    {
+      "query": "Mission Seven 007",
+      "candidate": "Mission Seven 008",
+      "year": "",
+      "rank": null
+    },
+    {
+      "query": "The Silent Harbor S02",
+      "candidate": "The Silent Harbour S03",
+      "year": "",
+      "rank": null
+    },
+    {
+      "query": "克拉克森的农村 第五季",
+      "candidate": "克拉克森的农场 第五季(2026)【纪录片】from renren",
+      "year": "2026",
+      "rank": 3
+    }
   ],
-  "episodes":[
-    {"id":1,"title":"第2期上篇 2026-04-01","number":"2","seasonId":""},
-    {"id":2,"title":"第2期下篇 2026-04-01","number":"2","seasonId":""},
-    {"id":3,"title":"第2期预告 2026-04-01","number":"2","seasonId":""}
+  "episodes": [
+    {
+      "id": 1,
+      "title": "第2期上篇 2026-04-01",
+      "number": "2",
+      "seasonId": ""
+    },
+    {
+      "id": 2,
+      "title": "第2期下篇 2026-04-01",
+      "number": "2",
+      "seasonId": ""
+    },
+    {
+      "id": 3,
+      "title": "第2期预告 2026-04-01",
+      "number": "2",
+      "seasonId": ""
+    }
   ],
-  "episodeCases":[
-    {"label":"第2期下篇 20260401","id":2},
-    {"label":"第2期 20260401","id":null},
-    {"label":"第2期下篇 20260402","id":null}
+  "episodeCases": [
+    {
+      "label": "第2期下篇 20260401",
+      "id": 2
+    },
+    {
+      "label": "第2期 20260401",
+      "id": null
+    },
+    {
+      "label": "第2期下篇 20260402",
+      "id": null
+    }
+  ],
+  "titleCandidateCases": [
+    {
+      "query": "The Silent Harbor",
+      "titles": [
+        "The Silent Harbour",
+        "The Silent Harborr"
+      ],
+      "ids": []
+    },
+    {
+      "query": "The Silent Harbor",
+      "titles": [
+        "The Silent Harbour",
+        "The Silent Harbour 【4K】"
+      ],
+      "ids": [
+        1,
+        2
+      ]
+    },
+    {
+      "query": "The Silent Harbor",
+      "titles": [
+        "The Silent Harbour",
+        "The Silent Harbor"
+      ],
+      "ids": [
+        2
+      ]
+    },
+    {
+      "query": "寂静港湾",
+      "titles": [
+        "风中来信【别名：寂静港湾】",
+        "海边故人【别名：寂静港湾】"
+      ],
+      "ids": []
+    },
+    {
+      "query": "寂静港湾",
+      "titles": [
+        "风中来信【别名：寂静港湾】",
+        "寂静港湾"
+      ],
+      "ids": [
+        2
+      ]
+    }
+  ],
+  "localEpisodeCases": [
+    {
+      "label": "第０１话",
+      "episodes": [
+        {
+          "id": 1,
+          "title": "EP01",
+          "number": "01",
+          "seasonId": ""
+        },
+        {
+          "id": 2,
+          "title": "第02集",
+          "number": "02",
+          "seasonId": ""
+        }
+      ],
+      "id": 1
+    },
+    {
+      "label": "S02E03",
+      "episodes": [
+        {
+          "id": 1,
+          "title": "S01E03",
+          "number": "03",
+          "seasonId": ""
+        },
+        {
+          "id": 2,
+          "title": "S02E03",
+          "number": "03",
+          "seasonId": ""
+        },
+        {
+          "id": 3,
+          "title": "S02E04",
+          "number": "04",
+          "seasonId": ""
+        }
+      ],
+      "id": 2
+    },
+    {
+      "label": "S02E03",
+      "episodes": [
+        {
+          "id": 1,
+          "title": "S02E04",
+          "number": "03",
+          "seasonId": ""
+        }
+      ],
+      "id": null
+    },
+    {
+      "label": "The Silent Arrival",
+      "episodes": [
+        {
+          "id": 1,
+          "title": "The Silant Arrival",
+          "number": "1",
+          "seasonId": ""
+        }
+      ],
+      "id": 1
+    },
+    {
+      "label": "The Silent Arrival",
+      "episodes": [
+        {
+          "id": 1,
+          "title": "The Silant Arrival",
+          "number": "1",
+          "seasonId": ""
+        },
+        {
+          "id": 2,
+          "title": "The Silemt Arrival",
+          "number": "2",
+          "seasonId": ""
+        }
+      ],
+      "id": null
+    },
+    {
+      "label": "重逢",
+      "episodes": [
+        {
+          "id": 1,
+          "title": "重峰",
+          "number": "1",
+          "seasonId": ""
+        }
+      ],
+      "id": null
+    },
+    {
+      "label": "第20261119期上",
+      "episodes": [
+        {
+          "id": 1,
+          "title": "第6期下：主题 2026-11-19期",
+          "number": "11",
+          "seasonId": ""
+        },
+        {
+          "id": 2,
+          "title": "第6期上：主题 2026-11-19期",
+          "number": "12",
+          "seasonId": ""
+        }
+      ],
+      "id": 2
+    },
+    {
+      "label": "第01集",
+      "workSeason": 5,
+      "episodes": [
+        {
+          "id": 10776,
+          "title": "【renren】 第01集",
+          "number": "1",
+          "season": 1,
+          "seasonId": "season-57534"
+        },
+        {
+          "id": 10777,
+          "title": "【renren】 第02集",
+          "number": "2",
+          "season": 1,
+          "seasonId": "season-57534"
+        }
+      ],
+      "id": 10776
+    },
+    {
+      "label": "第01集",
+      "workSeason": 5,
+      "episodes": [
+        {
+          "id": 10776,
+          "title": "S01E01",
+          "number": "1",
+          "season": 1,
+          "seasonId": "season-57534"
+        },
+        {
+          "id": 10777,
+          "title": "【renren】 第02集",
+          "number": "2",
+          "season": 1,
+          "seasonId": "season-57534"
+        }
+      ],
+      "id": null
+    },
+    {
+      "label": "第01集",
+      "workSeason": 5,
+      "episodes": [
+        {
+          "id": 10776,
+          "title": "【renren】 第01集",
+          "number": "1",
+          "season": 1,
+          "seasonId": "season-57534"
+        },
+        {
+          "id": 10777,
+          "title": "【renren】 第02集",
+          "number": "2",
+          "season": 1,
+          "seasonId": "season-other"
+        }
+      ],
+      "id": 10776
+    },
+    {
+      "label": "第01集",
+      "workSeason": 5,
+      "episodes": [
+        {
+          "id": 10776,
+          "title": "【renren】 第01集",
+          "number": "1",
+          "season": 1,
+          "seasonId": "season-57534"
+        },
+        {
+          "id": 10777,
+          "title": "【renren】 第02集",
+          "number": "2",
+          "season": 1,
+          "seasonId": "season-57534"
+        }
+      ],
+      "id": 10776
+    },
+    {
+      "label": "第20261120期加更",
+      "episodes": [
+        {
+          "id": 10621,
+          "title": "第7期：正片 2026-11-20期",
+          "number": "14",
+          "seasonId": "untrusted"
+        },
+        {
+          "id": 10622,
+          "title": "加更版：其他内容 2026-11-19期",
+          "number": "12",
+          "seasonId": "untrusted"
+        },
+        {
+          "id": 10620,
+          "title": "加更版：厉娜许飞松弛自由行 2026-11-20期",
+          "number": "13",
+          "seasonId": "untrusted"
+        }
+      ],
+      "id": 10620
+    },
+    {
+      "label": "第20261120期",
+      "episodes": [
+        {
+          "id": 10620,
+          "title": "加更版：厉娜许飞松弛自由行 2026-11-20期",
+          "number": "13",
+          "seasonId": "untrusted"
+        },
+        {
+          "id": 10621,
+          "title": "第7期：正片 2026-11-20期",
+          "number": "14",
+          "seasonId": "untrusted"
+        }
+      ],
+      "id": 10621
+    },
+    {
+      "label": "第20261121期加更",
+      "episodes": [
+        {
+          "id": 10620,
+          "title": "加更版：厉娜许飞松弛自由行 2026-11-20期",
+          "number": "13",
+          "seasonId": "untrusted"
+        },
+        {
+          "id": 10622,
+          "title": "加更版：其他内容 2026-11-19期",
+          "number": "12",
+          "seasonId": "untrusted"
+        }
+      ],
+      "id": null
+    },
+    {
+      "label": "第20261120期加更",
+      "episodes": [
+        {
+          "id": 10620,
+          "title": "加更版：厉娜许飞松弛自由行 2026-11-20期",
+          "number": "13",
+          "seasonId": "untrusted"
+        },
+        {
+          "id": 10623,
+          "title": "加更版：厉娜许飞松弛自由行 2026-11-20期",
+          "number": "13",
+          "seasonId": "untrusted"
+        }
+      ],
+      "id": null
+    },
+    {
+      "label": "第6期花絮特辑",
+      "workSeason": 4,
+      "episodes": [
+        {
+          "id": 10917,
+          "title": "【qq】第6期花絮特辑：范丞丞给出发团拍大片 2026-10-10期",
+          "number": "99",
+          "seasonId": "untrusted"
+        },
+        {
+          "id": 10918,
+          "title": "【qq】第6期：正片 2026-10-10期",
+          "number": "6",
+          "seasonId": "untrusted"
+        },
+        {
+          "id": 10919,
+          "title": "【qq】第5期花絮特辑：其他内容 2026-10-10期",
+          "number": "6",
+          "seasonId": "untrusted"
+        }
+      ],
+      "id": 10917
+    },
+    {
+      "label": "第6期",
+      "workSeason": 4,
+      "episodes": [
+        {
+          "id": 10917,
+          "title": "【qq】第6期花絮特辑：范丞丞给出发团拍大片 2026-10-10期",
+          "number": "99",
+          "seasonId": "untrusted"
+        },
+        {
+          "id": 10918,
+          "title": "【qq】第6期：正片 2026-10-10期",
+          "number": "6",
+          "seasonId": "untrusted"
+        },
+        {
+          "id": 10919,
+          "title": "【qq】第5期花絮特辑：其他内容 2026-10-10期",
+          "number": "6",
+          "seasonId": "untrusted"
+        }
+      ],
+      "id": 10918
+    },
+    {
+      "label": "第7期花絮特辑",
+      "workSeason": 4,
+      "episodes": [
+        {
+          "id": 10917,
+          "title": "【qq】第6期花絮特辑：范丞丞给出发团拍大片 2026-10-10期",
+          "number": "99",
+          "seasonId": "untrusted"
+        },
+        {
+          "id": 10918,
+          "title": "【qq】第6期：正片 2026-10-10期",
+          "number": "6",
+          "seasonId": "untrusted"
+        },
+        {
+          "id": 10919,
+          "title": "【qq】第5期花絮特辑：其他内容 2026-10-10期",
+          "number": "6",
+          "seasonId": "untrusted"
+        }
+      ],
+      "id": null
+    },
+    {
+      "label": "第6期花絮特辑",
+      "workSeason": 4,
+      "episodes": [
+        {
+          "id": 10917,
+          "title": "【qq】第6期花絮特辑：范丞丞给出发团拍大片 2026-10-10期",
+          "number": "99",
+          "seasonId": "untrusted"
+        },
+        {
+          "id": 10920,
+          "title": "【qq】第6期花絮特辑：范丞丞给出发团拍大片 2026-10-10期",
+          "number": "99",
+          "seasonId": "untrusted"
+        }
+      ],
+      "id": null
+    }
   ]
 }

@@ -9,6 +9,8 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.*
 import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.ensureActive
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.coroutineContext
 
@@ -22,38 +24,50 @@ fun configureClient(client: HttpClient) = client.config {
 
 internal data class NetworkResponse(val url: String, val text: String, val domains: Set<String>)
 
+@Serializable
+internal data class NetworkTimeouts(
+    val catalogRequestMs: Long, val searchSiteMs: Long, val recommendationRequestMs: Long, val configRequestMs: Long,
+)
+internal val networkTimeouts by lazy { Json.decodeFromString<NetworkTimeouts>(networkTimeoutsJson) }
+
 class Network(private val client: HttpClient) {
-    suspend fun get(url: String, timeoutMillis: Long = 20_000, extraHeaders: Map<String, String> = emptyMap()): String =
-        response(url, timeoutMillis, extraHeaders).text
+    suspend fun get(url: String, timeoutMillis: Long = networkTimeouts.catalogRequestMs,
+        extraHeaders: Map<String, String> = emptyMap(), socketTimeoutMillis: Long = minOf(10_000, timeoutMillis),
+    ): String = response(url, timeoutMillis, extraHeaders, socketTimeoutMillis = socketTimeoutMillis).text
 
     internal suspend fun response(
-        url: String, timeoutMillis: Long = 20_000, extraHeaders: Map<String, String> = emptyMap(),
-        head: Boolean = false, skipMediaBody: Boolean = false
+        url: String, timeoutMillis: Long = networkTimeouts.catalogRequestMs, extraHeaders: Map<String, String> = emptyMap(),
+        skipMediaBody: Boolean = false, socketTimeoutMillis: Long = minOf(10_000, timeoutMillis),
+        headersOnly: Boolean = false, onRequest: suspend (String) -> Unit = {},
+        onRedirect: suspend (String) -> Unit = {},
     ): NetworkResponse = withTimeoutOrNull(timeoutMillis) {
+        val socketDeadline = socketTimeoutMillis
         var current = normalizeUrl(url)
         val domains = mutableSetOf<String>()
         repeat(11) { hop ->
             domains += domain(current)
+            onRequest(current)
             var redirect: String? = null
             val result = client.prepareRequest(current) {
-                if (head) method = HttpMethod.Head
                 header(HttpHeaders.UserAgent, USER_AGENT)
                 extraHeaders.forEach { (name, value) -> header(name, value) }
                 timeout {
                     requestTimeoutMillis = timeoutMillis
                     connectTimeoutMillis = minOf(5_000, timeoutMillis)
-                    socketTimeoutMillis = minOf(10_000, timeoutMillis)
+                    this.socketTimeoutMillis = socketDeadline
                 }
             }.execute { response ->
                 if (response.status.value in listOf(301, 302, 303, 307, 308)) {
-                    check(hop < 10) { "Too many redirects" }
                     redirect = resolveUrl(current, response.headers[HttpHeaders.Location] ?: error("Missing redirect location"))
+                    onRedirect(checkNotNull(redirect))
+                    check(hop < 10) { "Too many redirects" }
                     null
                 } else {
                     check(response.status.isSuccess()) { "HTTP ${response.status.value}" }
                     val type = response.headers[HttpHeaders.ContentType].orEmpty().substringBefore(';').lowercase()
-                    val media = skipMediaBody && (type == "video/mp4" || type == "video/mp2t" || type == "application/octet-stream" && Url(current).encodedPath.endsWith(".mp4"))
-                    if (head || media) NetworkResponse(current, "", domains.toSet())
+                    val media = skipMediaBody && (type.startsWith("video/") ||
+                        type.startsWith("audio/") && !type.contains("mpegurl"))
+                    if (headersOnly || media) NetworkResponse(current, "", domains.toSet())
                     else {
                         check((response.headers[HttpHeaders.ContentLength]?.toLongOrNull() ?: 0) <= MAX_RESPONSE_SIZE) { "Response exceeds 10 MiB limit" }
                         val channel = response.bodyAsChannel()

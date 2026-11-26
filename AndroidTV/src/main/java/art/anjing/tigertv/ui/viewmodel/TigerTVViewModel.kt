@@ -10,10 +10,12 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import art.anjing.tigertv.core.CoreService
 import art.anjing.tigertv.data.Result
 import art.anjing.tigertv.data.TigerTVRepository
 import art.anjing.tigertv.domain.HotSearchCategory
 import art.anjing.tigertv.domain.PlaybackBookmark
+import art.anjing.tigertv.domain.episodePositionKey
 import art.anjing.tigertv.domain.RecentPlayback
 import art.anjing.tigertv.domain.FetchResponse
 import art.anjing.tigertv.domain.VideoWork
@@ -28,6 +30,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
@@ -36,6 +39,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 class TigerTVViewModel(
     private val repository: TigerTVRepository,
@@ -73,6 +79,14 @@ class TigerTVViewModel(
         if (workCovers[id] != url) workCovers[id] = url
     }
 
+    fun rememberRecentCover(id: String, url: String) {
+        rememberWorkCover(id, url)
+        val recent = recentPlayback.firstOrNull { it.workId == id } ?: return
+        if (recent.cardPoster == url) return
+        recentPlayback = recentPlayback.map { if (it.workId == id) it.copy(cardPoster = url) else it }
+        viewModelScope.launch { repository.rememberRecentPoster(id, url) }
+    }
+
     suspend fun refreshRecentPlayback() {
         playbackSaveJob?.join()
         recentPlayback = repository.recentPlayback()
@@ -81,9 +95,10 @@ class TigerTVViewModel(
 
     fun openRecentPlayback(recent: RecentPlayback) {
         val source = recent.source
+        val resource = if (recent.bookmark.index != null) source.coverKey else source.site
         recentWork = VideoWork(recent.workId, source.vodName, listOf(source), source.coverKey,
-            lastPlayedSite = source.site, playback = mapOf(source.site to recent.bookmark),
-            playbackPositions = mapOf(source.site to recent.positions))
+            lastPlayedSite = source.site, playback = mapOf(resource to recent.bookmark),
+            playbackPositions = mapOf(resource to recent.positions), lastPlayedSourceKey = source.coverKey)
         pendingRecentBookmark = recent.bookmark
         selectResult(source, forceRefresh = true)
     }
@@ -94,13 +109,17 @@ class TigerTVViewModel(
         pendingRecentBookmark = null
         val line = fetchResponse?.playSources?.getOrNull(selectedPlaybackSourceIndex) ?: return null
         if (line.id != bookmark.line) return null
-        return line.episodes.withIndex().singleOrNull { it.value.name == bookmark.episode }?.index
+        return line.bookmarkedIndex(bookmark)
     }
 
     var works by mutableStateOf<List<VideoWork>>(emptyList())
         private set
     val availableSources: List<SearchResult>
         get() = selectedWork?.sources.orEmpty()
+    var configuredSites by mutableStateOf<List<String>>(emptyList())
+        private set
+    private var settledSearchSites by mutableStateOf<Set<String>>(emptySet())
+    fun isSiteSearching(site: String): Boolean = recentWork == null && isSearching && site !in settledSearchSites
     var selectedPlaybackSourceIndex by mutableIntStateOf(0)
         private set
     val episodes get() = fetchResponse?.playSources?.getOrNull(selectedPlaybackSourceIndex)?.episodes
@@ -117,6 +136,56 @@ class TigerTVViewModel(
 
     var fetchResponse by mutableStateOf<FetchResponse?>(null)
         private set
+
+    private val detailCache = mutableStateMapOf<String, Pair<TimeMark, FetchResponse>>()
+    private val detailLoads = mutableMapOf<String, Deferred<Result<FetchResponse>>>()
+    private val checkedDetails = mutableStateMapOf<String, Boolean>()
+
+    fun cachedDetail(source: SearchResult): FetchResponse? = detailCache[source.coverKey]
+        ?.takeIf { it.first.elapsedNow() < 5.minutes }?.second
+
+    fun isDetailLoading(source: SearchResult): Boolean = cachedDetail(source) == null && checkedDetails[source.coverKey] != true
+
+    private fun requestDetail(source: SearchResult): Deferred<Result<FetchResponse>> {
+        val key = source.coverKey
+        detailLoads[key]?.let { return it }
+        checkedDetails[key] = false
+        lateinit var pending: Deferred<Result<FetchResponse>>
+        pending = viewModelScope.async(start = CoroutineStart.LAZY) {
+            try {
+                repository.fetch(source.site, source.vodId).also { result ->
+                    ensureActive()
+                    if (result is Result.Success) {
+                        if (detailCache.size >= 64 && key !in detailCache) {
+                            detailCache.maxByOrNull { it.value.first.elapsedNow() }?.let { detailCache.remove(it.key) }
+                        }
+                        detailCache[key] = TimeSource.Monotonic.markNow() to result.data
+                    }
+                }
+            } finally {
+                if (detailLoads[key] === pending) {
+                    checkedDetails[key] = true
+                    detailLoads.remove(key)
+                }
+            }
+        }
+        detailLoads[key] = pending
+        pending.start()
+        return pending
+    }
+
+    suspend fun preloadDetails(sources: List<SearchResult>) {
+        val others = sources.filter { it.coverKey != selectedResult?.coverKey && cachedDetail(it) == null }
+        others.chunked(3).forEach { batch -> batch.map(::requestDetail).awaitAll() }
+    }
+
+    private fun cancelDetailRequests() {
+        fetchJob?.cancel()
+        val pending = detailLoads.values.toList()
+        detailLoads.clear()
+        checkedDetails.clear()
+        pending.forEach { it.cancel() }
+    }
 
     var selectedEpisodeIndex by mutableIntStateOf(-1)
         private set
@@ -164,7 +233,7 @@ class TigerTVViewModel(
     private var startedPlaybackRevision = -1
     private val changedPlaybackWorks = mutableSetOf<String>()
     private var latestPlayedSite: String? = null
-    data class PlaybackSession(val workId: String, val site: String, val line: String, val episode: String, val positionMillis: Long, val revision: Int)
+    data class PlaybackSession(val workId: String, val site: String, val line: String, val episode: String, val positionMillis: Long, val revision: Int, val sourceKey: String = site, val index: Int = 0, val legacySite: Boolean = false, val legacyEpisode: Boolean = false)
 
     val playbackSession: PlaybackSession? get() {
         val work = selectedWork ?: return null
@@ -172,7 +241,8 @@ class TigerTVViewModel(
         val line = fetchResponse?.playSources?.getOrNull(selectedPlaybackSourceIndex) ?: return null
         val episode = episodes.getOrNull(selectedEpisodeIndex) ?: return null
         return PlaybackSession(work.id, source.site, line.id, episode.name,
-            work.playbackPositions[source.site]?.get(line.id)?.get(episode.name) ?: 0, playbackRevision)
+            work.positionFor(source, line, selectedEpisodeIndex), playbackRevision, source.coverKey, selectedEpisodeIndex,
+            work.acceptsLegacy(source), line.episodes.count { it.name == episode.name } == 1)
     }
 
     fun playbackDidStart(session: PlaybackSession) {
@@ -193,15 +263,16 @@ class TigerTVViewModel(
         fun updateBookmark(work: VideoWork) = work.copy(
             lastPlayedSite = if (work.id == session.workId) session.site else work.lastPlayedSite,
             recentPlayedSite = session.site,
+            lastPlayedSourceKey = if (work.id == session.workId) session.sourceKey else work.lastPlayedSourceKey,
             playback = if (work.id == session.workId) work.playback +
-                (session.site to PlaybackBookmark(session.line, session.episode)) else work.playback,
+                (session.sourceKey to PlaybackBookmark(session.line, session.episode, session.index)) else work.playback,
         )
         recentWork = recentWork?.let(::updateBookmark)
         works = works.map(::updateBookmark)
         val previous = playbackSaveJob
         playbackSaveJob = persistenceScope.launch {
             previous?.join()
-            repository.recordPlayback(session.workId, session.site, session.line, session.episode, recentSource, display, cardPoster)
+            repository.recordPlayback(session.workId, session.site, session.line, session.episode, recentSource, display, cardPoster, session.index)
         }
     }
 
@@ -211,17 +282,17 @@ class TigerTVViewModel(
             if (work.id != session.workId) return work
             changedPlaybackWorks += session.workId
             val sites = work.playbackPositions
-            val lines = sites[session.site].orEmpty()
+            val lines = sites[session.sourceKey].orEmpty()
             val episodes = lines[session.line].orEmpty()
             return work.copy(playbackPositions = sites +
-                (session.site to (lines + (session.line to (episodes + (session.episode to positionMillis))))))
+                (session.sourceKey to (lines + (session.line to (episodes + (episodePositionKey(session.episode, session.index) to positionMillis))))))
         }
         recentWork = recentWork?.let(::updatePosition)
         works = works.map(::updatePosition)
         val previous = playbackSaveJob
         playbackSaveJob = persistenceScope.launch {
             previous?.join()
-            repository.recordPlaybackPosition(session.workId, session.site, session.line, session.episode, positionMillis, percent)
+            repository.recordPlaybackPosition(session.workId, session.site, session.line, session.episode, positionMillis, percent, session.sourceKey, session.index)
         }
     }
     private val coverJobs = mutableMapOf<String, Job>()
@@ -237,6 +308,7 @@ class TigerTVViewModel(
     private var configJob: Job? = null
     private var hotSearchGeneration = 0
     private var hotWarmJob: Job? = null
+    private val warmedHotSearches = mutableMapOf<String, List<art.anjing.tigertv.domain.HotSearchItem>>()
 
     init {
         loadConfig()
@@ -251,14 +323,17 @@ class TigerTVViewModel(
     fun cancelHotSearchWarmup() {
         hotWarmJob?.cancel()
         hotWarmJob = null
+        warmedHotSearches.clear()
     }
 
     fun selectHotSearchCategory(category: String) {
         if (category == selectedHotCategory || hotSearchCategories.none { it.id == category }) return
+        hotWarmJob?.cancel()
+        hotWarmJob = null
         hotSearchGeneration++
-        isLoadingHotSearches = true
+        hotSearches = warmedHotSearches[category].orEmpty()
+        isLoadingHotSearches = hotSearches.isEmpty()
         selectedHotCategory = category
-        hotSearches = emptyList()
     }
 
     fun retryHotSearches() { hotSearchRevision++ }
@@ -279,9 +354,16 @@ class TigerTVViewModel(
             }
             kotlinx.coroutines.currentCoroutineContext().ensureActive()
             if (generation == hotSearchGeneration && selectedHotCategory == category) {
-                if (titles.isNotEmpty()) hotSearches = titles
+                if (titles.isNotEmpty()) {
+                    hotSearches = titles
+                    warmedHotSearches[category] = titles
+                }
                 if (titles.isNotEmpty() && hotWarmJob == null) {
-                    hotWarmJob = viewModelScope.launch { repository.warmHotSearches(category) }
+                    hotWarmJob = viewModelScope.launch {
+                        repository.warmHotSearches(category) { warmedCategory, items ->
+                            withContext(Dispatchers.Main.immediate) { warmedHotSearches[warmedCategory] = items }
+                        }
+                    }
                 }
             }
         } finally {
@@ -294,9 +376,10 @@ class TigerTVViewModel(
         configJob = viewModelScope.launch {
             val result = repository.loadConfig()
             ensureActive()
+            if (result is Result.Success) configuredSites = result.data.apiSite.values.map { it.name }.distinct()
             configErrorMessage = when (result) {
                 is Result.Success -> null
-                is Result.Error -> "资源列表加载失败，请重试"
+                is Result.Error -> "资源暂不可用"
             }
         }
     }
@@ -342,7 +425,6 @@ class TigerTVViewModel(
         ensureCoverPrefetch()
     }
 
-    /** Warm a bounded window of work posters, one source per work, in batches of six. */
     private fun ensureCoverPrefetch() {
         if (works.isEmpty() || prefetchJob?.isActive == true) return
         val snapshot = works.take(PREFETCH_LIMIT).map { work ->
@@ -388,7 +470,7 @@ class TigerTVViewModel(
         val trimmed = keyword.trim()
         if (trimmed.isEmpty()) return false
         cancelSearch()
-        fetchJob?.cancel()
+        cancelDetailRequests()
         submittedKeyword = trimmed
         addHistory(trimmed)
         isSearching = true
@@ -397,6 +479,7 @@ class TigerTVViewModel(
         fetchErrorMessage = null
         playbackErrorMessage = null
         works = emptyList()
+        settledSearchSites = emptySet()
         changedPlaybackWorks.clear()
         latestPlayedSite = null
         selectedResult = null
@@ -408,7 +491,11 @@ class TigerTVViewModel(
             ensureActive()
             val requestContext = coroutineContext
             val result = repository.search(trimmed) { update ->
-                withContext(Dispatchers.Main) { requestContext.ensureActive(); applySearchWorks(update.works) }
+                withContext(Dispatchers.Main) {
+                    requestContext.ensureActive()
+                    settledSearchSites = update.settledSites
+                    applySearchWorks(update.works)
+                }
             }
             ensureActive()
             when (result) {
@@ -418,7 +505,7 @@ class TigerTVViewModel(
                 }
                 is Result.Error -> {
                     isSearching = false
-                    searchErrorMessage = "搜索失败，请重试"
+                    searchErrorMessage = "搜索失败"
                 }
             }
         }
@@ -434,6 +521,7 @@ class TigerTVViewModel(
             work.copy(
                 recentPlayedSite = latestPlayedSite ?: work.recentPlayedSite,
                 lastPlayedSite = if (played != null) played.lastPlayedSite else work.lastPlayedSite,
+                lastPlayedSourceKey = played?.lastPlayedSourceKey ?: work.lastPlayedSourceKey,
                 playback = played?.playback ?: work.playback,
                 playbackPositions = played?.playbackPositions ?: work.playbackPositions
             )
@@ -456,7 +544,7 @@ class TigerTVViewModel(
 
     fun clearResults() {
         cancelSearch()
-        fetchJob?.cancel()
+        cancelDetailRequests()
         clearPlayback()
         works = emptyList()
         changedPlaybackWorks.clear()
@@ -470,7 +558,7 @@ class TigerTVViewModel(
         fetchErrorMessage = null
     }
 
-    val playbackBookmark get() = selectedWork?.playback?.get(selectedResult?.site)
+    val playbackBookmark get() = selectedResult?.let { selectedWork?.bookmarkFor(it) }
 
     val resumeEpisodeIndex: Int get() = fetchResponse?.playSources
         ?.getOrNull(selectedPlaybackSourceIndex)?.resumeEpisodeIndex(playbackBookmark) ?: 0
@@ -478,40 +566,55 @@ class TigerTVViewModel(
     val resumePositionMillis: Long get() {
         val source = selectedResult ?: return 0
         val line = fetchResponse?.playSources?.getOrNull(selectedPlaybackSourceIndex) ?: return 0
-        val episode = line.episodes.getOrNull(resumeEpisodeIndex) ?: return 0
-        return selectedWork?.playbackPositions?.get(source.site)?.get(line.id)?.get(episode.name) ?: 0
+        return selectedWork?.positionFor(source, line, resumeEpisodeIndex) ?: 0
+    }
+
+    fun selectRecommendedResult(result: SearchResult, filterAds: Boolean) {
+        val work = works.firstOrNull { result in it.sources }
+        val available = work?.sources.orEmpty().filter { cachedDetail(it)?.playSources?.isEmpty() != true }
+        selectResult(work?.preferredSource(filterAds, available) ?: result)
     }
 
     fun selectResult(result: SearchResult, forceRefresh: Boolean = false) {
-        if (!forceRefresh && fetchResponse != null && selectedResult?.let { it.site == result.site && it.vodId == result.vodId } == true) return
+        if (!forceRefresh && fetchResponse != null && selectedResult?.coverKey == result.coverKey && cachedDetail(result) != null) return
         cancelCoverLoads()
         fetchJob?.cancel()
         selectedResult = result
         selectedPlaybackSourceIndex = 0
         fetchResponse = null
         selectedEpisodeIndex = -1
-        isFetching = true
         fetchErrorMessage = null
         playbackErrorMessage = null
+        val cached = if (forceRefresh) null else cachedDetail(result)
+        if (cached != null) {
+            applyDetail(cached)
+            return
+        }
+        isFetching = true
 
         fetchJob = viewModelScope.launch {
-            val fetched = repository.fetch(result.site, result.vodId)
+            val fetched = requestDetail(result).await()
             ensureActive()
             when (fetched) {
-                is Result.Success -> {
-                    fetchResponse = fetched.data
-                    val bookmark = playbackBookmark
-                    if (bookmark != null) {
-                        selectedPlaybackSourceIndex = fetched.data.playSources.indexOfFirst { it.id == bookmark.line }.coerceAtLeast(0)
-                    }
-                    isFetching = false
-                }
+                is Result.Success -> applyDetail(fetched.data)
                 is Result.Error -> {
                     isFetching = false
-                    fetchErrorMessage = "详情加载失败，请重试"
+                    fetchErrorMessage = "资源加载失败"
                 }
             }
         }
+    }
+
+    private fun applyDetail(detail: FetchResponse) {
+        fetchResponse = detail
+        val lines = detail.playSources
+        val remembered = lines.indexOfFirst { it.id == playbackBookmark?.line }
+        val direct = lines.indexOfFirst { line -> line.episodes.all { episode ->
+            val path = episode.url.substringBefore('?').substringBefore('#')
+            path.endsWith(".m3u8", ignoreCase = true) || path.endsWith(".mp4", ignoreCase = true)
+        } }
+        selectedPlaybackSourceIndex = if (remembered >= 0) remembered else direct.coerceAtLeast(0)
+        isFetching = false
     }
 
     fun leaveDetail() {
@@ -521,7 +624,7 @@ class TigerTVViewModel(
             selectedResult = null
             fetchResponse = null
         }
-        fetchJob?.cancel()
+        cancelDetailRequests()
         isFetching = false
         clearPlayback()
     }
@@ -554,14 +657,14 @@ class TigerTVViewModel(
     }
 
     fun setPlaybackError(message: String) {
-        playbackErrorMessage = "播放失败，请重试"
+        playbackErrorMessage = "无法播放"
         java.util.logging.Logger.getLogger("TigerTV").warning(message)
     }
 
     private fun addHistory(item: String) {
         searchHistory.remove(item)
         searchHistory.add(0, item)
-        while (searchHistory.size > MAX_HISTORY) {
+        while (searchHistory.size > CoreService.MAX_SEARCH_HISTORY) {
             searchHistory.removeAt(searchHistory.size - 1)
         }
         saveSearchHistory { repository.addHistory(item) }
@@ -590,10 +693,8 @@ class TigerTVViewModel(
     }
 
     companion object {
-        private const val MAX_HISTORY = 20
-
-        private const val PREFETCH_BATCH = 6
-        private const val PREFETCH_LIMIT = 24
+        private const val PREFETCH_BATCH = 2
+        private const val PREFETCH_LIMIT = 16
 
         private const val PREFETCH_IDLE_POLL_MILLIS = 100L
     }

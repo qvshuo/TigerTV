@@ -18,7 +18,7 @@ $USAGE
   search <关键词>                      搜索并聚合所有资源
   fetch --site <完整资源名> --video-id <正整数>
                                       获取指定资源的详情、线路和选集
-  quanx <关键词>                       生成 Quantumult X 直连规则
+  quanx [--merge PATH] <关键词>        生成 Quantumult X 直连规则，可合并已有规则
   logs [--full] [--clear]              最近 50 行日志；全部查看或清空
   --help                              显示帮助
   --version                           显示版本
@@ -37,7 +37,8 @@ private data class Arguments(
     val site: String = "",
     val videoId: Int = 0,
     val full: Boolean = false,
-    val clear: Boolean = false
+    val clear: Boolean = false,
+    val mergePath: String? = null,
 )
 
 private fun parse(args: List<String>): Arguments {
@@ -51,11 +52,16 @@ private fun parse(args: List<String>): Arguments {
     val rest = args.drop(index + 1)
     return when (command) {
         "search", "quanx" -> {
-            val values = if (rest.firstOrNull() == "--") rest.drop(1) else rest
-            if (values.size != 1 || values[0].isBlank() || (rest.firstOrNull() != "--" && values[0].startsWith("-"))) {
+            val merge = if (command == "quanx" && rest.firstOrNull() == "--merge") {
+                rest.getOrNull(1)?.takeIf { it.isNotBlank() } ?: throw Usage("--merge 需要非空规则文件路径")
+            } else null
+            val input = if (merge != null) rest.drop(2) else rest
+            val literal = input.firstOrNull() == "--"
+            val values = if (literal) input.drop(1) else input
+            if (values.size != 1 || values[0].isBlank() || (!literal && values[0].startsWith("-"))) {
                 throw Usage("$command 需要一个关键词；以 - 开头时使用 -- <关键词>")
             }
-            Arguments(configPath, command, query = values[0])
+            Arguments(configPath, command, query = values[0], mergePath = merge)
         }
         "fetch" -> {
             var site: String? = null
@@ -121,9 +127,22 @@ fun main(rawArgs: Array<String>) {
                 when (parsed.command) {
                     "search" -> wireJson.encodeToString(core.search(parsed.query))
                     "fetch" -> wireJson.encodeToString(core.fetch(parsed.site, parsed.videoId))
-                    "quanx" -> core.collectQuanxDomains(parsed.query).let {
-                        if (it.incompleteSites.isNotEmpty()) output("QX：${it.incompleteSites.size} 个站点未完整扫描，详见日志。\n", true)
-                        it.render()
+                    "quanx" -> {
+                        val previous = parsed.mergePath?.let { path ->
+                            storage.read(path) ?: error("无法读取要合并的规则文件")
+                        }.orEmpty()
+                        val scan = core.collectQuanxDomains(parsed.query)
+                        if (scan.incompleteSites.isNotEmpty()) {
+                            val sites = scan.incompleteSites.joinToString("、") { it.replace(Regex("[\\r\\n]"), " ") }
+                            output("QX：${scan.incompleteSites.size} 个站点未完整扫描：$sites。详见日志。\n", true)
+                        }
+                        val groups = scan.ruleGroups(previous)
+                        val summary = groups.entries.filter { it.value.isNotEmpty() }
+                            .joinToString(" · ") { (name, rules) -> "$name ${rules.size} 条" }
+                        if (summary.isNotEmpty()) output("QX 分组：$summary\n", true)
+                        val blocks = groups.values.toList()
+                        val used = if (blocks.last().isEmpty()) blocks.dropLast(1) else blocks
+                        used.joinToString("\n\n") { it.joinToString("\n") }
                     }
                     else -> error("unknown command")
                 }

@@ -6,14 +6,14 @@ import io.ktor.client.engine.mock.*
 import kotlinx.coroutines.test.runTest
 
 class DanmakuClientTest {
-    @Test fun tokenPathAndSeasonIdsUseTheUpstreamContract() = runTest {
+    @Test fun tokenPathAndEpisodeTitlesUseTheUpstreamContract() = runTest {
         val http = configureClient(HttpClient(testEngine { request ->
             assertEquals("/example-token/api/v2/bangumi/42", request.url.encodedPath)
             respond("""{"success":true,"bangumi":{"seasons":[{"id":"two","name":"第二季"}],"episodes":[{"seasonId":"two","episodeId":99,"episodeTitle":"正片","episodeNumber":"2"}]}}""")
         }))
         try {
             val episodes = DanmakuClient(Network(http), "https://example.test/example-token/").episodes(42)
-            assertEquals(DanmakuEpisode(99,"正片","2",2,"two"), episodes.single())
+            assertEquals(DanmakuEpisode(99, "正片", "2"), episodes.single())
         } finally { http.close() }
     }
 

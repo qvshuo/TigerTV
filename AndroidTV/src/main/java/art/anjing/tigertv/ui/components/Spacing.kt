@@ -16,6 +16,8 @@ object UiSpacing {
     val md = 16.dp
     val lg = 24.dp
     val xl = 32.dp
+    val choiceColumn = 12.dp
+    val choiceRow = choiceColumn / 2
 }
 
 object UiMetrics {

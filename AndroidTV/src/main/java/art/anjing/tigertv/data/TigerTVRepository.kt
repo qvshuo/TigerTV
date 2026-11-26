@@ -18,15 +18,18 @@ class TigerTVRepository(private val core: CoreService) {
     suspend fun fetch(siteName: String, vodId: Int): Result<FetchResponse> = result { core.fetch(siteName, vodId) }
     suspend fun resolveCoverFallback(siteName: String, vodId: Int): String? = withContext(Dispatchers.IO) { core.resolveCoverFallback(siteName, vodId) }
     suspend fun recentPlayback(): List<RecentPlayback> = withContext(Dispatchers.IO) { core.recentPlayback() }
+    suspend fun rememberRecentPoster(workId: String, url: String) =
+        withContext(Dispatchers.IO) { core.rememberRecentPoster(workId, url) }
     suspend fun recordPlayback(workId: String, site: String, line: String, episode: String,
-        source: SearchResult? = null, cardSource: SearchResult? = null, cardPoster: String? = null,
+        source: SearchResult? = null, cardSource: SearchResult? = null, cardPoster: String? = null, index: Int? = null,
     ) = withContext(Dispatchers.IO) {
-        core.recordPlayback(workId, site, line, episode, source, cardSource, cardPoster)
+        core.recordPlayback(workId, site, line, episode, source, cardSource, cardPoster, index)
     }
-    suspend fun recordPlaybackPosition(workId: String, site: String, line: String, episode: String, positionMillis: Long, percent: Int? = null) = withContext(Dispatchers.IO) {
-        core.recordPlaybackPosition(workId, site, line, episode, positionMillis, percent)
+    suspend fun recordPlaybackPosition(workId: String, site: String, line: String, episode: String, positionMillis: Long, percent: Int? = null, sourceKey: String? = null, index: Int? = null) = withContext(Dispatchers.IO) {
+        core.recordPlaybackPosition(workId, site, line, episode, positionMillis, percent, sourceKey, index)
     }
-    suspend fun warmHotSearches(category: String) = withContext(Dispatchers.IO) { core.warmHotSearches(category) }
+    suspend fun warmHotSearches(category: String, onReady: suspend (String, List<HotSearchItem>) -> Unit) =
+        withContext(Dispatchers.IO) { core.warmHotSearches(category, onReady) }
     fun hotSearchCategories(): List<HotSearchCategory> = core.hotSearchCategories()
     suspend fun hotSearches(category: String, onUpdate: (suspend (List<HotSearchItem>) -> Unit)? = null): List<HotSearchItem> =
         withContext(Dispatchers.IO) { core.hotSearches(category, onUpdate) }

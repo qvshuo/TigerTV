@@ -27,7 +27,7 @@ class ContractFixtureTest {
         assertEquals(45_000L, saved.works.single().playbackPositions["🎬二"]?.get("2")?.get("第02集"))
         val search = json.decodeFromString<SearchResponse>(findRepoFixture("docs/fixtures/search.sample.json").readText())
         assertEquals(listOf(1, 99), search.works.single().sources.map { it.vodId })
-        assertEquals("🎬二", search.works.single().defaultSource.site)
+        assertEquals("🎬一", search.works.single().defaultSource.site)
         val detail = json.decodeFromString<art.anjing.tigertv.domain.FetchResponse>(findRepoFixture("docs/fixtures/fetch.sample.json").readText())
         val raw = json.decodeFromString<art.anjing.tigertv.domain.FetchResponse>(findRepoFixture("docs/fixtures/fetch-playback.sample.json").readText())
         assertEquals(listOf("HLS", "MP4", "HTML", ""), raw.playSources.single().episodes.map { it.name })

@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { integer, parseConfig, parseJson, parseLines, webUrl, workId } from '../src/api.ts'
 import { filterPlaylist, effectiveTime, originalTime } from '../src/hls.ts'
-import { autoMatch, DanmakuClient, matchingEpisode, shouldUpgrade, titleRank } from '../src/danmaku.ts'
-import { getBookmark, getPosition, getRecent, getSettings, getSpeed, getVolume, recordStarted, savePosition, saveSpeed, saveVolume } from '../src/storage.ts'
+import { autoMatch, DanmakuClient, drawComments, fitsDanmaku, matchingEpisode, shouldUpgrade, titleCandidates, titleRank } from '../src/danmaku.ts'
+import { getBookmark, getPosition, getRecent, getSettings, getSpeed, getVolume, recordStarted, savePosition, saveSpeed, saveVolume, write } from '../src/storage.ts'
 
 const fixture = name => readFileSync(new URL(`../../docs/fixtures/${name}.sample.json`, import.meta.url), 'utf8')
 const json = name => JSON.parse(fixture(name))
@@ -34,8 +34,8 @@ test('MacCMS input, first-arrival identity, preserved parameters and playback gr
 })
 
 test('Android and Web remove the same interval and preserve the key and relative URLs', () => {
-  const { uris, playlist, expected, startMs, endMs } = json('hls-filter')
-  const result = filterPlaylist(playlist)
+  const { uris, host, playlist, expected, startMs, endMs } = json('hls-filter')
+  const result = filterPlaylist(playlist, host)
   assert.deepEqual(result, { text: expected, removed: [{ start: startMs / 1000, end: endMs / 1000 }] })
   assert.ok(Math.abs(originalTime(startMs / 1000, result.removed) - endMs / 1000) < 1e-9)
   assert.ok(Math.abs(effectiveTime(endMs / 1000, result.removed) - startMs / 1000) < 1e-9)
@@ -47,7 +47,7 @@ test('Android and Web remove the same interval and preserve the key and relative
     playlist.replace('IV=0x00000000000000000000000000000001', 'KEYFORMAT="drm"'),
     playlist.replace('#EXTINF:5,', '#EXT-X-MAP:URI="init.mp4"\n#EXTINF:5,'),
     playlist.replace('#EXTINF:5,', '#EXT-X-BYTERANGE:24@0\n#EXTINF:5,'),
-  ]) assert.equal(filterPlaylist(input), undefined)
+  ]) assert.equal(filterPlaylist(input, host), undefined)
 })
 
 test('match season, date and parts, and upgrade only a compatible cut', () => {
@@ -60,6 +60,13 @@ test('match season, date and parts, and upgrade only a compatible cut', () => {
   }
   assert.equal(shouldUpgrade({ comments: [{mode: 1}], duration: 1600 }, { comments: [{mode: 1}, {mode: 1}], duration: 1608 }), true)
   assert.equal(shouldUpgrade({ comments: [{mode: 1}], duration: 1600 }, { comments: [{mode: 1}, {mode: 1}], duration: 1620 }), false)
+  for (const { label, episodes, id, workSeason } of fixture.localEpisodeCases) {
+    assert.equal(matchingEpisode(episodes, label, workSeason)?.id ?? null, id, label)
+  }
+  for (const { query, titles, ids } of fixture.titleCandidateCases) {
+    const candidates = titles.map((title, index) => ({ id: index + 1, title, source: 'test' }))
+    assert.deepEqual(titleCandidates(query, candidates, '').map(match => match.item.id), ids, query)
+  }
 })
 
 test('work-wide speed, volume settings, separate episode progress and recent deduplication', () => {
@@ -94,23 +101,8 @@ test('work-wide speed, volume settings, separate episode progress and recent ded
   assert.deepEqual(getVolume(false), { volume: 1, muted: false })
 })
 
-test('unlisted sources share heuristic intervals and preserve the original key sequence', () => {
-  for (const { name, playlist, removed } of json('hls-smart')) {
-    const result = filterPlaylist(playlist)
-    assert.deepEqual(result?.removed ?? [], removed.map(([start, end]) => ({ start: start / 1000, end: end / 1000 })), name)
-    if (!result) continue
-    assert.match(result.text, /IV=0x00000000000000000000000000000069/)
-    assert.ok(result.text.includes(`#EXT-X-VERSION:${removed.length === 2 ? 3 : 2}\n`))
-    assert.match(result.text, /#EXT-X-DISCONTINUITY/)
-    assert.doesNotMatch(result.text, /#EXT-X-CUE-/)
-    assert.equal(originalTime(60, result.removed), 68)
-    assert.equal(effectiveTime(65, result.removed), 60)
-    if (name === 'repeated-clear-inserts-without-discontinuities') {
-      assert.equal(originalTime(120, result.removed), 136)
-      assert.equal(effectiveTime(137, result.removed), 121)
-      assert.match(result.text, /IV=0x0000000000000000000000000000006e/)
-    }
-  }
+test('unverified playlist signals never remove a segment', () => {
+  for (const { name, playlist } of json('hls-smart')) assert.equal(filterPlaylist(playlist), undefined, name)
 })
 
 test('source profiles match a splice across changed asset URIs and keep negative controls', () => {
@@ -153,5 +145,85 @@ test('reopening a remembered episode reuses a parsed track scoped to its API add
     assert.notEqual(tracks[1], tracks[2])
   } finally {
     globalThis.fetch = originalFetch
+  }
+})
+
+test('automatic danmaku uses a same-date fallback while the preferred track is pending', async () => {
+  const preferred = Promise.withResolvers()
+  const fallbackStarted = Promise.withResolvers()
+  const received = []
+  const requested = []
+  const fallback = { duration: 60, comments: [{ mode: 1, time: 1, text: '备用', color: 0xffffff }] }
+  const signal = AbortSignal.timeout(1000)
+  const client = {
+    search: async () => [
+      { id: 1, title: '日期综艺', source: 'imgo' },
+      { id: 2, title: '日期综艺', source: 'migu' },
+      { id: 3, title: '日期综艺', source: '360' },
+    ],
+    episodes: async id => id === 2 ? [] : [{
+      id, title: '第6期上：节目标题 2026-11-19期', number: '11', seasonId: '',
+    }],
+    track: id => {
+      requested.push(id)
+      if (id === 1) return preferred.promise
+      fallbackStarted.resolve()
+      return Promise.resolve(fallback)
+    },
+  }
+  const matching = autoMatch(client, '日期综艺', '2026', '第20261119期上', {}, track => received.push(track), signal)
+  await fallbackStarted.promise
+  assert.deepEqual(requested, [1, 3])
+  assert.deepEqual(received, [])
+  preferred.reject(new DOMException('首选超时', 'TimeoutError'))
+  await matching
+  assert.deepEqual(received, [fallback])
+})
+
+test('duplicate episode labels and source IDs keep separate positions, with unique-name legacy fallback', () => {
+  const source = { id: 1, site: { name: 'same site' } }
+  const selection = { work: { id: 'duplicate-test' }, source, line: 'first', episode: 'Episode', index: 0 }
+  const anotherIndex = { ...selection, index: 1 }
+  const anotherSource = { ...selection, source: { ...source, id: 2 } }
+  const otherLine = { ...selection, line: 'second' }
+  const older = 'position:' + JSON.stringify([selection.work.id, source.site.name, source.id, selection.line, selection.episode, null])
+  write(older, 45)
+  assert.equal(getPosition(selection), 0)
+  assert.equal(getPosition({ ...selection, uniqueName: true }), 45)
+  savePosition(selection, 10)
+  savePosition(anotherIndex, 20)
+  savePosition(anotherSource, 30)
+  savePosition(otherLine, 40)
+  assert.deepEqual([selection, anotherIndex, anotherSource, otherLine].map(getPosition), [10, 20, 30, 40])
+})
+
+test('lane collision checks entry and catch-up, and a seek redraws the active window', () => {
+  for (const sample of json('danmaku-collision')) {
+    assert.equal(fitsDanmaku(sample.width, sample.previous, sample.incoming, sample.elapsedMs / 1000, sample.gap), sample.fits)
+  }
+  const savedDpr = globalThis.devicePixelRatio
+  globalThis.devicePixelRatio = 1
+  try {
+    const painted = []
+    const context = {
+      setTransform() {}, clearRect() { painted.length = 0 },
+      measureText() { return { width: 30 } }, strokeText() {},
+      fillText(text) { painted.push(text) },
+    }
+    const canvas = { clientWidth: 500, clientHeight: 72, width: 0, height: 0, getContext: () => context }
+    const track = { comments: [
+      { time: 7, mode: 1, text: '滚动', color: 0xffffff },
+      { time: 7.1, mode: 5, text: '固定', color: 0xffffff },
+      { time: 40, mode: 1, text: '空窗后', color: 0xffffff },
+    ] }
+    assert.equal(drawComments(canvas, track, 16), 40)
+    assert.equal(drawComments(canvas, track, 14.9, true), 0)
+    assert.deepEqual(painted, ['滚动'])
+    canvas.clientWidth = 300
+    assert.equal(drawComments(canvas, track, 14.9), 0)
+    assert.deepEqual(painted, ['滚动'])
+  } finally {
+    if (savedDpr === undefined) delete globalThis.devicePixelRatio
+    else globalThis.devicePixelRatio = savedDpr
   }
 })

@@ -18,15 +18,17 @@ val generateContractFixtures = tasks.register("generateContractFixtures") {
 val generatePlaybackRules = tasks.register("generatePlaybackRules") {
     val heuristics = project.file("../shared/hls-heuristics.json")
     val danmakuSelection = project.file("../shared/danmaku-selection.json")
+    val networkTimeouts = project.file("../shared/network-timeouts.json")
     val output = layout.buildDirectory.file("generated/playback/PlaybackRules.kt")
-    inputs.files(heuristics, danmakuSelection)
+    inputs.files(heuristics, danmakuSelection, networkTimeouts)
     outputs.file(output)
     doLast {
         output.get().asFile.apply {
             parentFile.mkdirs()
             writeText("package art.anjing.tigertv.core\n" +
                 "internal const val hlsHeuristicsJson = \"\"\"" + heuristics.readText().trim() + "\"\"\"\n" +
-                "internal const val danmakuSelectionJson = \"\"\"" + danmakuSelection.readText().trim() + "\"\"\"\n")
+                "internal const val danmakuSelectionJson = \"\"\"" + danmakuSelection.readText().trim() + "\"\"\"\n" +
+                "internal const val networkTimeoutsJson = \"\"\"" + networkTimeouts.readText().trim() + "\"\"\"\n")
         }
     }
 }

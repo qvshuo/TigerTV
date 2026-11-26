@@ -36,14 +36,16 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import androidx.tv.material3.Icon
 import androidx.compose.ui.res.painterResource
-import art.anjing.tigertv.domain.legacyWorkId
 import art.anjing.tigertv.R
+import art.anjing.tigertv.domain.displaySourceName
+import art.anjing.tigertv.core.DanmakuChoice
 import art.anjing.tigertv.ui.components.ActionButton
 import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.components.LoadingOverlay
 import art.anjing.tigertv.ui.requestFocusSafely
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.Json
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -88,26 +90,28 @@ fun PlayerScreen(
     val workTitle = viewModel.fetchResponse?.vodName.orEmpty().ifBlank { viewModel.selectedResult?.vodName.orEmpty() }
     val workYear = viewModel.fetchResponse?.vodYear.orEmpty().takeIf { it.toIntOrNull() in 1900..2099 }
         ?: viewModel.selectedResult?.vodYear.orEmpty()
-    val identity = listOf(session?.workId.orEmpty(), session?.site.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty())
+    val legacyIdentity = listOf(session?.workId.orEmpty(), session?.site.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty())
         .joinToString("") { "${it.length}:$it" }
+    val identity = listOf(session?.workId.orEmpty(), session?.sourceKey.orEmpty(),
+        session?.line.orEmpty(), session?.episode.orEmpty(), session?.index.toString()).joinToString("") { "${it.length}:$it" }
+    val legacyEpisode = session?.legacySite == true && session.legacyEpisode
     val danmakuState = remember(identity, viewModel.playbackRevision) {
-        val oldId = viewModel.selectedResult?.let(::legacyWorkId).orEmpty()
-        fun titleKey(server: String, id: String = session?.workId.orEmpty()) = danmakuPreferenceKey(server, id, session?.site.orEmpty())
-        fun episodeKey(server: String, id: String = session?.workId.orEmpty()) = danmakuPreferenceKey(server, id,
-            session?.site.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty())
-        DanmakuState(danmakuScope, viewModel::danmakuClient, inheritedOptions?.danmakuEnabled ?: preferences.getBoolean("enabled:$identity", true),
+        fun titleKey(server: String) = danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.sourceKey.orEmpty())
+        fun episodeKey(server: String) = danmakuPreferenceKey(server, session?.workId.orEmpty(),
+            session?.sourceKey.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty(), session?.index.toString())
+        DanmakuState(danmakuScope, viewModel::danmakuClient, inheritedOptions?.danmakuEnabled ?: preferences.getBoolean("enabled:$identity", if (legacyEpisode) preferences.getBoolean("enabled:$legacyIdentity", true) else true),
             rememberTitle = { server, id -> preferences.edit().putLong(titleKey(server), id).apply() },
-            preferredTitle = { server -> preferences.getLong(titleKey(server), preferences.getLong(titleKey(server, oldId), -1)).takeIf { it > 0 } },
+            preferredTitle = { server -> preferences.getLong(titleKey(server), -1).takeIf { it > 0 }
+                ?: if (session?.legacySite == true) preferences.getLong(
+                    danmakuPreferenceKey(server, session.workId, session.site), -1).takeIf { it > 0 } else null },
             workYear = workYear, episodeLabel = session?.episode.orEmpty(),
-            rememberEpisode = { server, titleId, episodeId ->
-                preferences.edit().putString(episodeKey(server), "$titleId:$episodeId").apply()
+            rememberEpisode = { server, choice ->
+                preferences.edit().putString(episodeKey(server), Json.encodeToString(choice)).apply()
             },
             preferredEpisode = { server ->
-                (preferences.getString(episodeKey(server), null) ?: preferences.getString(episodeKey(server, oldId), null))?.let { stored ->
-                    val titleId = stored.substringBefore(':').toLongOrNull()
-                    val episodeId = stored.substringAfter(':', "").toLongOrNull()
-                    if (titleId != null && episodeId != null) titleId to episodeId else null
-                }
+                (preferences.getString(episodeKey(server), null) ?: if (legacyEpisode)
+                    preferences.getString(danmakuPreferenceKey(server, session.workId, session.site, session.line, session.episode), null)
+                    else null)?.let { runCatching { Json.decodeFromString<DanmakuChoice>(it) }.getOrNull() }
             })
     }
     DisposableEffect(danmakuState) { onDispose { danmakuState.close() } }
@@ -125,6 +129,7 @@ fun PlayerScreen(
     val danmakuFocus = remember { FocusRequester() }
     val speedOptionFocus = remember { FocusRequester() }
     val retryFocus = remember { FocusRequester() }
+    val changeSourceFocus = remember { FocusRequester() }
     fun requestFocus(area: PlayerFocusArea) { focusRequest = area to (focusRequest.second + 1) }
     fun interact() { controls = controls.show(SystemClock.elapsedRealtime()) }
     fun showControls(area: PlayerFocusArea) {
@@ -239,7 +244,7 @@ fun PlayerScreen(
                 onPosition = { viewModel.savePlaybackPosition(session, it, controller.playbackProgressPercent(it)) },
                 onError = viewModel::setPlaybackError,
                 filterAds = playbackPreferences.filterAds,
-                speed = inheritedOptions?.speed ?: playbackPreferences.speed(session.workId, viewModel.availableSources))
+                speed = inheritedOptions?.speed ?: playbackPreferences.speed(session.workId))
             controller.play()
         }
         onDispose { controller.unload() }
@@ -358,18 +363,21 @@ fun PlayerScreen(
                 onSettings = { danmakuMenu = false; showControls(PlayerFocusArea.Danmaku); onSettings() })
         }
         if (!blocked && controls.visible) {
-            val line = viewModel.fetchResponse?.playSources?.getOrNull(viewModel.selectedPlaybackSourceIndex)
             val episode = viewModel.episodes.getOrNull(viewModel.selectedEpisodeIndex)
             PlaybackControls(
                 title = listOfNotNull(viewModel.fetchResponse?.vodName, episode?.name).joinToString(" · "),
-                resource = listOfNotNull(viewModel.selectedResult?.site, line?.name).joinToString(" · "),
-                adFiltered = controller.playbackTimeline != null, snapshot = snapshot, controls = controls, timelineFocus = timelineFocus, playFocus = playFocus,
+                resource = listOfNotNull(displaySourceName(viewModel.selectedResult?.site.orEmpty()),
+                    "去广告".takeIf { controller.playbackTimeline != null }).joinToString(" · "),
+                snapshot = snapshot, controls = controls, timelineFocus = timelineFocus, playFocus = playFocus,
                 speedFocus = speedFocus, speedOptionFocus = speedOptionFocus, danmakuFocus = danmakuFocus,
                 danmakuOpen = danmakuQuick, danmakuEnabled = danmakuState.enabled,
                 onDanmakuMenu = { controls = controls.copy(speedMenuOpen = false); danmakuQuick = !danmakuQuick; interact() },
                 onDanmakuAction = { action ->
                     when (action) {
-                        4 -> danmakuMenu = true
+                        4 -> {
+                            danmakuState.showCurrentChoice()
+                            danmakuMenu = true
+                        }
                         0 -> { danmakuState.toggleEnabled(); preferences.edit().putBoolean("enabled:$identity", danmakuState.enabled).apply() }
                     }
                     danmakuQuick = false; interact(); requestFocus(PlayerFocusArea.Danmaku)
@@ -393,7 +401,7 @@ fun PlayerScreen(
             )
         }
         if (showBuffering) {
-            LoadingOverlay("正在准备播放…")
+            LoadingOverlay("缓冲中…")
         }
         playbackError?.let { error ->
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))
@@ -402,16 +410,25 @@ fun PlayerScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(error, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(16.dp))
-                    ActionButton(onClick = { controller.unload(); viewModel.retryPlayback() },
-                        modifier = Modifier.focusRequester(retryFocus).widthIn(min = 144.dp).focusProperties {
-                            up = FocusRequester.Cancel
-                            down = FocusRequester.Cancel
-                            left = FocusRequester.Cancel
-                            right = FocusRequester.Cancel
-                        }) {
-                        Icon(painterResource(R.drawable.player_refresh), contentDescription = null, modifier = Modifier.size(24.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.retry))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ActionButton(onClick = { controller.unload(); viewModel.retryPlayback() },
+                            modifier = Modifier.focusRequester(retryFocus).widthIn(min = 144.dp).focusProperties {
+                                up = FocusRequester.Cancel
+                                down = FocusRequester.Cancel
+                                left = FocusRequester.Cancel
+                                right = changeSourceFocus
+                            }) {
+                            Icon(painterResource(R.drawable.player_refresh), contentDescription = null, modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.retry))
+                        }
+                        ActionButton(onClick = ::exitPlayer,
+                            modifier = Modifier.focusRequester(changeSourceFocus).widthIn(min = 144.dp).focusProperties {
+                                up = FocusRequester.Cancel
+                                down = FocusRequester.Cancel
+                                left = retryFocus
+                                right = FocusRequester.Cancel
+                            }) { Text("切换来源") }
                     }
                 }
             }

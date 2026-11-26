@@ -48,6 +48,20 @@ class WorkSelectionTest {
 
     private fun hotItem(title: String) = art.anjing.tigertv.domain.HotSearchItem(title, title, "2026", "", null, 0, "")
 
+    @Test fun detailPrefersDirectMediaUnlessThereIsAnExactRecentLine() = runTest(dispatcher) {
+        val page = first.copy(url = "https://a.test/watch/1")
+        coEvery { repository.fetch("A", 1) } returns Result.Success(detail(a).copy(
+            playSources = listOf(PlaybackSource("0", "页面", listOf(page)), PlaybackSource("2", "直连", listOf(backup)))
+        ))
+        viewModel.selectResult(a)
+        advanceUntilIdle()
+        assertEquals(listOf(backup), viewModel.episodes)
+        viewModel.openRecentPlayback(RecentPlayback("played", a, PlaybackBookmark("0", page.name), emptyMap(), 0, 1))
+        advanceUntilIdle()
+        assertEquals(listOf(page), viewModel.episodes)
+        assertEquals(0, viewModel.takeExactRecentEpisode())
+    }
+
     @Test fun recentCardResumesOnlyItsExactResourceLineAndEpisode() = runTest(dispatcher) {
         val recent = RecentPlayback("played", b, PlaybackBookmark("0", second.name), mapOf("0" to mapOf(second.name to 84_000L)), 12, 1)
         viewModel.openRecentPlayback(recent)
@@ -89,37 +103,54 @@ class WorkSelectionTest {
         assertNull(viewModel.configErrorMessage)
     }
 
-    @Test fun warmupStartsAfterVisibleTitlesAndSurvivesCategorySwitchUntilHomeCloses() = runTest(dispatcher) {
+    @Test fun warmupYieldsToTheNewVisibleCategoryAndCancelsOnLeavingHome() = runTest(dispatcher) {
         every { repository.hotSearchCategories() } returns listOf(
             HotSearchCategory("chinese", "国产剧"), HotSearchCategory("korean", "韩剧")
         )
         var cancelled = false
-        coEvery { repository.warmHotSearches(any()) } coAnswers {
+        coEvery { repository.warmHotSearches(any(), any()) } coAnswers {
             try { awaitCancellation() } finally { cancelled = true }
         }
         viewModel.loadHotSearchCategories()
         viewModel.loadHotSearches()
         runCurrent()
-        coVerify(exactly = 0) { repository.warmHotSearches(any()) }
+        coVerify(exactly = 0) { repository.warmHotSearches(any(), any()) }
         coEvery { repository.hotSearches("chinese", any()) } returns listOf(hotItem("国产甲"))
         viewModel.loadHotSearches()
         runCurrent()
         assertEquals(listOf("国产甲"), viewModel.hotSearches.map { it.title })
         assertFalse(viewModel.isLoadingHotSearches)
-        coVerify(exactly = 1) { repository.warmHotSearches("chinese") }
+        coVerify(exactly = 1) { repository.warmHotSearches("chinese", any()) }
         coEvery { repository.hotSearches("korean", any()) } returns listOf(hotItem("韩剧甲"))
         viewModel.selectHotSearchCategory("korean")
         viewModel.loadHotSearches()
         runCurrent()
-        coVerify(exactly = 1) { repository.warmHotSearches(any()) }
+        assertTrue(cancelled)
+        coVerify(exactly = 1) { repository.warmHotSearches("korean", any()) }
+        cancelled = false
         viewModel.cancelHotSearchWarmup()
         runCurrent()
         assertTrue(cancelled)
+    }
+
+    @Test fun switchingToAPreloadedCategoryShowsItsItemsImmediately() = runTest(dispatcher) {
+        every { repository.hotSearchCategories() } returns listOf(
+            HotSearchCategory("chinese", "国产剧"), HotSearchCategory("korean", "韩剧"),
+        )
+        coEvery { repository.hotSearches("chinese", any()) } returns listOf(hotItem("国产甲"))
+        coEvery { repository.warmHotSearches("chinese", any()) } coAnswers {
+            secondArg<suspend (String, List<HotSearchItem>) -> Unit>()(
+                "korean", listOf(hotItem("预加载韩剧")),
+            )
+        }
+        viewModel.loadHotSearchCategories()
         viewModel.loadHotSearches()
         runCurrent()
-        coVerify(exactly = 1) { repository.warmHotSearches("korean") }
-        viewModel.cancelHotSearchWarmup()
-        runCurrent()
+
+        viewModel.selectHotSearchCategory("korean")
+        assertEquals(listOf("预加载韩剧"), viewModel.hotSearches.map { it.title })
+        assertFalse(viewModel.isLoadingHotSearches)
+        coVerify(exactly = 0) { repository.hotSearches("korean", any()) }
     }
 
     @Test fun changingHotCategoryCancelsOldResultsWithoutWritingHistory() = runTest(dispatcher) {
@@ -155,7 +186,7 @@ class WorkSelectionTest {
         viewModel.playbackDidStart(session)
         advanceUntilIdle()
         val events = mutableListOf<String>()
-        coEvery { repository.recordPlaybackPosition(any(), any(), any(), any(), any()) } coAnswers {
+        coEvery { repository.recordPlaybackPosition(any(), any(), any(), any(), any(), matchNullable { true }, any(), any()) } coAnswers {
             delay(100)
             events += "saved"
         }
@@ -194,9 +225,9 @@ class WorkSelectionTest {
         viewModel.savePlaybackPosition(original, 755_000)
         viewModel.playbackDidStart(original)
         advanceUntilIdle()
-        coVerify(exactly = 1) { repository.recordPlayback(any(), "A", "0", second.name, any(), any(), matchNullable { true }) }
-        coVerify(exactly = 1) { repository.recordPlaybackPosition(original.workId, "A", "0", second.name, 755_000) }
-        assertNull(viewModel.works.single().playbackPositions["B"])
+        coVerify(exactly = 1) { repository.recordPlayback(any(), "A", "0", second.name, any(), any(), matchNullable { true }, any()) }
+        coVerify(exactly = 1) { repository.recordPlaybackPosition(original.workId, "A", "0", second.name, 755_000, null, original.sourceKey, original.index) }
+        assertNull(viewModel.works.single().playbackPositions[b.coverKey])
         viewModel.selectResult(a)
         advanceUntilIdle()
         viewModel.selectEpisode(0)
@@ -219,18 +250,18 @@ class WorkSelectionTest {
         val work = viewModel.works.single()
         viewModel.selectResult(b)
         advanceUntilIdle()
-        coVerify(exactly = 0) { repository.recordPlayback(any(), any(), any(), any(), any(), any(), matchNullable { true }) }
+        coVerify(exactly = 0) { repository.recordPlayback(any(), any(), any(), any(), any(), any(), matchNullable { true }, any()) }
         viewModel.playbackDidStart(TigerTVViewModel.PlaybackSession(work.id, "B", "0", first.name, 0, -1))
         viewModel.selectEpisode(0)
         advanceUntilIdle()
-        coVerify(exactly = 0) { repository.recordPlayback(any(), any(), any(), any(), any(), any(), matchNullable { true }) }
+        coVerify(exactly = 0) { repository.recordPlayback(any(), any(), any(), any(), any(), any(), matchNullable { true }, any()) }
         viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         assertEquals(b, viewModel.works.single().defaultSource)
-        coVerify(exactly = 1) { repository.recordPlayback(work.id, "B", "0", first.name, any(), any(), matchNullable { true }) }
+        coVerify(exactly = 1) { repository.recordPlayback(work.id, "B", "0", first.name, any(), any(), matchNullable { true }, any()) }
         viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
-        coVerify(exactly = 1) { repository.recordPlayback(work.id, "B", "0", first.name, any(), any(), matchNullable { true }) }
+        coVerify(exactly = 1) { repository.recordPlayback(work.id, "B", "0", first.name, any(), any(), matchNullable { true }, any()) }
         viewModel.selectResult(a)
         advanceUntilIdle()
         viewModel.selectEpisode(0)
@@ -238,7 +269,7 @@ class WorkSelectionTest {
         viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         assertEquals(a.site, viewModel.works.single().lastPlayedSite)
-        coVerify(exactly = 1) { repository.recordPlayback(work.id, "A", "0", first.name, any(), any(), matchNullable { true }) }
+        coVerify(exactly = 1) { repository.recordPlayback(work.id, "A", "0", first.name, any(), any(), matchNullable { true }, any()) }
     }
 
     @Test fun replayingTheSameEpisodeStartsANewPersistenceSession() = runTest(dispatcher) {
@@ -255,7 +286,7 @@ class WorkSelectionTest {
         viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         // Core checks persistent state; a local bookmark cannot suppress another session's start.
-        coVerify(exactly = 2) { repository.recordPlayback(viewModel.works.single().id, "A", "0", first.name, any(), any(), matchNullable { true }) }
+        coVerify(exactly = 2) { repository.recordPlayback(viewModel.works.single().id, "A", "0", first.name, any(), any(), matchNullable { true }, any()) }
     }
 
     @Test fun lateSearchSnapshotsKeepLocalProgressAndStillMergeNewResources() = runTest(dispatcher) {
@@ -284,8 +315,8 @@ class WorkSelectionTest {
         val work = viewModel.works.single()
         assertEquals(listOf(a, b), work.sources)
         assertEquals("A", work.lastPlayedSite)
-        assertEquals(PlaybackBookmark("0", second.name), work.playback["A"])
-        assertEquals(123_000L, work.playbackPositions["A"]?.get("0")?.get(second.name))
+        assertEquals(PlaybackBookmark("0", second.name, 1), work.bookmarkFor(a))
+        assertEquals(123_000L, work.positionFor(a, PlaybackSource("0", "主线", listOf(first, second)), 1))
     }
 
     @Test fun partialSearchIsVisibleWhileOtherSitesAreStillLoading() = runTest(dispatcher) {
@@ -415,8 +446,8 @@ class WorkSelectionTest {
         advanceUntilIdle()
         assertEquals(1, viewModel.resumeEpisodeIndex)
         assertEquals(bSecond.name, viewModel.episodes[viewModel.resumeEpisodeIndex].name)
-        assertEquals(mapOf("A" to PlaybackBookmark("0", second.name), "B" to PlaybackBookmark("7", bSecond.name)), viewModel.works.single().playback)
-        coVerify(exactly = 2) { repository.recordPlayback(any(), any(), any(), any(), any(), any(), matchNullable { true }) }
+        assertEquals(mapOf(a.coverKey to PlaybackBookmark("0", second.name, 1), b.coverKey to PlaybackBookmark("7", bSecond.name, 1)), viewModel.works.single().playback)
+        coVerify(exactly = 2) { repository.recordPlayback(any(), any(), any(), any(), any(), any(), matchNullable { true }, any()) }
     }
 
     @Test fun unavailableBookmarksFallBackWithoutBorrowingAnotherLinesEpisode() = runTest(dispatcher) {
@@ -451,10 +482,10 @@ class WorkSelectionTest {
         advanceUntilIdle()
         assertEquals("A", viewModel.works.single().lastPlayedSite)
         assertEquals(PlaybackBookmark("0", second.name), viewModel.works.single().playback["B"])
-        coVerify(exactly = 1) { repository.recordPlayback(work.id, "A", "0", first.name, any(), any(), matchNullable { true }) }
+        coVerify(exactly = 1) { repository.recordPlayback(work.id, "A", "0", first.name, any(), any(), matchNullable { true }, any()) }
     }
 
-    @Test fun aNewWorkInheritsTheRecentSiteWithoutSavingItsOwnHistory() = runTest(dispatcher) {
+    @Test fun aNewWorkIgnoresAnUnrecommendedRecentSite() = runTest(dispatcher) {
         val otherA = a.copy(vodId = 10, vodName = "另一部剧", vodPic = "https://a.test/cover.jpg")
         val otherB = b.copy(vodId = 20, vodName = "另一部剧")
         coEvery { repository.search(any(), any()) } returns Result.Success(SearchResponse("剧", aggregateWorks(listOf(a, b, otherA, otherB))))
@@ -469,9 +500,9 @@ class WorkSelectionTest {
         advanceUntilIdle()
         val unwatched = viewModel.works.first { it.title == "另一部剧" }
         assertNull(unwatched.lastPlayedSite)
-        assertEquals("B", unwatched.defaultSource.site)
+        assertEquals("A", unwatched.defaultSource.site)
         assertEquals(otherA, unwatched.orderedSources.first { it.vodPic.isNotBlank() })
-        coVerify(exactly = 0) { repository.recordPlayback(unwatched.id, any(), any(), any(), any(), any(), matchNullable { true }) }
+        coVerify(exactly = 0) { repository.recordPlayback(unwatched.id, any(), any(), any(), any(), any(), matchNullable { true }, any()) }
     }
 
     @Test fun rawPlaybackSelectionAndRetryNeverCallRepository() = runTest(dispatcher) {
@@ -519,6 +550,29 @@ class WorkSelectionTest {
         advanceUntilIdle()
         assertEquals("逐玉", viewModel.works.single().title)
         assertFalse(viewModel.isSearching)
+    }
+
+    @Test fun resourceSwitchSharesAPreloadAndReusesCachedDetails() = runTest(dispatcher) {
+        val response = CompletableDeferred<Result<FetchResponse>>()
+        coEvery { repository.fetch("B", 99) } coAnswers { response.await() }
+        viewModel.selectResult(a)
+        runCurrent()
+        val preload = launch { viewModel.preloadDetails(listOf(a, b)) }
+        runCurrent()
+        assertTrue(viewModel.isDetailLoading(b))
+        viewModel.selectResult(b)
+        runCurrent()
+        response.complete(Result.Success(detail(b)))
+        preload.join()
+        runCurrent()
+        assertEquals("B", viewModel.fetchResponse?.site)
+        assertFalse(viewModel.isDetailLoading(b))
+        viewModel.selectResult(a)
+        assertEquals("A", viewModel.fetchResponse?.site)
+        viewModel.selectResult(b)
+        assertEquals("B", viewModel.fetchResponse?.site)
+        coVerify(exactly = 1) { repository.fetch("A", 1) }
+        coVerify(exactly = 1) { repository.fetch("B", 99) }
     }
 
     @Test fun lateFailureCannotOverwriteCurrentDetailOrSearch() = runTest(dispatcher) {

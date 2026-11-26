@@ -1,0 +1,6 @@
+{
+  "catalogRequestMs": 20000,
+  "searchSiteMs": 60000,
+  "recommendationRequestMs": 8000,
+  "configRequestMs": 10000
+}
