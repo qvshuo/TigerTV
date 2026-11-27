@@ -113,13 +113,15 @@ def main():
                 assert quanx.stdout.splitlines().count(rule) == 1, quanx.stdout
             assert "资源站 API 域名" in quanx.stderr and "m3u8 域名" in quanx.stderr, quanx
             assert quanx.stdout.split("\n\n") == [
-                "ip-cidr, 127.0.0.1/32, direct", "", "host, localhost, direct\n"], quanx.stdout
+                "; 资源站 API 域名\nip-cidr, 127.0.0.1/32, direct", "; m3u8 域名\nhost, localhost, direct\n"], quanx.stdout
             previous = Path(temp) / "previous.list"
             previous.write_text("; QX 关键词：上次\nhost, previous.example, direct\nhost-suffix, localhost, direct\n", encoding="utf-8")
             merged = run(native, ["quanx", "--merge", str(previous), "这次"])
             assert merged.returncode == 0 and "host, previous.example, direct" in merged.stdout, merged
             assert merged.stdout.splitlines().count("host, localhost, direct") == 1 and "host-suffix" not in merged.stdout, merged
-            assert all(line.endswith(", direct") for line in merged.stdout.splitlines() if line), merged
+            assert [line for line in merged.stdout.splitlines() if line.startswith("; ")] == [
+                "; 资源站 API 域名", "; m3u8 域名", "; 历史规则"], merged.stdout
+            assert all(line.endswith(", direct") for line in merged.stdout.splitlines() if line and not line.startswith("; ")), merged
             for arguments, code in [
                 (["logs", "--full", "--full"], 2),
                 (["logs", "--clear", "--clear"], 2),

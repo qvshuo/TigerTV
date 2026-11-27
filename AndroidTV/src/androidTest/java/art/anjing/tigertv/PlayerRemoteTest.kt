@@ -319,8 +319,12 @@ class PlayerRemoteTest {
             android.os.ParcelFileDescriptor.AutoCloseInputStream(capture).use { it.readBytes() }
             android.util.Log.i("TigerTVLayout", "settings-captured")
         }
-        remote(KeyEvent.KEYCODE_BACK)
-        compose.onNodeWithTag("danmaku-options").assertDoesNotExist()
+        panel.performScrollToNode(hasTestTag("danmaku-title-101"))
+        compose.onNodeWithTag("danmaku-title-101").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        compose.waitUntil(5_000) { panel.fetchSemanticsNode().config[SemanticsProperties.StateDescription] == "就绪" }
+        panel.performScrollToNode(hasTestTag("danmaku-episode-12"))
+        compose.onNodeWithTag("danmaku-episode-12").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("danmaku-options").fetchSemanticsNodes().isEmpty() }
         val requestsBeforeToggle = danmakuRequests.get()
         compose.onNodeWithTag("player-danmaku").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -396,16 +400,13 @@ class PlayerRemoteTest {
             compose.onAllNodes(hasText("重试") and isFocused()).fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("重试").assertIsFocused()
-        compose.onAllNodes(hasClickAction()).assertCountEquals(2)
+        compose.onAllNodes(hasClickAction()).assertCountEquals(1)
         compose.onNodeWithText("返回").assertDoesNotExist()
-        listOf(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN).forEach {
+        listOf(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT).forEach {
             remote(it)
             compose.onNodeWithText("重试").assertIsFocused()
         }
-        remote(KeyEvent.KEYCODE_DPAD_RIGHT)
-        compose.onNodeWithText("切换来源").assertIsFocused()
-        remote(KeyEvent.KEYCODE_DPAD_LEFT)
-        compose.onNodeWithText("重试").assertIsFocused()
+        compose.onNodeWithText("切换来源").assertDoesNotExist()
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { model.playbackErrorMessage == null && model.playbackUrl != null }
         compose.waitUntil(10_000) {

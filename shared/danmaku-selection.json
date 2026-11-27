@@ -1,5 +1,5 @@
 {
-  "render": {"lifetimeMs": 8000, "areaRatio": 0.2, "fontRatio": 0.037, "lineHeight": 1.5, "gapEm": 1, "stroke": 1, "lanes": 4, "visibleLimit": 12},
+  "render": {"lifetimeMs": 8000, "areaRatio": 0.2, "fontRatio": 0.037, "lineHeight": 1.5, "gapEm": 1, "stroke": 1, "lanes": 4, "visibleLimit": 12, "statusFontRatio": 0.75, "statusDurationMs": 4000},
   "platformPriority": [
     [
       "iqiyi",
@@ -36,7 +36,7 @@
     "ordinal": "第\\s*([0-9零〇一二两三四五六七八九十百]+)\\s*([集期话話])",
     "englishEpisode": "(?<![a-z0-9])(?:s\\d+\\s*)?(?:episode|ep|e)\\s*(\\d+)(?![\\d.])",
     "date": "(?<!\\d)(20\\d{2})[-./年]?(0[1-9]|1[0-2])[-./月]?(0[1-9]|[12]\\d|3[01])(?!\\d)",
-    "part": "[集期话話]\\s*[(【\\[]?\\s*([上下中])(?=篇|集|部|[)】\\]:：\\s]|$)",
+    "part": "(?:[集期话話]|(?<!\\d)(?:20\\d{2})[-./年]?(?:0[1-9]|1[0-2])[-./月]?(?:0[1-9]|[12]\\d|3[01])(?!\\d)日?)\\s*[(【\\[]?\\s*([上下中])(?=篇|集|部|[)】\\]:：\\s]|$)",
     "special": "特别篇?|番外|加更|预告|花絮|特辑|特典|先导|前采|抢鲜|抢先|沉浸|彩蛋|\\b(?:trailer|preview|ova|oad|extra|sp|special)(?=\\b|\\d)",
     "metadata": "[【\\[(]\\s*(?:qiyi|iqiyi|youku|qq|tencent|imgo|mgtv|mango|360|bilibili|bili|douban|dandan|renren|sohu|letv|pptv|爱奇艺|优酷|腾讯(?:视频)?|芒果\\s*tv|哔哩哔哩|国产剧|电视剧|电影|综艺|纪录片|动漫|动画|[日韩欧美港台]剧|短剧|高清|超清|蓝光|全集|完结|\\d{3,4}p|[248]k|hdr|sdr|杜比视界|web-dl|blu-ray)\\s*[\\]】)]",
     "sourceSuffix": "(?:\\s+from\\s+(?:qiyi|iqiyi|youku|qq|tencent|imgo|mgtv|mango|360|bilibili|bili|douban|dandan|renren|sohu|letv|pptv|爱奇艺|优酷|腾讯(?:视频)?|芒果\\s*tv|哔哩哔哩)|(?<=】)from\\s+[a-z0-9_+.-]+)\\s*$",

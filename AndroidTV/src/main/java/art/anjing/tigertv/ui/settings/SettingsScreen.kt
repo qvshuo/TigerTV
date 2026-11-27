@@ -49,10 +49,11 @@ internal fun SettingsScreen() {
             Column(Modifier.widthIn(max = 840.dp).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("播放", style = MaterialTheme.typography.titleMedium)
-                PlaybackSetting("自动下一集", autoNext) { autoNext = it; playback.autoNext = it }
-                PlaybackSetting("记忆播放速度", rememberSpeed) { rememberSpeed = it; playback.rememberSpeed = it }
-                PlaybackSetting("去广告", filterAds) { filterAds = it; playback.filterAds = it }
-                Text("弹幕服务地址", style = MaterialTheme.typography.titleMedium)
+                PlaybackSetting("自动连播", autoNext) { autoNext = it; playback.autoNext = it }
+                PlaybackSetting("记忆倍速", rememberSpeed) { rememberSpeed = it; playback.rememberSpeed = it }
+                PlaybackSetting("去除广告", filterAds) { filterAds = it; playback.filterAds = it }
+                Text("弹幕", style = MaterialTheme.typography.titleMedium)
+                Text("弹幕服务地址", style = MaterialTheme.typography.bodyMedium)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     TvTextInput(draft, { draft = it }, {}, focus, Modifier.weight(1f).testTag("danmaku-server"),
                         hint = DEFAULT_DANMAKU_SERVER, imeAction = ImeAction.Done)

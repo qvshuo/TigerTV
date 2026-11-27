@@ -22,7 +22,7 @@ internal class DanmakuView(context: Context) : View(context) {
         typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
         strokeWidth = render.stroke * resources.displayMetrics.density
     }
-    private val loadingPaint = Paint(paint).apply { textSize *= .85f }
+    private val loadingPaint = Paint(paint).apply { textSize *= render.statusFontRatio }
     private data class Item(val comment: DanmakuComment, val text: String, val width: Float, val lane: Int)
     private val widths = LruCache<String, Float>(256)
     private val lastInLane = arrayOfNulls<Item>(render.lanes)
@@ -49,7 +49,7 @@ internal class DanmakuView(context: Context) : View(context) {
             reset(); invalidate()
         }
     }
-    fun bind(media: Player, data: DanmakuTrack?, enabled: Boolean, loading: DanmakuPhase? = null, timeline: () -> MediaTimeline?) {
+    fun bind(media: Player, data: DanmakuTrack?, enabled: Boolean, loading: DanmakuPhase? = null, message: String? = null, timeline: () -> MediaTimeline?) {
         var changed = false
         if (player !== media) { player?.removeListener(listener); player = media; media.addListener(listener); reset(); changed = true }
         if (track !== data) {
@@ -58,7 +58,7 @@ internal class DanmakuView(context: Context) : View(context) {
             reset(); changed = true
         }
         clockTimeline = timeline
-        val status = loading?.label?.takeIf { enabled }
+        val status = (loading?.label ?: message)?.takeIf { enabled }
         if (loadingLabel != status) {
             loadingLabel = status
             loadingLabelWidth = status?.let(loadingPaint::measureText) ?: 0f
@@ -110,7 +110,7 @@ internal class DanmakuView(context: Context) : View(context) {
         if (size != paint.textSize || contentWidthForLanes != contentWidth) {
             if (size != paint.textSize) widths.evictAll()
             paint.textSize = size
-            loadingPaint.textSize = size * .85f
+            loadingPaint.textSize = size * render.statusFontRatio
             loadingLabelWidth = loadingLabel?.let(loadingPaint::measureText) ?: 0f
             contentWidthForLanes = contentWidth
             active.clear(); lastInLane.fill(null); cursor = lowerBound(now - 2 * lifetime)

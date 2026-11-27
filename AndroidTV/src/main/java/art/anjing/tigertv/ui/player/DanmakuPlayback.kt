@@ -5,6 +5,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
+import art.anjing.tigertv.core.danmakuRenderRules
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -33,9 +35,19 @@ import art.anjing.tigertv.ui.requestFocusSafely
 internal fun DanmakuPlayback(
     controller: Media3Controller, state: DanmakuState, title: String, menuOpen: Boolean, onClose: () -> Unit, onSettings: () -> Unit,
 ) {
+    var timedError by remember(state) { mutableStateOf<String?>(null) }
+    val errorStatus = state.error.takeIf { controller.hasVideoFrame }
+    LaunchedEffect(errorStatus) {
+        timedError = errorStatus
+        if (errorStatus != null) {
+            delay(danmakuRenderRules.statusDurationMs)
+            timedError = null
+        }
+    }
     AndroidView(factory = { DanmakuView(it) },
         update = { it.bind(controller.player, state.track, state.enabled,
-            loading = state.loadingStep.takeIf { controller.hasVideoFrame && !state.hasComments }) { controller.playbackTimeline } },
+            loading = state.loadingStep.takeIf { controller.hasVideoFrame && !menuOpen && !state.hasComments },
+            message = timedError.takeIf { !menuOpen && !state.hasComments }) { controller.playbackTimeline } },
         onRelease = { it.release() }, modifier = Modifier.fillMaxSize().testTag("danmaku-overlay"))
     if (!menuOpen) return
     val entry = remember { FocusRequester() }
@@ -94,15 +106,16 @@ internal fun DanmakuPlayback(
                             Text("剧集", Modifier.padding(top = UiSpacing.sm), style = MaterialTheme.typography.titleMedium)
                         }
                         itemsIndexed(episodeRows, key = { index, _ -> "episode-row-$index" }) { _, row ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(UiSpacing.choiceColumn)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(UiSpacing.choiceColumn),
+                                verticalAlignment = Alignment.Top) {
                                 row.forEach { episode ->
-                                    SelectionChip(selected = currentEpisode == episode, onClick = { state.select(episode) },
+                                    SelectionChip(selected = currentEpisode == episode, onClick = { state.select(episode, onClose) },
                                         modifier = Modifier.weight(1f)
                                             .heightIn(min = UiMetrics.controlHeight)
                                             .testTag("danmaku-episode-${episode.id}")) {
                                         Text(episode.title.ifBlank {
                                             if (episode.number.isBlank()) "未命名剧集" else "第 ${episode.number} 集"
-                                        }, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                        }, modifier = Modifier.padding(vertical = UiSpacing.xs), maxLines = 2, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                                 if (row.size == 1) Spacer(Modifier.weight(1f))

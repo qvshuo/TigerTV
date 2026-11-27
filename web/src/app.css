@@ -56,8 +56,9 @@ h2, .search-results-title { font-size: clamp(1.08rem, 2vw, 1.25rem); line-height
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 8rem), 1fr));
   gap: var(--space-1) var(--space-2);
 }
-.choice.source-choice { position: relative; min-width: 0; padding-inline: 1.65rem; }
-.source-choice .spinner { position: absolute; inset-inline-end: var(--space-2); inset-block-start: 50%; translate: 0 -50%; }
+.choice.source-choice { display: flex; align-items: center; justify-content: center; gap: .3rem; min-width: 0; padding-inline: .45rem; }
+.source-choice > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.source-choice .spinner { font-size: .75rem; }
 .source-group-title { display: flex; align-items: center; gap: .4rem; color: var(--muted); font-size: .875rem; margin: .9rem 0 .45rem; }
 .catalog-lead { display: flex; align-items: center; min-height: 44px; gap: .65rem; margin-bottom: 1rem; }
 .search-results-title > span:first-child { min-width: 0; overflow-wrap: anywhere; }
@@ -123,13 +124,15 @@ input::placeholder { color: #a9a9a9; }
 .detail-section { padding-top: var(--space-4); margin-top: var(--space-4); border-top: 1px solid var(--line); }
 .detail-section h2 { margin-bottom: var(--space-2); }
 .settings-page { max-width: 41rem; }
+.settings-page .detail-section { border-top: 0; }
+.settings-form .search-form { width: 100%; max-width: none; }
 .setting-row { display: flex; align-items: center; justify-content: space-between; min-height: 44px; gap: 1rem; border-bottom: 1px solid var(--line); cursor: pointer; }
 .setting-row input { width: 1rem; height: 1rem; accent-color: var(--accent); }
 .video-surface { display: block; width: 100%; aspect-ratio: 16 / 9; }
 .video-surface > video, .video-surface > hlsjs-video { display: block; width: 100%; height: 100%; object-fit: contain; }
-.danmaku { position: absolute; inset: 0 0 auto; width: 100%; block-size: 20%; z-index: 11; pointer-events: none; }
-.danmaku-status { position: absolute; inset: .75rem auto auto 50%; translate: -50% 0; z-index: 12; max-width: 65%; text-align: center; pointer-events: none; }
-.danmaku-status:not(:empty) { padding: .25rem .5rem; border-radius: .35rem; background: #121212d9; font-size: .8rem; }
+.danmaku-layer { position: absolute; inset: 0 auto auto 0; width: 100%; block-size: 20%; z-index: 11; pointer-events: none; }
+.danmaku { position: absolute; inset: 0; width: 100%; height: 100%; }
+.danmaku-status { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; font: 700 1em system-ui, sans-serif; color: #fff; paint-order: stroke fill; -webkit-text-stroke: 2px #000; }
 .player-meta { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-top: .8rem; }
 .player-meta > div { min-width: 0; }
 .player-actions { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--space-1) var(--space-2); }
@@ -149,19 +152,19 @@ dialog::backdrop { background: #000b; overflow: hidden; overscroll-behavior: con
 .episode-picker .choice:focus-visible { outline-offset: -2px; }
 .episode-picker .choice { width: 100%; height: 100%; text-align: center; }
 .picker-field { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
-.picker-field summary {
+.picker-trigger {
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
   min-height: 44px; padding: var(--space-2) var(--space-3);
   border: 1px solid var(--line); border-radius: .5rem; list-style: none; cursor: pointer;
   overflow-wrap: anywhere;
 }
-.picker-field summary::-webkit-details-marker { display: none; }
 .picker-field svg { flex: none; color: var(--muted); }
-.picker-field details[open] summary { background: #292929; }
-.picker-field details[open] svg { transform: rotate(180deg); }
+.picker-trigger[aria-expanded="true"], .picker-trigger:has(+ :popover-open) { background: #292929; }
+.picker-trigger[aria-expanded="true"] svg, .picker-trigger:has(+ :popover-open) svg { transform: rotate(180deg); }
 .picker-field ul {
   max-height: 14rem; overflow-y: auto; overscroll-behavior: contain; list-style: none;
-  margin-top: var(--space-1); padding: var(--space-1); border: 1px solid var(--line); border-radius: .5rem;
+  position: fixed; inset: auto; margin: 0; z-index: 1;
+  padding: var(--space-1); border: 1px solid var(--line); border-radius: .5rem; background: var(--surface); color: inherit;
 }
 .picker-field li button {
   width: 100%; min-height: 36px; padding: var(--space-2) var(--space-3);
@@ -171,7 +174,7 @@ dialog::backdrop { background: #000b; overflow: hidden; overscroll-behavior: con
 .picker-field li button:focus-visible { outline-offset: -2px; }
 .picker-field li button:active { background: #494949; }
 @media (hover: hover) and (pointer: fine) {
-  .picker-field summary:hover, .picker-field li button:hover:not(:active) { background: #303030; }
+  .picker-trigger:hover, .picker-field li button:hover:not(:active) { background: #303030; }
 }
 .picker-status:not(:empty) { margin-top: var(--space-3); }
 @media (min-width: 65rem) { .shell { width: min(100% - 5rem, 76rem); } }

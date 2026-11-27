@@ -133,16 +133,16 @@ fun main(rawArgs: Array<String>) {
                         }.orEmpty()
                         val scan = core.collectQuanxDomains(parsed.query)
                         if (scan.incompleteSites.isNotEmpty()) {
-                            val sites = scan.incompleteSites.joinToString("、") { it.replace(Regex("[\\r\\n]"), " ") }
+                            val sites = scan.incompleteSites.joinToString("、") { it.replace("🎬", "").replace(Regex("[\\r\\n]"), " ").trim() }
                             output("QX：${scan.incompleteSites.size} 个站点未完整扫描：$sites。详见日志。\n", true)
                         }
                         val groups = scan.ruleGroups(previous)
                         val summary = groups.entries.filter { it.value.isNotEmpty() }
                             .joinToString(" · ") { (name, rules) -> "$name ${rules.size} 条" }
                         if (summary.isNotEmpty()) output("QX 分组：$summary\n", true)
-                        val blocks = groups.values.toList()
-                        val used = if (blocks.last().isEmpty()) blocks.dropLast(1) else blocks
-                        used.joinToString("\n\n") { it.joinToString("\n") }
+                        groups.entries.filter { it.value.isNotEmpty() }.joinToString("\n\n") { (name, rules) ->
+                            rules.joinToString("\n", prefix = "; $name\n")
+                        }
                     }
                     else -> error("unknown command")
                 }

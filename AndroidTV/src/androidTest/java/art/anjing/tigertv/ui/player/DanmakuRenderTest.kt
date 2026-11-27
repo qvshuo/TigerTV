@@ -114,6 +114,8 @@ class DanmakuRenderTest {
                 compose.runOnIdle { media.hasVideoFrame && overlay(root)?.contentDescription == DanmakuPhase.Search.label }
             }
             response.complete(Unit)
+            compose.waitUntil(5_000) { compose.runOnIdle { overlay(root)?.contentDescription == "未找到本集弹幕" } }
+            compose.mainClock.advanceTimeBy(4_100)
             compose.waitUntil(5_000) { compose.runOnIdle { overlay(root)?.contentDescription == null } }
         } finally {
             response.complete(Unit)

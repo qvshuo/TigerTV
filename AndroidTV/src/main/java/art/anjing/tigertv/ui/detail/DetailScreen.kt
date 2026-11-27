@@ -109,7 +109,9 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
         }
     }
 
-    CompositionLocalProvider(LocalBringIntoViewSpec provides DetailFocusScroll) {
+    val focusInset = with(LocalDensity.current) { UiSpacing.sm.toPx() }
+    val focusScroll = remember(focusInset) { DetailFocusScroll(focusInset) }
+    CompositionLocalProvider(LocalBringIntoViewSpec provides focusScroll) {
         Column(Modifier.fillMaxSize().onPreviewKeyEvent {
             if (it.type == KeyEventType.KeyDown) {
                 when (it.key) {
@@ -136,7 +138,7 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                     state = gridState,
                     columns = GridCells.Fixed(4),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = ChoiceInset, vertical = UiSpacing.sm),
+                    contentPadding = PaddingValues(start = ChoiceInset, end = ChoiceInset, top = UiSpacing.sm, bottom = UiSpacing.lg),
                     horizontalArrangement = Arrangement.spacedBy(ChoiceGap),
                     verticalArrangement = Arrangement.spacedBy(UiSpacing.choiceRow)
                 ) {
@@ -161,24 +163,16 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                             matches.firstOrNull { it.coverKey == result?.coverKey } ?: matches.first()
                         }
                         val sites = (viewModel.configuredSites + sources.map { it.site }).distinct()
-                        val groups = sites.groupBy { site ->
-                            val evidence = sourceAdEvidence(site)
-                            if (evidence == SourceAdEvidence.FILTER_VERIFIED && !filterAds) SourceAdEvidence.UNVERIFIED else evidence
+                        fun evidence(site: String) = sourceAdEvidence(site).let {
+                            if (it == SourceAdEvidence.FILTER_VERIFIED && !filterAds) SourceAdEvidence.UNVERIFIED else it
                         }
+                        val groups = sites.groupBy { evidence(it) != SourceAdEvidence.UNVERIFIED }
                         Column(verticalArrangement = Arrangement.spacedBy(UiSpacing.choiceRow)) {
                             SectionTitle("资源")
-                            if (groups.keys.any { it != SourceAdEvidence.UNVERIFIED }) {
-                                Text("推荐资源", style = MaterialTheme.typography.labelLarge)
-                            }
-                            SourceAdEvidence.entries.forEach { evidence ->
-                                val group = groups[evidence].orEmpty()
+                            for (recommended in listOf(true, false)) {
+                                val group = groups[recommended].orEmpty()
                                 if (group.isNotEmpty()) {
-                                    when (evidence) {
-                                        SourceAdEvidence.FILTER_VERIFIED -> ResourceBadge("去广告")
-                                        SourceAdEvidence.NO_GAMBLING_IN_SAMPLES -> ResourceBadge("无博彩广告")
-                                        SourceAdEvidence.UNVERIFIED -> Text("其他资源", style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
+                                    Text(if (recommended) "推荐资源" else "其他资源", style = MaterialTheme.typography.labelLarge)
                                     group.chunked(6).forEach { row ->
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ChoiceGap)) {
                                             row.forEach { site ->
@@ -187,7 +181,12 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                                                     val active = source != null && source.coverKey == result?.coverKey
                                                     val busy = if (source == null) viewModel.isSiteSearching(site)
                                                         else (viewModel.isFetching && active) || viewModel.isDetailLoading(source)
-                                                    ResourceChoice(displaySourceName(site), active,
+                                                    val badge = when (evidence(site)) {
+                                                        SourceAdEvidence.FILTER_VERIFIED -> "去广告"
+                                                        SourceAdEvidence.NO_GAMBLING_IN_SAMPLES -> "无插播"
+                                                        SourceAdEvidence.UNVERIFIED -> null
+                                                    }
+                                                    ResourceChoice(displaySourceName(site), active, badge = badge,
                                                         loading = busy, enabled = source != null && !isEmpty(source),
                                                         modifier = Modifier.weight(1f).then(
                                                             if (source != null && source.coverKey == focusSource?.coverKey) Modifier.focusRequester(sourceFocus) else Modifier
@@ -291,25 +290,23 @@ private fun SectionTitle(title: String) {
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 internal fun ResourceChoice(title: String, selected: Boolean, modifier: Modifier = Modifier,
-    loading: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
+    badge: String? = null, loading: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     SelectionChip(selected = selected, onClick = onClick, enabled = enabled,
         modifier = modifier.fillMaxWidth().heightIn(min = UiMetrics.controlHeight)) {
         Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.controlHeight - UiSpacing.md),
             horizontalArrangement = Arrangement.spacedBy(UiSpacing.xs, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically) {
-            Spacer(Modifier.width(14.dp))
             Text(title, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center)
-            Box(Modifier.size(14.dp), contentAlignment = Alignment.Center) {
-                if (loading) LoadingIndicator(Modifier.fillMaxSize())
-            }
+            if (badge != null) ResourceBadge(badge)
+            if (loading) LoadingIndicator(Modifier.size(12.dp))
         }
     }
 }
 
 @Composable
 private fun ResourceBadge(label: String) {
-    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    val color = androidx.tv.material3.LocalContentColor.current
     val shape = MaterialTheme.shapes.extraSmall
     Text(label, style = MaterialTheme.typography.labelSmall, color = color,
         modifier = Modifier.border(1.dp, color.copy(alpha = .5f), shape).padding(horizontal = UiSpacing.xs))
@@ -339,7 +336,7 @@ private fun PosterPlaceholder(title: String) {
 @Composable
 private fun EpisodeCard(label: String, isSelected: Boolean, height: Dp, modifier: Modifier = Modifier, onPlay: () -> Unit) {
     SelectionChip(selected = isSelected, onClick = onPlay,
-        modifier = modifier.fillMaxWidth().height(height)) {
+        modifier = modifier.fillMaxWidth().padding(vertical = 2.dp).height(height)) {
         Box(Modifier.fillMaxWidth().height(height - UiSpacing.md), contentAlignment = Alignment.Center) {
             Text(label, textAlign = TextAlign.Center,
                 maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -350,6 +347,14 @@ private fun EpisodeCard(label: String, isSelected: Boolean, height: Dp, modifier
 private val ChoiceInset = UiSpacing.md
 private val ChoiceGap = UiSpacing.choiceColumn
 
-// Source updates must not re-center controls that are already visible.
 @OptIn(ExperimentalFoundationApi::class)
-private object DetailFocusScroll : BringIntoViewSpec
+private class DetailFocusScroll(private val inset: Float) : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        if (size + 2 * inset > containerSize) return super.calculateScrollDistance(offset, size, containerSize)
+        return when {
+            offset < inset -> offset - inset
+            offset + size > containerSize - inset -> offset + size - containerSize + inset
+            else -> 0f
+        }
+    }
+}

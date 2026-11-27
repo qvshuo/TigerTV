@@ -38,7 +38,7 @@ internal fun SelectionChip(
             focusedSelectedContainerColor = colors.inverseSurface, focusedSelectedContentColor = colors.inverseOnSurface,
         ),
         border = FilterChipDefaults.border(focusedBorder = focusBorder, focusedSelectedBorder = focusBorder),
-        scale = FilterChipDefaults.scale(focusedScale = 1.05f),
+        scale = FilterChipDefaults.scale(focusedScale = 1.03f),
     ) {
         if (focused) ProvideTextStyle(TextStyle(fontWeight = FontWeight.Bold), content)
         else content()

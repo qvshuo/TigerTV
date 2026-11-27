@@ -498,9 +498,12 @@ class CoreServiceTest {
         } finally { core.close() }
     }
 
-    @Test fun quanxBoundsMediaTimeAndProbesDistinctHostsBeforeRepeats() = runTest {
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun quanxCompletesSlowScansAndProbesDistinctHostsBeforeRepeats() = runTest {
         var inFlight = 0
         var peak = 0
+        var keys = 0
+        var keysBeforeOtherHost = -1
         val core = CoreService("cache", "source", MemoryStorage().apply { files["source"] = config },
             configureClient(HttpClient(testEngine { request ->
                 when {
@@ -511,9 +514,12 @@ class CoreServiceTest {
                         repeat(60) { appendLine("#EXT-X-KEY:URI=\"https://segments.test/$it.key\"") }
                         appendLine("https://other.test/a.ts")
                     })
-                    request.url.host == "other.test" -> respond("", HttpStatusCode.Found,
-                        headersOf(HttpHeaders.Location, "https://other-cdn.test/a.ts"))
+                    request.url.host == "other.test" -> {
+                        keysBeforeOtherHost = keys
+                        respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://other-cdn.test/a.ts"))
+                    }
                     else -> {
+                        if (request.url.host == "segments.test") keys++
                         peak = maxOf(peak, ++inFlight)
                         try { delay(1000) } finally { inFlight-- }
                         respond("")
@@ -522,10 +528,12 @@ class CoreServiceTest {
             })))
         try {
             val domains = core.collectQuanxDomains("test")
-            assertEquals(6000, testScheduler.currentTime)
+            assertTrue(testScheduler.currentTime > 6000)
+            assertEquals(60, keys)
+            assertTrue(keysBeforeOtherHost in 0..5)
             assertEquals(6, peak)
             assertTrue("other-cdn.test" in domains.m3u8)
-            assertTrue(domains.incompleteReasons.values.single().any { "媒体跳转探测超过 6 秒" in it })
+            assertTrue(domains.incompleteReasons.isEmpty())
         } finally { core.close() }
     }
 

@@ -84,8 +84,8 @@
   const asset = import.meta.env.BASE_URL + 'icon-192.png'
 
   const playbackSettings = [
-    ['autoNext', '自动下一集'], ['rememberSpeed', '记忆播放速度'],
-    ['rememberVolume', '记忆音量'], ['filterAds', '去广告'],
+    ['autoNext', '自动连播'], ['rememberSpeed', '记忆倍速'],
+    ['rememberVolume', '记忆音量'], ['filterAds', '去除广告'],
   ] as const
 
   function show(next: Page, push = true) {
@@ -220,7 +220,6 @@
     write('work-posters', workPosters)
   }
 
-  const sourceGroups = ['filter', 'sample', 'other'] as const
   function evidenceFor(site: Site) {
     const name = displaySourceName(site.name)
     if (settings.filterAds && sourceEvidence.verifiedFilterSources.includes(name)) return 'filter'
@@ -550,18 +549,13 @@
       {#if detailSites.some(site => evidenceFor(site) !== 'other')}
         <h3 class="source-group-title">推荐资源</h3>
       {/if}
-      {#each sourceGroups as evidence (evidence)}
-        {@const group = detailSites.filter(site => evidenceFor(site) === evidence)}
+      {#each ['recommended', 'other'] as groupType (groupType)}
+        {@const group = detailSites.filter(site => (evidenceFor(site) === 'other') === (groupType === 'other'))}
         {#if group.length}
-          {#if evidence === 'other'}
-            <h3 class="source-group-title">其他资源</h3>
-          {:else}
-            <h4 class="source-group-title">
-              <span class="source-badge">{evidence === 'sample' ? '无博彩广告' : '去广告'}</span>
-            </h4>
-          {/if}
+          {#if groupType === 'other'}<h3 class="source-group-title">其他资源</h3>{/if}
           <div class="source-grid">
             {#each group as site (site.name)}
+              {@const evidence = evidenceFor(site)}
               {@const item = matchedSources.get(site.name)}
               {@const active = !!item && sameSource(item, source)}
               {@const key = item ? sourceKey(item) : ''}
@@ -573,6 +567,7 @@
                 disabled={!item || (cached ? !cached.lines.length : detailStates.get(key) === 'empty')}
                 onclick={() => { if (item && !active) void loadDetail(item) }}>
                 <span>{displaySourceName(site.name)}</span>
+                {#if evidence !== 'other'}<span class="source-badge">{evidence === 'sample' ? '无插播' : '去广告'}</span>{/if}
                 {#if busy}<span class="spinner" aria-hidden="true"></span>{/if}
               </button>
             {/each}
@@ -617,7 +612,7 @@
       </section>
       <section class="detail-section" aria-labelledby="danmaku-settings-heading">
         <h2 id="danmaku-settings-heading">弹幕</h2>
-        <form class="grid gap-3" onsubmit={saveServer} novalidate>
+        <form class="settings-form grid gap-3" onsubmit={saveServer} novalidate>
           <label for="server">弹幕服务地址</label>
           <div class="search-form">
             <input id="server" type="url" inputmode="url" bind:this={danmakuDraft} bind:value={server} placeholder={defaultDanmakuServer}

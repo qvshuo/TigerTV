@@ -38,7 +38,7 @@ class Network(private val client: HttpClient) {
     internal suspend fun response(
         url: String, timeoutMillis: Long = networkTimeouts.catalogRequestMs, extraHeaders: Map<String, String> = emptyMap(),
         skipMediaBody: Boolean = false, socketTimeoutMillis: Long = minOf(10_000, timeoutMillis),
-        headersOnly: Boolean = false, onRequest: suspend (String) -> Unit = {},
+        connectTimeoutMillis: Long = minOf(5_000, timeoutMillis), headersOnly: Boolean = false, onRequest: suspend (String) -> Unit = {},
         onRedirect: suspend (String) -> Unit = {},
     ): NetworkResponse = withTimeoutOrNull(timeoutMillis) {
         val socketDeadline = socketTimeoutMillis
@@ -53,7 +53,7 @@ class Network(private val client: HttpClient) {
                 extraHeaders.forEach { (name, value) -> header(name, value) }
                 timeout {
                     requestTimeoutMillis = timeoutMillis
-                    connectTimeoutMillis = minOf(5_000, timeoutMillis)
+                    this.connectTimeoutMillis = connectTimeoutMillis
                     this.socketTimeoutMillis = socketDeadline
                 }
             }.execute { response ->

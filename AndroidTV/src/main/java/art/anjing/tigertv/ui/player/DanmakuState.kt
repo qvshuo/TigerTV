@@ -76,7 +76,7 @@ internal class DanmakuState(
         if (!useSaved) {
             request("无法加载弹幕", DanmakuPhase.Search) {
                 titles = api.search(query)
-                if (titles.isEmpty()) error = "未找到弹幕"
+                if (titles.isEmpty()) error = "未找到本集弹幕"
             }
             return
         }
@@ -119,7 +119,7 @@ internal class DanmakuState(
             if (episodes.isEmpty()) error = "暂无剧集"
         }
     }
-    fun select(episode: DanmakuEpisode) {
+    fun select(episode: DanmakuEpisode, onSelected: () -> Unit = {}) {
         request("无法加载弹幕", DanmakuPhase.Track) {
             val data = comments(episode.id)
             if (data.comments.isEmpty()) {
@@ -130,6 +130,7 @@ internal class DanmakuState(
             track = data
             selectedTitle?.let { activeChoice = DanmakuMatch(it, episodes, episode, data) }
             rememberSelection()
+            onSelected()
         }
     }
     fun close() { cancelRequest() }

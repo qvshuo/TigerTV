@@ -4,6 +4,7 @@
   import '@videojs/html/video/player'
   import type { VideoPlayerElement } from '@videojs/html/video'
   import '@videojs/html/video/skin'
+  import '@videojs/html/ui/playback-rate-button'
   import '@videojs/html/i18n'
   import '@videojs/html/i18n/locales/zh-CN/register'
   import type { HlsJsVideoElement } from '@videojs/html/media/hlsjs-video'
@@ -19,6 +20,7 @@
       onSelectEpisode: (index: number, options?: PlaybackOptions) => void; inherited?: PlaybackOptions } = $props()
   let container = $state<HTMLElementTagNameMap["video-skin"]>()
   let player = $state<VideoPlayerElement>()
+  let danmakuLayer = $state<HTMLDivElement>()
   let canvas = $state<HTMLCanvasElement>()
   let dialog = $state<HTMLDialogElement>()
   let episodeDialog = $state<HTMLDialogElement>()
@@ -40,6 +42,7 @@
   let manualEpisode = $state(0)
   let activeDanmaku = $state.raw<DanmakuMatch>()
   let danmakuStatus = $state('')
+  let statusTimer: ReturnType<typeof setTimeout> | undefined
   let manualStatus = $state('')
   let request: AbortController | undefined
   let automatic: AbortController | undefined
@@ -110,7 +113,7 @@
     const link = episode.url
     const mount = container
     const priorOptions = inherited
-    const overlay = canvas
+    const overlay = danmakuLayer
     void playbackAttempt
     if (!mount || !overlay) return
     const prefs = untrack(() => ({ ...settings }))
@@ -152,19 +155,20 @@
       const on = (name: string, handler: EventListener) => el.addEventListener(name, handler, { signal: events.signal })
 
       const placeDanmaku = () => {
-        const width = mount.clientWidth
-        const height = mount.clientHeight
+        const width = el.clientWidth
+        const height = el.clientHeight
         const aspect = el.videoWidth > 0 && el.videoHeight > 0 ? el.videoWidth / el.videoHeight : width / height
         if (!width || !height || !Number.isFinite(aspect) || aspect <= 0) return
         const contentWidth = Math.min(width, height * aspect)
         const contentHeight = Math.min(height, width / aspect)
         overlay.style.width = `${contentWidth}px`
-        overlay.style.blockSize = `${contentHeight / 5}px`
+        overlay.style.blockSize = `${contentHeight * danmakuRules.render.areaRatio}px`
+        overlay.style.fontSize = `${contentHeight * danmakuRules.render.fontRatio * danmakuRules.render.statusFontRatio}px`
         overlay.style.left = `${(width - contentWidth) / 2}px`
         overlay.style.top = `${(height - contentHeight) / 2}px`
       }
       const layout = new ResizeObserver(placeDanmaku)
-      layout.observe(mount)
+      layout.observe(el)
       on('resize', placeDanmaku)
       for (const event of ['waiting', 'seeking']) on(event, () => { buffering = true; wakeDanmaku(event === 'seeking') })
       on('playing', () => { buffering = false; wakeDanmaku() })
@@ -242,6 +246,7 @@
       el.setAttribute('playsinline', '')
       el.setAttribute('preload', 'auto')
       mount.insertBefore(el, overlay)
+      placeDanmaku()
       el.volume = volume
       el.muted = muted
       el.playbackRate = speed
@@ -278,6 +283,39 @@
     }
   })
 
+  $effect(() => {
+    const mount = container
+    if (!mount) return
+    void customElements.whenDefined('video-skin').then(() => {
+      const root = mount.shadowRoot
+      // The default skin exposes no slot in its control bar.
+      const settingsButton = root?.querySelector<HTMLButtonElement>('.video-controls-settings-button')
+      if (!settingsButton) return
+      const menu = settingsButton.getAttribute('commandfor')
+      if (menu) root?.getElementById(menu)?.remove()
+      root?.querySelector(`media-tooltip[trigger="${settingsButton.id}"]`)?.remove()
+      const rate = document.createElement('media-playback-rate-button')
+      rate.className = 'media-button'
+      rate.setAttribute('label', '倍速')
+      rate.setAttribute('rates', '0.5 0.75 1 1.25 1.5 1.75 2')
+      const label = document.createElement('span')
+      label.textContent = speed + '×'
+      rate.append(label)
+      settingsButton.replaceWith(rate)
+    })
+  })
+  $effect(() => {
+    const label = container?.shadowRoot?.querySelector('media-playback-rate-button span')
+    const rate = speed
+    if (label) label.textContent = rate + '×'
+  })
+
+  function setDanmakuStatus(message: string, transient = false) {
+    clearTimeout(statusTimer)
+    danmakuStatus = message
+    if (transient) statusTimer = setTimeout(() => { danmakuStatus = '' }, danmakuRules.render.statusDurationMs)
+  }
+
   const danmakuTitleKey = (server: string, session: Selection) => 'danmaku-title:' + JSON.stringify([server, session.work.id, session.source.site.name, session.source.id])
   const danmakuEpisodeKey = (title: string, session: Selection) => 'danmaku-episode:' + JSON.stringify([title, ...episodeIdentity(session)])
   const titleKey = $derived(danmakuTitleKey(settings.danmakuServer, selection))
@@ -299,10 +337,10 @@
     manualEpisode = 0
     track = undefined
     activeDanmaku = undefined
-    danmakuStatus = ''
+    setDanmakuStatus('')
     manualStatus = ''
     if (server && showDanmaku) untrack(() => startDanmaku(server, session, title, episode))
-    return () => { request?.abort(); request = automatic = undefined }
+    return () => { clearTimeout(statusTimer); request?.abort(); request = automatic = undefined }
   })
 
   function legacyDanmakuKeys(server: string, session: Selection) {
@@ -321,7 +359,7 @@
     request = automatic = controller
     const legacy = legacyDanmakuKeys(server, session)
     void autoMatch(new DanmakuClient(server, signal, phase => {
-      if (!signal.aborted && owns(controller, session, server) && !track) danmakuStatus = danmakuLoading[phase]
+      if (!signal.aborted && owns(controller, session, server) && !track) setDanmakuStatus(danmakuLoading[phase])
     }), session.work.display.title, session.work.display.year, session.episode,
       { title: read<number | undefined>(title, undefined) ?? (legacy && read<number | undefined>(legacy.title, undefined)),
         episode: read<SavedDanmakuEpisode | undefined>(episode, undefined) ??
@@ -331,14 +369,14 @@
         track = result
         activeDanmaku = match
         if (dialog?.open) restoreDanmakuChoice()
-        danmakuStatus = ''
+        setDanmakuStatus('')
       }, signal,
       candidates => {
         if (!owns(controller, session, server) || signal.aborted) return
         titles = [...new Map([...titles, ...candidates].map(candidate => [candidate.id, candidate])).values()]
       })
-      .then(() => { if (owns(controller, session, server) && !track) danmakuStatus = '未找到本集弹幕' })
-      .catch(() => { if (owns(controller, session, server) && !track) danmakuStatus = '无法加载弹幕' })
+      .then(() => { if (owns(controller, session, server) && !track) setDanmakuStatus('未找到本集弹幕', true) })
+      .catch(() => { if (owns(controller, session, server) && !track) setDanmakuStatus('无法加载弹幕', true) })
       .finally(() => {
         if (request === controller) request = undefined
         if (automatic === controller) automatic = undefined
@@ -346,12 +384,12 @@
   }
   function setDanmakuEnabled(value: boolean) {
     enabled = value
+    setDanmakuStatus('')
     write('danmaku-enabled:' + episodeKey, enabled)
     if (!enabled && automatic) {
       automatic.abort()
       if (request === automatic) request = undefined
       automatic = undefined
-      danmakuStatus = ''
     } else if (enabled && !track && !request && settings.danmakuServer) {
       startDanmaku(settings.danmakuServer, selection, titleKey, episodeKey)
     }
@@ -395,7 +433,7 @@
 
   async function manual<T>(work: (client: DanmakuClient) => Promise<T>, apply: (value: T) => void) {
     request?.abort()
-    danmakuStatus = ''
+    setDanmakuStatus('')
     const session = selection
     const server = settings.danmakuServer
     const controller = new AbortController()
@@ -446,7 +484,6 @@
   }
   function showDanmakuPicker(trigger: HTMLButtonElement) {
     restoreDanmakuChoice()
-    dialog?.querySelectorAll('details[open]').forEach(item => item.removeAttribute('open'))
     showPicker(trigger, dialog)
   }
 </script>
@@ -454,15 +491,17 @@
 <svelte:window onkeydown={shortcut} />
 <svelte:document onfullscreenchange={fullscreenChanged} />
 <div class="mb-5 flex flex-wrap items-center gap-3">
-  <button class="quiet" onclick={() => exit(onBack)}>{error ? '切换来源' : '← 返回'}</button>
+  <button class="quiet" onclick={() => exit(onBack)}>← 返回</button>
   {#if error}
     <button class="quiet" onclick={() => { failed = undefined; playbackAttempt++ }}>重试</button>
   {/if}
 </div>
 <media-i18n lang="zh-CN"><video-player bind:this={player}>
   <video-skin bind:this={container} class="video-surface">
-    <canvas bind:this={canvas} class="danmaku" aria-hidden="true"></canvas>
-    <p class="danmaku-status" role="status">{enabled ? danmakuStatus : ''}</p>
+    <div class="danmaku-layer" bind:this={danmakuLayer}>
+      <canvas bind:this={canvas} class="danmaku" aria-hidden="true"></canvas>
+      <p class="danmaku-status" role="status">{enabled ? danmakuStatus : ''}</p>
+    </div>
   </video-skin>
 </video-player></media-i18n>
 
@@ -473,8 +512,11 @@
   </div>
   <div class="player-actions">
     <button class="quiet" onclick={event => showPicker(event.currentTarget, episodeDialog)} aria-haspopup="dialog">选集</button>
-    {#if removed.length}<span class="source-badge">去广告</span>{/if}
-    <button class="quiet" onclick={event => showDanmakuPicker(event.currentTarget)} aria-haspopup="dialog">弹幕</button>
+    <label class="danmaku-toggle">
+      <input type="checkbox" role="switch" checked={enabled} onchange={event => setDanmakuEnabled(event.currentTarget.checked)} />
+      弹幕
+    </label>
+    <button class="quiet" onclick={event => showDanmakuPicker(event.currentTarget)} aria-haspopup="dialog">选择弹幕</button>
   </div>
 </div>
 
@@ -497,22 +539,12 @@
   </ol>
 </dialog>
 
-<dialog bind:this={dialog} aria-labelledby="danmaku-heading" oncancel={event => {
-  const open = dialog?.querySelector<HTMLDetailsElement>('details[open]')
-  if (open) {
-    event.preventDefault()
-    open.open = false
-    open.querySelector('summary')?.focus()
-  }
-}}>
+<dialog bind:this={dialog} aria-labelledby="danmaku-heading"
+  onclose={() => dialog?.querySelectorAll<HTMLElement>('.picker-field ul[popover]').forEach(panel => panel.hidePopover())}>
   <form method="dialog" class="mb-5 flex items-center justify-between gap-3">
-    <h2 id="danmaku-heading">弹幕</h2>
+    <h2 id="danmaku-heading">选择弹幕</h2>
     <button class="quiet">关闭</button>
   </form>
-  <label class="danmaku-toggle">
-    <input type="checkbox" role="switch" checked={enabled} onchange={event => setDanmakuEnabled(event.currentTarget.checked)} />
-    显示弹幕
-  </label>
   {#if settings.danmakuServer}
     <form class="search-form" onsubmit={event => {
       event.preventDefault()

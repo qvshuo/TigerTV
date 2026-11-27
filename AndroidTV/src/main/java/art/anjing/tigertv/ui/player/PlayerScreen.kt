@@ -129,7 +129,6 @@ fun PlayerScreen(
     val danmakuFocus = remember { FocusRequester() }
     val speedOptionFocus = remember { FocusRequester() }
     val retryFocus = remember { FocusRequester() }
-    val changeSourceFocus = remember { FocusRequester() }
     fun requestFocus(area: PlayerFocusArea) { focusRequest = area to (focusRequest.second + 1) }
     fun interact() { controls = controls.show(SystemClock.elapsedRealtime()) }
     fun showControls(area: PlayerFocusArea) {
@@ -410,25 +409,16 @@ fun PlayerScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(error, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(16.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ActionButton(onClick = { controller.unload(); viewModel.retryPlayback() },
-                            modifier = Modifier.focusRequester(retryFocus).widthIn(min = 144.dp).focusProperties {
-                                up = FocusRequester.Cancel
-                                down = FocusRequester.Cancel
-                                left = FocusRequester.Cancel
-                                right = changeSourceFocus
-                            }) {
-                            Icon(painterResource(R.drawable.player_refresh), contentDescription = null, modifier = Modifier.size(24.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.retry))
-                        }
-                        ActionButton(onClick = ::exitPlayer,
-                            modifier = Modifier.focusRequester(changeSourceFocus).widthIn(min = 144.dp).focusProperties {
-                                up = FocusRequester.Cancel
-                                down = FocusRequester.Cancel
-                                left = retryFocus
-                                right = FocusRequester.Cancel
-                            }) { Text("切换来源") }
+                    ActionButton(onClick = { controller.unload(); viewModel.retryPlayback() },
+                        modifier = Modifier.focusRequester(retryFocus).widthIn(min = 144.dp).focusProperties {
+                            up = FocusRequester.Cancel
+                            down = FocusRequester.Cancel
+                            left = FocusRequester.Cancel
+                            right = FocusRequester.Cancel
+                        }) {
+                        Icon(painterResource(R.drawable.player_refresh), contentDescription = null, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.retry))
                     }
                 }
             }

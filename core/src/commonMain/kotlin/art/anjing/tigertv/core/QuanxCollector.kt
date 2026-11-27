@@ -40,7 +40,6 @@ internal class QuanxCollector(
         val roots = linkedSetOf<String>()
         val leaves = linkedSetOf<String>()
         val failures = linkedSetOf<String>()
-        var phaseComplete = false
     }
 
     private data class Probe(
@@ -51,7 +50,7 @@ internal class QuanxCollector(
         val dynamicSteering: Boolean = false,
     )
 
-    private inner class Budget(val name: String, val timeMillis: Long, val requestMillis: Long) {
+    private inner class Budget(val name: String) {
         val connections = Semaphore(24)
         private var requests = 0
         suspend fun take() = mutex.withLock {
@@ -65,7 +64,7 @@ internal class QuanxCollector(
             quanxHost(target)?.let { host -> scan.lock.withLock { scan.api += host } }
         }
         return budget.connections.withPermit {
-            network.response(url, budget.requestMillis, onRedirect = ::remember, onRequest = { target ->
+            network.response(url, Long.MAX_VALUE, socketTimeoutMillis = 30_000, connectTimeoutMillis = 15_000, onRedirect = ::remember, onRequest = { target ->
                 remember(target)
                 budget.take()
             })
@@ -89,7 +88,7 @@ internal class QuanxCollector(
         try {
             suspend fun request(range: Boolean) = budget.connections.withPermit {
                 network.response(
-                    url, budget.requestMillis, extraHeaders = if (range) mapOf("Range" to "bytes=0-0") else emptyMap(),
+                    url, Long.MAX_VALUE, socketTimeoutMillis = 30_000, connectTimeoutMillis = 15_000, extraHeaders = if (range) mapOf("Range" to "bytes=0-0") else emptyMap(),
                     headersOnly = isLeaf, skipMediaBody = true, onRequest = { target ->
                         rememberMedia(target)
                         budget.take()
@@ -160,20 +159,11 @@ internal class QuanxCollector(
         return Probe(playlists.toList(), leaves, leafLimitReached = leafLimitReached, dynamicSteering = dynamicSteering)
     }
 
-    private suspend fun phase(scans: List<SiteScan>, budget: Budget, work: suspend (SiteScan) -> Unit) {
-        scans.forEach { it.phaseComplete = false }
-        withTimeoutOrNull(budget.timeMillis) {
-            coroutineScope {
-                scans.map { scan -> async {
-                    try { work(scan) }
-                    catch (error: CancellationException) { throw error }
-                    catch (error: Exception) { report(scan, error) }
-                    scan.phaseComplete = true
-                } }.awaitAll()
-            }
-        }
-        for (scan in scans) if (!scan.phaseComplete) {
-            report(scan, IllegalStateException("QX ${budget.name}超过 ${budget.timeMillis / 1000} 秒"))
+    private suspend fun phase(scans: List<SiteScan>, work: suspend (SiteScan) -> Unit) {
+        parallel(scans) { scan ->
+            try { work(scan) }
+            catch (error: CancellationException) { throw error }
+            catch (error: Exception) { report(scan, error) }
         }
     }
 
@@ -185,12 +175,12 @@ internal class QuanxCollector(
         val scans = sites.map { site ->
             SiteScan(site).also { scan -> quanxHost(site.api)?.let { scan.api += it } }
         }
-        val discoveryBudget = Budget("资源站发现", 12_000, 5_000)
-        val playlistBudget = Budget("播放入口和清单探测", 12_000, 4_000)
-        val mediaBudget = Budget("媒体跳转探测", 6_000, 2_000)
-        phase(scans, discoveryBudget) { discover(it, keyword, discoveryBudget) }
-        phase(scans, playlistBudget) { walkPlaylists(it, playlistBudget) }
-        phase(scans, mediaBudget) { scan ->
+        val discoveryBudget = Budget("资源站发现")
+        val playlistBudget = Budget("播放入口和清单探测")
+        val mediaBudget = Budget("媒体跳转探测")
+        phase(scans) { discover(it, keyword, discoveryBudget) }
+        phase(scans) { walkPlaylists(it, playlistBudget) }
+        phase(scans) { scan ->
             val representatives = scan.leaves.distinctBy(::quanxHost).toSet()
             val ordered = representatives.asSequence() + scan.leaves.asSequence().filterNot { it in representatives }
             for (batch in ordered.chunked(PROBE_BATCH_SIZE)) {

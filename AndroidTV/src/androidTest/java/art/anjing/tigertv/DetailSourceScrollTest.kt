@@ -127,6 +127,19 @@ class DetailSourceScrollTest {
                 }
                 assertTrue("Focus was lost after reversing: $returned",
                     Regex("^(?:播放 · )?第[1-9]集").containsMatchIn(returned) || returned == "源甲")
+                val grid = compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
+                grid.performScrollToNode(hasText("第113集"))
+                compose.onNode(hasText("第113集") and hasClickAction())
+                    .performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+                instrumentation.sendKeyDownUpSync(down)
+                compose.mainClock.advanceTimeBy(600)
+                compose.waitForIdle()
+                val lastRow = compose.onNode(isFocused()).fetchSemanticsNode()
+                val label = lastRow.config[SemanticsProperties.Text].single().text
+                assertTrue("Expected focus on the last episode row: $label", Regex("^第(?:11[7-9]|120)集").containsMatchIn(label))
+                val rowBottom = lastRow.boundsInRoot.bottom
+                val gridBottom = grid.fetchSemanticsNode().boundsInRoot.bottom
+                assertTrue("Focused last-row button needs room for its border: $rowBottom / $gridBottom", rowBottom < gridBottom)
                 assertNull(model.playbackUrl)
                 return
             }
