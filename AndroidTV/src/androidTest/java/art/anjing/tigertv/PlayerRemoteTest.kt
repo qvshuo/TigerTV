@@ -177,7 +177,13 @@ class PlayerRemoteTest {
             }
             ended
         }
-        compose.runOnIdle { assertEquals(0, model.selectedEpisodeIndex) }
+        kotlinx.coroutines.runBlocking { model.refreshRecentPlayback() }
+        compose.runOnIdle {
+            assertEquals(0, model.selectedEpisodeIndex)
+            val recent = model.recentPlayback.single()
+            assertEquals(0L, recent.positionMillis)
+            assertEquals(100, recent.progressPercent)
+        }
     }
 
     @Test fun speedIsRestoredForTheSameWorkAfterSwitchingSource() {

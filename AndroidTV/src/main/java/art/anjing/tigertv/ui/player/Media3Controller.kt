@@ -185,6 +185,7 @@ class Media3Controller(context: Context) {
     }
 
     fun playbackProgressPercent(savedPositionMillis: Long): Int? {
+        if (ended) return 100
         if (savedPositionMillis == 0L) return 0
         val duration = player.duration.takeIf { it > 0 } ?: return null
         return (100.0 * player.currentPosition / duration).toInt().coerceIn(0, 100)

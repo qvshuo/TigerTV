@@ -96,7 +96,7 @@ class TigerTVViewModel(
 
     fun openRecentPlayback(recent: RecentPlayback) {
         val source = recent.source
-        val resource = if (recent.bookmark.index != null) source.coverKey else source.site
+        val resource = source.coverKey
         val work = works.firstOrNull { it.id == recent.workId }
         val sources = (listOf(source, recent.cardSource) + work?.sources.orEmpty())
             .filter { it.coverKey == source.coverKey || workId(it) == recent.workId }
@@ -236,7 +236,7 @@ class TigerTVViewModel(
     private var startedPlaybackRevision = -1
     private val changedPlaybackWorks = mutableSetOf<String>()
     private var latestPlayedSite: String? = null
-    data class PlaybackSession(val workId: String, val site: String, val line: String, val episode: String, val positionMillis: Long, val revision: Int, val sourceKey: String = site, val index: Int = 0, val legacySite: Boolean = false, val legacyEpisode: Boolean = false)
+    data class PlaybackSession(val workId: String, val site: String, val line: String, val episode: String, val positionMillis: Long, val revision: Int, val sourceKey: String = site, val index: Int = 0)
 
     val playbackSession: PlaybackSession? get() {
         val work = selectedWork ?: return null
@@ -244,8 +244,7 @@ class TigerTVViewModel(
         val line = fetchResponse?.playSources?.getOrNull(selectedPlaybackSourceIndex) ?: return null
         val episode = episodes.getOrNull(selectedEpisodeIndex) ?: return null
         return PlaybackSession(work.id, source.site, line.id, episode.name,
-            work.positionFor(source, line, selectedEpisodeIndex), playbackRevision, source.coverKey, selectedEpisodeIndex,
-            work.acceptsLegacy(source), line.episodes.count { it.name == episode.name } == 1)
+            work.positionFor(source, line, selectedEpisodeIndex), playbackRevision, source.coverKey, selectedEpisodeIndex)
     }
 
     fun playbackDidStart(session: PlaybackSession) {
@@ -575,6 +574,7 @@ class TigerTVViewModel(
         if (!forceRefresh && fetchResponse != null && selectedResult?.coverKey == result.coverKey && cachedDetail(result) != null) return
         cancelCoverLoads()
         fetchJob?.cancel()
+        if (recentWork?.lastPlayedSourceKey != result.coverKey) pendingRecentBookmark = null
         selectedResult = result
         selectedPlaybackSourceIndex = 0
         fetchResponse = null
@@ -635,12 +635,6 @@ class TigerTVViewModel(
         selectedEpisodeIndex = index
         playbackErrorMessage = null
         playbackRevision++
-    }
-
-    fun retryPlayback() {
-        if (selectedEpisodeIndex >= 0) {
-            selectEpisode(selectedEpisodeIndex)
-        }
     }
 
     fun clearPlayback() {

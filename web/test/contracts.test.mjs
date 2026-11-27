@@ -2,6 +2,7 @@ import { test } from 'bun:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { integer, parseConfig, parseJson, parseLines, webUrl, workId } from '../src/api.ts'
+import { hlsVideoVariants } from '../src/hls-loader.ts'
 import { filterPlaylist, effectiveTime, originalTime } from '../src/hls.ts'
 import { autoMatch, DanmakuClient, drawComments, fitsDanmaku, matchingEpisode, shouldUpgrade, titleCandidates, titleRank } from '../src/danmaku.ts'
 import { getBookmark, getPosition, getRecent, getSettings, getSpeed, getVolume, recordStarted, savePosition, saveSpeed, saveVolume, write } from '../src/storage.ts'
@@ -45,9 +46,22 @@ test('Android and Web remove the same interval and preserve the key and relative
     playlist.replaceAll('#EXT-X-DISCONTINUITY\n', ''),
     playlist.replace('MEDIA-SEQUENCE:0', 'MEDIA-SEQUENCE:0\n#EXT-X-MEDIA-SEQUENCE:1'),
     playlist.replace('IV=0x00000000000000000000000000000001', 'KEYFORMAT="drm"'),
-    playlist.replace('#EXTINF:5,', '#EXT-X-MAP:URI="init.mp4"\n#EXTINF:5,'),
-    playlist.replace('#EXTINF:5,', '#EXT-X-BYTERANGE:24@0\n#EXTINF:5,'),
+    playlist.replace('#EXTINF:5,', '#EXT-X-MAP:URI="init.mp4",BYTERANGE="24"\n#EXTINF:5,'),
+    playlist.replace('#EXTINF:5,', '#EXT-X-BYTERANGE:0@0\n#EXTINF:5,'),
   ]) assert.equal(filterPlaylist(input, host), undefined)
+})
+
+test('shared adaptive HLS playlists retain initialization maps and original byte offsets', () => {
+  const { masters, media } = json('hls-adaptive')
+  for (const { playlist, base, variants } of masters)
+    assert.deepEqual(Object.fromEntries(hlsVideoVariants(playlist, base)), variants)
+  for (const { playlist, host, removed, contains = [], excludes = [] } of media) {
+    const output = filterPlaylist(playlist, host)
+    assert.deepEqual(output?.removed ?? [], removed.map(([start, end]) => ({ start: start / 1000, end: end / 1000 })))
+    if (!removed.length) assert.equal(output, undefined)
+    for (const text of contains) assert.ok(output.text.includes(text), text)
+    for (const text of excludes) assert.ok(!output.text.includes(text), text)
+  }
 })
 
 test('match season, date and parts, and upgrade only a compatible cut', () => {
@@ -180,16 +194,12 @@ test('automatic danmaku uses a same-date fallback while the preferred track is p
   assert.deepEqual(received, [fallback])
 })
 
-test('duplicate episode labels and source IDs keep separate positions, with unique-name legacy fallback', () => {
+test('duplicate episode labels and source IDs keep separate positions', () => {
   const source = { id: 1, site: { name: 'same site' } }
   const selection = { work: { id: 'duplicate-test' }, source, line: 'first', episode: 'Episode', index: 0 }
   const anotherIndex = { ...selection, index: 1 }
   const anotherSource = { ...selection, source: { ...source, id: 2 } }
   const otherLine = { ...selection, line: 'second' }
-  const older = 'position:' + JSON.stringify([selection.work.id, source.site.name, source.id, selection.line, selection.episode, null])
-  write(older, 45)
-  assert.equal(getPosition(selection), 0)
-  assert.equal(getPosition({ ...selection, uniqueName: true }), 45)
   savePosition(selection, 10)
   savePosition(anotherIndex, 20)
   savePosition(anotherSource, 30)

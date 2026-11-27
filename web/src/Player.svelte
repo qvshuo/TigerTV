@@ -322,9 +322,7 @@
     const session = selection
     const title = titleKey
     const episode = episodeKey
-    const legacy = legacyDanmakuKeys(server, session)
-    const showDanmaku = inherited?.danmakuEnabled ?? read('danmaku-enabled:' + episode,
-      legacy && (!session.episode || session.uniqueName) ? read('danmaku-enabled:' + legacy.episode, true) : true)
+    const showDanmaku = inherited?.danmakuEnabled ?? read('danmaku-enabled:' + episode, true)
     enabled = showDanmaku
     untrack(() => dialog?.close())
     keyword = session.work.display.title
@@ -340,12 +338,6 @@
     return () => { clearTimeout(statusTimer); request?.abort(); request = automatic = undefined }
   })
 
-  function legacyDanmakuKeys(server: string, session: Selection) {
-    if (session.work.sources.filter(item => item.site.name === session.source.site.name).length !== 1) return
-    const title = 'danmaku-title:' + JSON.stringify([server, session.work.id, session.source.site.name])
-    const episode = 'danmaku-episode:' + JSON.stringify([title, session.line, session.episode, session.episode ? null : session.index])
-    return { title, episode }
-  }
   function owns(controller: AbortController, session: Selection, server: string) {
     return request === controller && !controller.signal.aborted && session === selection && server === settings.danmakuServer
   }
@@ -354,13 +346,11 @@
     const controller = new AbortController()
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(danmakuRules.autoTimeoutMs)])
     request = automatic = controller
-    const legacy = legacyDanmakuKeys(server, session)
     void autoMatch(new DanmakuClient(server, signal, phase => {
       if (!signal.aborted && owns(controller, session, server) && !track) setDanmakuStatus(danmakuLoading[phase])
     }), session.work.display.title, session.work.display.year, session.episode,
-      { title: read<number | undefined>(title, undefined) ?? (legacy && read<number | undefined>(legacy.title, undefined)),
-        episode: read<SavedDanmakuEpisode | undefined>(episode, undefined) ??
-          (legacy && (!session.episode || session.uniqueName) ? read<SavedDanmakuEpisode | undefined>(legacy.episode, undefined) : undefined) },
+      { title: read<number | undefined>(title, undefined),
+        episode: read<SavedDanmakuEpisode | undefined>(episode, undefined) },
       (result, match) => {
         if (signal.aborted || !owns(controller, session, server)) return
         track = result

@@ -4,7 +4,7 @@ export const defaultDanmakuServer = 'https://danmu.example.com'
 export const defaults = { autoNext: true, rememberSpeed: true, rememberVolume: true, filterAds: true, danmakuServer: '' }
 export type Settings = typeof defaults
 export type PlaybackOptions = { speed: number; volume: number; muted: boolean; danmakuEnabled: boolean }
-export type Selection = { work: Work; source: Source; line: string; episode: string; index: number; uniqueName?: boolean }
+export type Selection = { work: Work; source: Source; line: string; episode: string; index: number }
 export type Bookmark = Pick<Selection, 'line' | 'episode' | 'index'>
 export type Recent = Selection & { at: number; progress?: number }
 const prefix = 'tigertv:v1:'
@@ -46,9 +46,7 @@ export function positionKey(s: Selection) {
   return 'position:' + JSON.stringify([s.work.id, s.source.site.name, s.source.id, ...episodeIdentity(s)])
 }
 export function getPosition(s: Selection) {
-  const key = positionKey(s)
-  const legacy = 'position:' + JSON.stringify([s.work.id, s.source.site.name, s.source.id, s.line, s.episode, null])
-  return read<number | undefined>(key, undefined) ?? (s.episode && s.uniqueName ? read(legacy, 0) : 0)
+  return read(positionKey(s), 0)
 }
 export function savePosition(s: Selection, position: number, progress?: number) {
   if (!Number.isFinite(position) || position < 0) return

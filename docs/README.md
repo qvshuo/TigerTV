@@ -1,6 +1,8 @@
 # 开发与发布
 
-Android TV（Compose TV、Media3）和 Kotlin/Native CLI 共用 `core/`，直接访问第三方来源。Web/PWA 由 Svelte 静态构建，Bun 同端口提供 Web 和元数据。两端共用 `shared/` 的规则与 [契约夹具](fixtures/)。`macOS/` 和 `nativeBridge/` 已归档，桌面图形界面使用 Web/PWA。
+Android TV（Compose TV、Media3）和 Kotlin/Native CLI 共用 `core/`，直接访问第三方来源。Web/PWA 由 Svelte 静态构建，Bun 同端口提供 Web 和元数据。两端共用 `shared/` 的规则与 [契约夹具](fixtures/)。
+
+持续维护 Android TV、Web/PWA 和 CLI。桌面和移动端使用 Web/PWA。macOS SwiftUI 永久停止开发，源码和专属 bridge 分别归档于 `macOS/` 与 `nativeBridge/`。归档 bridge 仅通过 `-ParchiveMacOS=true` 显式启用，日常构建、测试和发布只覆盖活跃目标。Windows 和 Linux 原生 GUI 不在产品范围内。CLI 保留 macOS arm64 和 Linux x86_64/arm64。
 
 ## 检查
 

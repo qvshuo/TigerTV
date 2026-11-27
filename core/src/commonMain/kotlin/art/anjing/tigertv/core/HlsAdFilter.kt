@@ -9,9 +9,24 @@ data class HlsFilterResult(val playlist: String, val removed: List<MediaInterval
 internal data class HlsSegment(
     val uri: String, val extinf: String, val micros: Long,
     val discontinuity: Boolean, val key: String?, val implicitIv: Boolean,
-    val tags: List<String>,
+    val tags: List<String>, val map: HlsMap?, val byteRange: HlsByteRange?,
 ) {
     val encrypted: Boolean get() = key != null && key != "#EXT-X-KEY:METHOD=NONE"
+}
+
+internal data class HlsMap(val tag: String, val key: String?)
+internal data class HlsByteRange(val length: Long, val offset: Long) {
+    val end: Long get() = offset + length
+}
+
+private val rangePattern = Regex("([0-9]+)(?:@([0-9]+))?")
+private const val MAX_SAFE_INTEGER = 9_007_199_254_740_991L
+private fun byteRange(raw: String, previousEnd: Long? = null): HlsByteRange? {
+    val parts = rangePattern.matchEntire(raw)?.groupValues ?: return null
+    val length = parts[1].toLongOrNull()?.takeIf { it > 0 } ?: return null
+    val offset = if (parts[2].isEmpty()) previousEnd ?: return null else parts[2].toLongOrNull() ?: return null
+    if (offset > MAX_SAFE_INTEGER - length) return null
+    return HlsByteRange(length, offset)
 }
 
 internal data class HlsVod(
@@ -21,6 +36,7 @@ internal data class HlsVod(
 private val keyAttribute = Regex("([A-Z-]+)=(\"[^\"]*\"|[^,]+)")
 private val explicitIv = Regex("0[xX][0-9a-fA-F]{32}")
 private val vodHeader = Regex("#EXT-X-(?:VERSION:[0-9]+|TARGETDURATION:[0-9]+|MEDIA-SEQUENCE:[0-9]+|PLAYLIST-TYPE:VOD)")
+private fun quoted(value: String) = value.length > 2 && value.first() == '"' && value.last() == '"'
 private val partialUri = Regex("[0-9a-f]+")
 
 /** A single complete media timeline. Unsupported segment state stays with the upstream playlist. */
@@ -37,6 +53,8 @@ internal fun parseHlsVod(playlist: String): HlsVod? {
     val tags = mutableListOf<String>()
     var key: String? = null
     var implicitIv = false
+    var map: HlsMap? = null
+    var range: String? = null
     var discontinuity = false
     var extinf: String? = null
     var micros = 0L
@@ -63,6 +81,23 @@ internal fun parseHlsVod(playlist: String): HlsVod? {
                 key = line
                 implicitIv = values["METHOD"] == "AES-128" && iv == null
             }
+            line.startsWith("#EXT-X-MAP:") -> {
+                if (extinf != null || implicitIv) return null
+                val raw = line.substringAfter(':')
+                val parts = keyAttribute.findAll(raw).toList()
+                val attrs = parts.associate { it.groupValues[1] to it.groupValues[2] }
+                if (parts.joinToString(",") { it.value } != raw || attrs.size != parts.size ||
+                    attrs.keys.any { it != "URI" && it != "BYTERANGE" }) return null
+                val uri = attrs["URI"] ?: return null
+                if (!quoted(uri) || uri.substring(1, uri.lastIndex).any(Char::isWhitespace)) return null
+                val mapRange = attrs["BYTERANGE"]
+                if (mapRange != null && (!quoted(mapRange) || byteRange(mapRange.substring(1, mapRange.lastIndex)) == null)) return null
+                map = HlsMap(line, key)
+            }
+            line.startsWith("#EXT-X-BYTERANGE:") -> {
+                if (range != null) return null
+                range = line.substringAfter(':')
+            }
             line == "#EXT-X-DISCONTINUITY" -> {
                 if (discontinuity || extinf != null) return null
                 discontinuity = true
@@ -84,7 +119,10 @@ internal fun parseHlsVod(playlist: String): HlsVod? {
             !line.startsWith('#') -> {
                 val duration = extinf ?: return null
                 if (line.any { it.isWhitespace() }) return null
-                segments.add(HlsSegment(line, duration, micros, discontinuity, key, implicitIv, tags.toList()))
+                val previous = segments.lastOrNull()
+                val segmentRange = range?.let { byteRange(it, previous?.takeIf { it.uri == line }?.byteRange?.end) ?: return null }
+                segments.add(HlsSegment(line, duration, micros, discontinuity, key, implicitIv, tags.toList(), map, segmentRange))
+                range = null
                 extinf = null
                 discontinuity = false
                 tags.clear()
@@ -93,11 +131,11 @@ internal fun parseHlsVod(playlist: String): HlsVod? {
             else -> return null
         }
     }
-    if (extinf != null || tags.isNotEmpty() || segments.isEmpty()) return null
+    if (extinf != null || range != null || tags.isNotEmpty() || segments.isEmpty()) return null
     val sequences = headers.filter { it.startsWith("#EXT-X-MEDIA-SEQUENCE:") }
     if (sequences.size > 1) return null
     val sequence = sequences.singleOrNull()?.substringAfter(':')?.let { it.toLongOrNull() ?: return null } ?: 0
-    if (sequence > 9_007_199_254_740_991L - segments.size) return null
+    if (sequence > MAX_SAFE_INTEGER - segments.size) return null
     return HlsVod(headers, segments, discontinuity, sequence)
 }
 
@@ -114,6 +152,12 @@ internal fun rewriteHlsVod(vod: HlsVod, dropped: Set<Int>): HlsFilterResult? {
     var total = 0L
     var pendingDiscontinuity = false
     var outputKey: String? = null
+    var outputMap: HlsMap? = null
+    fun emitKey(key: String?) {
+        if (key == outputKey) return
+        output.add(key ?: "#EXT-X-KEY:METHOD=NONE")
+        outputKey = key
+    }
     var kept = false
     var synthesizedIv = false
     for ((index, segment) in vod.segments.withIndex()) {
@@ -132,12 +176,16 @@ internal fun rewriteHlsVod(vod: HlsVod, dropped: Set<Int>): HlsFilterResult? {
             synthesizedIv = true
             segment.key + ",IV=0x" + (vod.sequence + index).toString(16).padStart(32, '0')
         } else segment.key
-        if (key != outputKey) {
-            key?.let(output::add)
-            outputKey = key
+        val map = segment.map
+        if (map != null && map != outputMap) {
+            emitKey(map.key)
+            output.add(map.tag)
+            outputMap = map
         }
+        emitKey(key)
         output.addAll(segment.tags.filterNot { it == "#EXT-X-CUE-IN" && index - 1 in dropped })
         output.add(segment.extinf)
+        segment.byteRange?.let { output.add("#EXT-X-BYTERANGE:${it.length}@${it.offset}") }
         output.add(segment.uri)
         kept = true
         pendingDiscontinuity = false

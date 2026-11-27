@@ -47,7 +47,7 @@ class Handler(BaseHTTPRequestHandler):
         elif query.get("ids"):
             data = {"code": 1.0, "list": [{"vod_id": int(query["ids"][0]), "vod_name": "逐玉🎬", "vod_pic": host + "/cover.jpg", "vod_play_from": "主线$$$备用", "vod_down_from": "下载", "vod_play_url": f" 第一集 ${host}/page#第二集${host}/two.mp4$$$备用${host}/master.m3u8", "vod_down_url": f"第一集${host}/one.mp4"}]}
         else:
-            data = {"code": "1", "list": [{"vod_id": "42", "vod_name": "逐玉🎬", "vod_pic": None}, {"vod_id": 2.0, "vod_name": "数字", "vod_time": "2026"}]}
+            data = {"code": "1", "list": [{"vod_id": "42", "vod_name": "逐玉🎬", "vod_year": "2026", "vod_pic": None}, {"vod_id": 2.0, "vod_name": "数字", "vod_time": "2026"}]}
         self.send(json.dumps(data, ensure_ascii=False).encode())
 
     def send(self, body):
@@ -95,8 +95,8 @@ def main():
             payload = json.loads(search.stdout)
             assert set(payload) == {"query", "works"}, payload
             assert payload["query"] == " 中文🎬 "
-            assert len(payload["works"]) == 2
-            assert [len(work["sources"]) for work in payload["works"]] == [2, 2]
+            assert len(payload["works"]) == 3
+            assert [len(work["sources"]) for work in payload["works"]] == [2, 1, 1]
             assert [item["vod_id"] for work in payload["works"] for item in work["sources"]] == [42, 42, 2, 2]
             assert all(item["site"] in ("🎬站点", "🎬代理") for work in payload["works"] for item in work["sources"])
             detail = run(native, ["fetch", "--site", "🎬站点", "--video-id", "42"])

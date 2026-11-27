@@ -74,7 +74,7 @@ class LiveDanmakuPlaybackTest {
                 model.selectEpisode(0)
                 if (titleId != null) {
                     val session = checkNotNull(model.playbackSession)
-                    preferences.edit().putLong(danmakuPreferenceKey(service!!, session.workId, session.site), titleId).apply()
+                    preferences.edit().putLong(danmakuPreferenceKey(service!!, session.workId, session.sourceKey), titleId).apply()
                 }
             }
             compose.setContent { TigerTVTheme { root = LocalView.current; PlayerScreen(model) {} } }

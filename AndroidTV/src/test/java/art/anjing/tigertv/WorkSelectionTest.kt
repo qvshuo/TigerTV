@@ -59,14 +59,14 @@ class WorkSelectionTest {
         viewModel.selectResult(a)
         advanceUntilIdle()
         assertEquals(listOf(backup), viewModel.episodes)
-        viewModel.openRecentPlayback(RecentPlayback("played", a, PlaybackBookmark("0", page.name), emptyMap(), 0, 1))
+        viewModel.openRecentPlayback(RecentPlayback("played", a, PlaybackBookmark("0", page.name, 0), emptyMap(), 0, 1))
         advanceUntilIdle()
         assertEquals(listOf(page), viewModel.episodes)
         assertEquals(0, viewModel.takeExactRecentEpisode())
     }
 
     @Test fun recentCardResumesOnlyItsExactResourceLineAndEpisode() = runTest(dispatcher) {
-        val recent = RecentPlayback("played", b, PlaybackBookmark("0", second.name), mapOf("0" to mapOf(second.name to 84_000L)), 12, 1)
+        val recent = RecentPlayback("played", b, PlaybackBookmark("0", second.name, 1), mapOf("0" to mapOf(episodePositionKey(second.name, 1) to 84_000L)), 12, 1)
         viewModel.openRecentPlayback(recent)
         advanceUntilIdle()
         assertEquals(b, viewModel.selectedResult)
@@ -77,7 +77,7 @@ class WorkSelectionTest {
         assertNull(viewModel.takeExactRecentEpisode())
 
         viewModel.leaveDetail()
-        viewModel.openRecentPlayback(recent.copy(bookmark = PlaybackBookmark("removed", second.name)))
+        viewModel.openRecentPlayback(recent.copy(bookmark = PlaybackBookmark("removed", second.name, 1)))
         advanceUntilIdle()
         assertNull(viewModel.takeExactRecentEpisode())
         assertNull(viewModel.playbackUrl)
@@ -88,7 +88,7 @@ class WorkSelectionTest {
         coEvery { repository.fetch("B", 99) } returns Result.Success(duplicates)
         viewModel.openRecentPlayback(recent)
         advanceUntilIdle()
-        assertNull(viewModel.takeExactRecentEpisode())
+        assertEquals(1, viewModel.takeExactRecentEpisode())
         assertNull(viewModel.playbackUrl)
     }
 
@@ -98,13 +98,13 @@ class WorkSelectionTest {
         advanceUntilIdle()
         val work = viewModel.works.single()
         coEvery { repository.fetch("B", 99) } returns Result.Error(IllegalStateException("unavailable"))
-        viewModel.openRecentPlayback(RecentPlayback(work.id, b, PlaybackBookmark("0", second.name), emptyMap(), 0, 1))
+        viewModel.openRecentPlayback(RecentPlayback(work.id, b, PlaybackBookmark("0", second.name, 1), emptyMap(), 0, 1))
         advanceUntilIdle()
         assertEquals(b, viewModel.selectedResult)
         assertEquals(setOf(a, b), viewModel.availableSources.toSet())
-        assertNull(viewModel.takeExactRecentEpisode())
         viewModel.selectResult(a)
         advanceUntilIdle()
+        assertNull(viewModel.takeExactRecentEpisode())
         assertEquals(listOf(first, second), viewModel.episodes)
     }
 
@@ -214,7 +214,7 @@ class WorkSelectionTest {
         }
     }
 
-    @Test fun progressKeepsItsOriginalIdentityAcrossNavigationAndRetry() = runTest(dispatcher) {
+    @Test fun progressKeepsItsOriginalIdentityAcrossNavigation() = runTest(dispatcher) {
         viewModel.onKeywordChange("逐玉")
         viewModel.search()
         advanceUntilIdle()
@@ -225,7 +225,7 @@ class WorkSelectionTest {
         val original = requireNotNull(viewModel.playbackSession)
         viewModel.playbackDidStart(original)
         viewModel.savePlaybackPosition(original, 754_000)
-        viewModel.retryPlayback()
+        viewModel.selectEpisode(1)
         advanceUntilIdle()
         assertEquals(754_000L, viewModel.playbackSession?.positionMillis)
         viewModel.selectResult(b)
@@ -293,7 +293,7 @@ class WorkSelectionTest {
         viewModel.selectEpisode(0)
         viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
-        viewModel.retryPlayback()
+        viewModel.selectEpisode(0)
         viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
@@ -487,7 +487,7 @@ class WorkSelectionTest {
 
     @Test fun unavailableBookmarksFallBackWithoutBorrowingAnotherLinesEpisode() = runTest(dispatcher) {
         val work = aggregateWorks(listOf(a, b)).single().copy(
-            lastPlayedSite = "A", playback = mapOf("A" to PlaybackBookmark("removed", second.name)))
+            lastPlayedSite = "A", playback = mapOf(a.coverKey to PlaybackBookmark("removed", second.name, 1)))
         coEvery { repository.search(any(), any()) } returns Result.Success(SearchResponse("逐玉", listOf(work)))
         viewModel.onKeywordChange("逐玉")
         viewModel.search()
@@ -504,7 +504,7 @@ class WorkSelectionTest {
 
     @Test fun replayingAnOlderResourceUpdatesTheWorksLastSite() = runTest(dispatcher) {
         val work = aggregateWorks(listOf(a, b)).single().copy(lastPlayedSite = "B", recentPlayedSite = "A",
-            playback = mapOf("A" to PlaybackBookmark("0", first.name), "B" to PlaybackBookmark("0", second.name)))
+            playback = mapOf(a.coverKey to PlaybackBookmark("0", first.name, 0), b.coverKey to PlaybackBookmark("0", second.name, 1)))
         coEvery { repository.search(any(), any()) } returns Result.Success(SearchResponse("逐玉", listOf(work)))
         viewModel.onKeywordChange("逐玉")
         viewModel.search()
@@ -516,7 +516,7 @@ class WorkSelectionTest {
         viewModel.playbackDidStart(requireNotNull(viewModel.playbackSession))
         advanceUntilIdle()
         assertEquals("A", viewModel.works.single().lastPlayedSite)
-        assertEquals(PlaybackBookmark("0", second.name), viewModel.works.single().playback["B"])
+        assertEquals(PlaybackBookmark("0", second.name, 1), viewModel.works.single().playback[b.coverKey])
         coVerify(exactly = 1) { repository.recordPlayback(work.id, "A", "0", first.name, any(), any(), matchNullable { true }, any()) }
     }
 
@@ -540,7 +540,7 @@ class WorkSelectionTest {
         coVerify(exactly = 0) { repository.recordPlayback(unwatched.id, any(), any(), any(), any(), any(), matchNullable { true }, any()) }
     }
 
-    @Test fun rawPlaybackSelectionAndRetryNeverCallRepository() = runTest(dispatcher) {
+    @Test fun rawPlaybackSelectionNeverCallsRepository() = runTest(dispatcher) {
         val raw = listOf(
             EpisodeLink("HLS", "https://media.test/中文/index.m3u8?sign=a%2Fb%2Bc%3D&literal=a+b"),
             EpisodeLink("MP4", "https://media.test/video.mp4?sign=a%2Fb"),
@@ -554,15 +554,10 @@ class WorkSelectionTest {
         raw.forEachIndexed { index, episode ->
             viewModel.selectEpisode(index)
             assertEquals(episode.url, viewModel.playbackUrl)
-            val revision = viewModel.playbackRevision
-            viewModel.setPlaybackError("unsupported page")
-            viewModel.retryPlayback()
-            assertEquals(episode.url, viewModel.playbackUrl)
             assertEquals(index, viewModel.selectedEpisodeIndex)
             assertEquals(a, viewModel.selectedResult)
             assertEquals(0, viewModel.selectedPlaybackSourceIndex)
             assertNull(viewModel.playbackErrorMessage)
-            assertEquals(revision + 1, viewModel.playbackRevision)
         }
         advanceUntilIdle()
         confirmVerified(repository)

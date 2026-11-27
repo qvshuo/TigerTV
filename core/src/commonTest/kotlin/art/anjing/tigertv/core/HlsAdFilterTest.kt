@@ -44,6 +44,26 @@ class HlsAdFilterTest {
         }
     }
 
+    @Test fun sharedAdaptivePlaylists() {
+        val fixture = Json.parseToJsonElement(contractFixtures.getValue("hls-adaptive.sample.json")).jsonObject
+        for (item in fixture.getValue("masters").jsonArray) {
+            val master = item.jsonObject
+            assertEquals(master.getValue("variants").jsonObject.mapValues { it.value.jsonPrimitive.content.toBoolean() },
+                hlsVideoVariants(master.getValue("playlist").jsonPrimitive.content, master.getValue("base").jsonPrimitive.content))
+        }
+        for (item in fixture.getValue("media").jsonArray) {
+            val media = item.jsonObject
+            val result = filterSmartHlsAds(media.getValue("playlist").jsonPrimitive.content, media.getValue("host").jsonPrimitive.content)
+            val removed = media.getValue("removed").jsonArray.map {
+                MediaInterval(it.jsonArray[0].jsonPrimitive.long, it.jsonArray[1].jsonPrimitive.long)
+            }
+            assertEquals(removed, result?.removed.orEmpty())
+            if (removed.isEmpty()) assertNull(result)
+            for (tag in media["contains"]?.jsonArray.orEmpty()) assertTrue(result!!.playlist.contains(tag.jsonPrimitive.content))
+            for (tag in media["excludes"]?.jsonArray.orEmpty()) assertFalse(result!!.playlist.contains(tag.jsonPrimitive.content))
+        }
+    }
+
     @Test fun removesOnlySelectedSegmentsAndMapsTime() {
         val input = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:3,\na.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:2,\nad.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:3,\nb.ts\n#EXT-X-ENDLIST\n"
         val out = filterHlsAds(input) { it == "ad.ts" }!!
@@ -95,8 +115,6 @@ class HlsAdFilterTest {
         assertFalse(result.playlist.contains("METHOD=NONE"))
         assertFalse(result.playlist.contains("\nad\n"))
         assertNull(filterSmartHlsAds(input))
-        assertEquals("https://media.test/a/stream.m3u8", singleHlsVariant("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100\nstream.m3u8\n", "https://media.test/a/master.m3u8"))
-        assertNull(singleHlsVariant("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100\na.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=200\nb.m3u8\n", "https://media.test/master.m3u8"))
     }
 
     @Test fun capturedEncryptedVodPreservesEveryNormalSegmentAndKey() {
@@ -121,7 +139,7 @@ class HlsAdFilterTest {
     }
 
     @Test fun unsupportedStructuresNeverProducePartialEdits() {
-        for (tag in listOf("#EXT-X-MAP:URI=\"init.mp4\"", "#EXT-X-BYTERANGE:100@0", "#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key\"", "#EXT-X-MEDIA-SEQUENCE:42")) {
+        for (tag in listOf("#EXT-X-MAP:URI=\"init.mp4\",BYTERANGE=\"20\"", "#EXT-X-BYTERANGE:0@0", "#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key\"", "#EXT-X-MEDIA-SEQUENCE:42")) {
             val input = realHlsFixture.replaceFirst("#EXTM3U", "#EXTM3U\n$tag")
             assertNull(filterHlsAds(input) { it.startsWith("/video/adjump/time/") })
         }

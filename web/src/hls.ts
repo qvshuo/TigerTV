@@ -1,7 +1,24 @@
 import heuristics from '../../shared/hls-heuristics.json' with { type: 'json' }
 
 export type Interval = { start: number; end: number }
-type Segment = { uri: string; duration: string; micros: number; discontinuity: boolean; key: string; implicitIv: boolean; tags: string[] }
+type ByteRange = { length: number; offset: number }
+type InitMap = { tag: string; key: string }
+type Segment = { uri: string; duration: string; micros: number; discontinuity: boolean; key: string; implicitIv: boolean; tags: string[]; map?: InitMap; byteRange?: ByteRange }
+
+function parseRange(raw: string, previousEnd?: number): ByteRange | undefined {
+  const parts = /^([0-9]+)(?:@([0-9]+))?$/.exec(raw)
+  if (!parts) return
+  const length = Number(parts[1])
+  const offset = parts[2] === undefined ? previousEnd : Number(parts[2])
+  if (offset === undefined || length <= 0 || !Number.isSafeInteger(length + offset)) return
+  return { length, offset }
+}
+
+function attributes(text: string) {
+  const items = [...text.matchAll(/([A-Z-]+)=("[^"]*"|[^,]+)/g)]
+  const values = new Map(items.map(([, name, value]) => [name, value]))
+  if (values.size === items.length && items.map(item => item[0]).join(',') === text) return values
+}
 
 function vod(text: string) {
   const lines = text.split(/\r?\n/).filter(Boolean)
@@ -18,6 +35,8 @@ function vod(text: string) {
   let total = 0
   let key = ''
   let implicitIv = false
+  let map: InitMap | undefined
+  let range: string | undefined
   let tags: string[] = []
   let discontinuity = false
   for (const line of lines.slice(1, end)) {
@@ -36,6 +55,16 @@ function vod(text: string) {
       if (duration || !attributes) return
       key = line
       implicitIv = attributes.get('METHOD') === 'AES-128' && !attributes.has('IV')
+    } else if (line.startsWith('#EXT-X-MAP:')) {
+      const attrs = attributes(line.slice(11))
+      if (duration || implicitIv || !attrs || [...attrs.keys()].some(name => name !== 'URI' && name !== 'BYTERANGE') ||
+          !/^"[^"\s]+"$/.test(attrs.get('URI') ?? '')) return
+      const mapRange = attrs.get('BYTERANGE')
+      if (mapRange !== undefined && (!/^"[^"]+"$/.test(mapRange) || !parseRange(mapRange.slice(1, -1)))) return
+      map = { tag: line, key }
+    } else if (line.startsWith('#EXT-X-BYTERANGE:')) {
+      if (range !== undefined) return
+      range = line.slice(17)
     } else if (line.startsWith('#EXT-X-PROGRAM-DATE-TIME:') || line.startsWith('#EXT-X-CUE-OUT:') || line === '#EXT-X-CUE-IN') {
       if (duration) return
       tags.push(line)
@@ -46,13 +75,18 @@ function vod(text: string) {
       headers.push(line)
     } else {
       if (!duration || line.trim() !== line || /\s/.test(line)) return
-      segments.push({ uri: line, duration, micros, discontinuity, key, implicitIv, tags })
+      const previous = segments.at(-1)
+      const prior = previous?.uri === line ? previous.byteRange : undefined
+      const byteRange = range === undefined ? undefined : parseRange(range, prior && prior.offset + prior.length)
+      if (range !== undefined && !byteRange) return
+      segments.push({ uri: line, duration, micros, discontinuity, key, implicitIv, tags, map, byteRange })
+      range = undefined
       tags = []
       discontinuity = false
       duration = ''
     }
   }
-  if (duration || tags.length || !segments.length) return
+  if (duration || range !== undefined || tags.length || !segments.length) return
   const sequences = headers.filter(line => line.startsWith('#EXT-X-MEDIA-SEQUENCE:'))
   if (sequences.length > 1) return
   const sequence = sequences[0] ? Number(sequences[0].slice('#EXT-X-MEDIA-SEQUENCE:'.length)) : 0
@@ -61,10 +95,8 @@ function vod(text: string) {
 }
 
 function parseKey(text: string) {
-  const items = [...text.matchAll(/([A-Z-]+)=("[^"]*"|[^,]+)/g)]
-  if (items.map(item => item[0]).join(',') !== text) return
-  const values = new Map(items.map(([, name, value]) => [name, value]))
-  if (values.size !== items.length) return
+  const values = attributes(text)
+  if (!values) return
   if (text === 'METHOD=NONE') return values
   const iv = values.get('IV')
   const format = values.get('KEYFORMAT')
@@ -114,7 +146,7 @@ function smartAdIndices(segments: Segment[], playlistHost: string) {
         group[offset].micros >= min && group[offset].micros <= max)
       if (durationIndex < 0 && !matchesWindows) continue
       if (durationIndex >= 0) seenDurations.add(durationIndex)
-      const key = JSON.stringify(paths.slice(start, end))
+      const key = JSON.stringify(group.map((segment, offset) => [paths[start + offset], segment.byteRange]))
       const runs = matches.get(key) ?? []
       runs.push([start, end])
       matches.set(key, runs)
@@ -140,6 +172,12 @@ export function filterPlaylist(text: string, playlistHost = ''): { text: string;
   let pending = false
   let kept = false
   let outputKey = ''
+  let outputMap: InitMap | undefined
+  function emitKey(key: string) {
+    if (key === outputKey) return
+    output.push(key || '#EXT-X-KEY:METHOD=NONE')
+    outputKey = key
+  }
   let synthesizedIv = false
   for (const [index, segment] of segments.entries()) {
     pending ||= segment.discontinuity
@@ -158,9 +196,16 @@ export function filterPlaylist(text: string, playlistHost = ''): { text: string;
     const key = segment.implicitIv && removed.length
       ? segment.key + ',IV=0x' + (playlist.sequence + index).toString(16).padStart(32, '0') : segment.key
     synthesizedIv ||= key !== segment.key
-    if (key && key !== outputKey) output.push(key)
-    outputKey = key
-    output.push(...segment.tags.filter(tag => tag !== '#EXT-X-CUE-IN' || !dropped.has(index - 1)), segment.duration, segment.uri)
+    const { map, byteRange } = segment
+    if (map && (map.tag !== outputMap?.tag || map.key !== outputMap?.key)) {
+      emitKey(map.key)
+      output.push(map.tag)
+      outputMap = map
+    }
+    emitKey(key)
+    output.push(...segment.tags.filter(tag => tag !== '#EXT-X-CUE-IN' || !dropped.has(index - 1)), segment.duration)
+    if (byteRange) output.push(`#EXT-X-BYTERANGE:${byteRange.length}@${byteRange.offset}`)
+    output.push(segment.uri)
     pending = false
     kept = true
   }

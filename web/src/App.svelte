@@ -352,8 +352,7 @@
   function sameSource(a: Source, b?: Source) { return a.site.name === b?.site.name && a.id === b.id }
   function identifyEpisode(work: Work, source: Source, line: Detail['lines'][number], index: number): Selection {
     const episode = line.episodes[index].name
-    return { work, source, line: line.id, episode, index,
-      uniqueName: line.episodes.filter(item => item.name === episode).length === 1 }
+    return { work, source, line: line.id, episode, index }
   }
   function episodeIndex(items: Episode[], bookmark: Bookmark) {
     if (items[bookmark.index]?.name === bookmark.episode) return bookmark.index

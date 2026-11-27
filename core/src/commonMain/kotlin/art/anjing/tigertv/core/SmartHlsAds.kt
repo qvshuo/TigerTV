@@ -78,7 +78,7 @@ private fun smartAdIndices(vod: HlsVod, playlistHost: String): Set<Int> {
             if (!found.containsAll(profile.durationsMicros)) continue
         }
         val matching = if (profile.repeated) {
-            candidates.groupBy { (start, end) -> paths.subList(start, end) }.values
+            candidates.groupBy { (start, end) -> (start until end).map { paths[it] to segments[it].byteRange } }.values
                 .filter { it.size > 1 }.flatten()
         } else candidates
         for ((start, end) in matching) propose(start, end)

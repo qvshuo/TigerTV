@@ -112,14 +112,14 @@ class CoreServiceTest {
         val source = art.anjing.tigertv.domain.SearchResult("A", 42, "作品", vodPic = "https://a.test/cover")
         try {
             assertTrue(core.recentPlayback().isEmpty())
-            core.recordPlayback("one", "A", "0", "首集", source, source, "https://a.test/display-poster")
-            core.recordPlaybackPosition("one", "A", "0", "首集", 800, 20)
-            core.recordPlayback("two", "A", "0", "首集", source.copy(vodId = 43))
-            core.recordPlaybackPosition("one", "A", "0", "首集", 900, 25)
+            core.recordPlayback("one", "A", "0", "首集", source, source, "https://a.test/display-poster", 0)
+            core.recordPlaybackPosition("one", "A", "0", "首集", 800, 20, source.coverKey, 0)
+            core.recordPlayback("two", "A", "0", "首集", source.copy(vodId = 43), index = 0)
+            core.recordPlaybackPosition("one", "A", "0", "首集", 900, 25, source.coverKey, 0)
             assertEquals(listOf("two", "one"), core.recentPlayback().map { it.workId })
             val otherSource = source.copy(site = "B", vodId = 7)
-            core.recordPlayback("one", "B", "2", "第二集", otherSource)
-            core.recordPlaybackPosition("one", "A", "0", "首集", 1_000, 30)
+            core.recordPlayback("one", "B", "2", "第二集", otherSource, index = 1)
+            core.recordPlaybackPosition("one", "A", "0", "首集", 1_000, 30, source.coverKey, 0)
             val resumed = core.recentPlayback().first()
             assertEquals(otherSource, resumed.source)
             assertEquals(source, resumed.cardSource)
@@ -127,6 +127,11 @@ class CoreServiceTest {
             assertEquals(0L, resumed.positionMillis)
             assertNull(resumed.progressPercent)
             assertEquals(listOf("one", "two"), core.recentPlayback().map { it.workId })
+            core.recordPlaybackPosition("one", "B", "2", "第二集", 23_000, 40, otherSource.coverKey, 1)
+            core.recordPlaybackPosition("one", "B", "2", "第二集", 0, 100, otherSource.coverKey, 1)
+            val completed = core.recentPlayback().first()
+            assertEquals(0L, completed.positionMillis)
+            assertEquals(100, completed.progressPercent)
         } finally { core.close() }
     }
 

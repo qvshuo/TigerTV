@@ -10,14 +10,14 @@ import androidx.media3.datasource.TransferListener
 import art.anjing.tigertv.core.MediaTimeline
 import art.anjing.tigertv.core.HlsFilterResult
 import art.anjing.tigertv.core.filterSmartHlsAds
-import art.anjing.tigertv.core.singleHlsVariant
+import art.anjing.tigertv.core.hlsVideoVariants
 import java.io.ByteArrayOutputStream
 
 internal fun mayFilterHls(uri: Uri): Boolean = uri.path?.endsWith(".m3u8", ignoreCase = true) == true
 
 internal class HlsPlaybackSession(val uri: Uri, val site: String, val filterAds: Boolean = true) {
     @Volatile var timeline: MediaTimeline? = null
-    @Volatile var childPlaylist: Uri? = null
+    @Volatile var videoVariants: Map<Uri, Boolean> = emptyMap()
 }
 
 @OptIn(UnstableApi::class)
@@ -36,7 +36,7 @@ internal class HlsAdDataSource(
     override fun open(dataSpec: DataSpec): Long {
         val current = session
         delegated = current == null || !current.filterAds || !mayFilterHls(current.uri) ||
-            (dataSpec.uri != current.uri && dataSpec.uri != current.childPlaylist) || dataSpec.position != 0L || dataSpec.length != C.LENGTH_UNSET.toLong()
+            (dataSpec.uri != current.uri && current.videoVariants[dataSpec.uri] != true) || dataSpec.position != 0L || dataSpec.length != C.LENGTH_UNSET.toLong()
         if (delegated) return upstream.open(dataSpec)
         upstream.open(dataSpec)
         resolved = upstream.uri ?: dataSpec.uri
@@ -61,7 +61,7 @@ internal class HlsAdDataSource(
         val text = original.toString(Charsets.UTF_8)
         val master = text.lineSequence().any { it.startsWith("#EXT-X-STREAM-INF:") }
         if (master && dataSpec.uri == current!!.uri) {
-            current.childPlaylist = singleHlsVariant(text, resolved.toString())?.let(Uri::parse)
+            current.videoVariants = hlsVideoVariants(text, resolved.toString()).mapKeys { Uri.parse(it.key) }
             current.timeline = null
         }
         val filtered = try {

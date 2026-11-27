@@ -38,8 +38,6 @@ internal class DanmakuPreferences(context: Context) {
     class Episode(private val store: SharedPreferences, session: PlaybackSession?) {
         private val workId = session?.workId.orEmpty()
         private val sourceKey = session?.sourceKey.orEmpty()
-        private val legacySite = session?.site?.takeIf { session.legacySite }
-        private val legacyEpisode = legacySite != null && session?.legacyEpisode == true
         private val line = session?.line.orEmpty()
         private val name = session?.episode.orEmpty()
         private val index = session?.index.toString()
@@ -49,8 +47,7 @@ internal class DanmakuPreferences(context: Context) {
             (listOf(workId) + identity).joinToString("") { "${it.length}:$it" }
 
         var enabled: Boolean
-            get() = store.getBoolean(enabledKey,
-                if (legacyEpisode) store.getBoolean(enabledKey(legacySite.orEmpty(), line, name), true) else true)
+            get() = store.getBoolean(enabledKey, true)
             set(value) { store.edit().putBoolean(enabledKey, value).apply() }
 
         private fun titleKey(server: String) = danmakuPreferenceKey(server, workId, sourceKey)
@@ -62,15 +59,13 @@ internal class DanmakuPreferences(context: Context) {
 
         fun preferredTitle(server: String): Long? =
             store.getLong(titleKey(server), -1).takeIf { it > 0 }
-                ?: legacySite?.let { site -> store.getLong(danmakuPreferenceKey(server, workId, site), -1).takeIf { it > 0 } }
 
         fun rememberEpisode(server: String, choice: DanmakuChoice) {
             store.edit().putString(episodeKey(server), Json.encodeToString(choice)).apply()
         }
 
         fun preferredEpisode(server: String): DanmakuChoice? =
-            (store.getString(episodeKey(server), null) ?: if (legacyEpisode)
-                store.getString(danmakuPreferenceKey(server, workId, legacySite.orEmpty(), line, name), null)
-                else null)?.let { runCatching { Json.decodeFromString<DanmakuChoice>(it) }.getOrNull() }
+            store.getString(episodeKey(server), null)
+                ?.let { runCatching { Json.decodeFromString<DanmakuChoice>(it) }.getOrNull() }
     }
 }

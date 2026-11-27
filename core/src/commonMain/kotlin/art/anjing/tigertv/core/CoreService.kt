@@ -209,7 +209,7 @@ class CoreService(
     suspend fun recentPlayback(): List<RecentPlayback> = stateMutex.withLock {
         playedSources().byWork.mapNotNull { (id, work) ->
             val recent = work.recent ?: return@mapNotNull null
-            val resource = work.sourceKey ?: work.site
+            val resource = work.sourceKey ?: return@mapNotNull null
             val bookmark = work.resources[resource] ?: return@mapNotNull null
             RecentPlayback(id, recent.source, bookmark, work.positions[resource].orEmpty(),
                 recent.progressPercent, recent.playedAt, recent.cardSource ?: recent.source, recent.cardPoster)

@@ -45,9 +45,9 @@ class TigerTVRepositoryTest {
         try {
             val repository = TigerTVRepository(core)
             val source = art.anjing.tigertv.domain.SearchResult("来源", 42, "逐玉")
-            repository.recordPlayback("work", source.site, "0", "第一集", source)
-            repository.recordPlaybackPosition("work", source.site, "0", "第一集", 123_000, 25)
-            assertEquals(123_000L, repository.recentPlayback().single().positions.getValue("0").getValue("第一集"))
+            repository.recordPlayback("work", source.site, "0", "第一集", source, index = 0)
+            repository.recordPlaybackPosition("work", source.site, "0", "第一集", 123_000, 25, source.coverKey, 0)
+            assertEquals(123_000L, repository.recentPlayback().single().positionMillis)
 
             repository.addHistory("旧")
             repository.clearHistory()

@@ -39,9 +39,10 @@ class WorkDetailTest {
             val result = core.search("逐玉") { updates += it }
             assertEquals(listOf("🎬快"), updates.first().works.single().sources.map { it.site })
             assertEquals(listOf("🎬慢", "🎬快"), result.works.single().sources.map { it.site })
-            core.recordPlayback(result.works.single().id, "🎬快", "0", "第二集")
+            core.recordPlayback(result.works.single().id, "🎬快", "0", "第二集",
+                result.works.single().sources.last(), index = 1)
             val cached = core.search("逐玉").works.single()
-            assertEquals(PlaybackBookmark("0", "第二集"), cached.playback["🎬快"])
+            assertEquals(PlaybackBookmark("0", "第二集", 1), cached.playback["🎬快-1"])
             assertEquals("🎬快", cached.defaultSource.site)
             assertEquals("🎬快", cached.displaySource.site)
             assertEquals("🎬快", result.works.single().displaySource.site)
@@ -174,8 +175,7 @@ class WorkDetailTest {
             lastPlayedSourceKey = b.coverKey,
             playback = mapOf(a.coverKey to PlaybackBookmark("line", "", 1)),
             playbackPositions = mapOf(
-                a.coverKey to mapOf("line" to mapOf(episodePositionKey("", 0) to 11L, episodePositionKey("", 1) to 22L)),
-                "A" to mapOf("line" to mapOf("" to 999L, "唯一" to 33L))
+                a.coverKey to mapOf("line" to mapOf(episodePositionKey("", 0) to 11L, episodePositionKey("", 1) to 22L))
             )
         )
         assertEquals(b, work.defaultSource)
@@ -184,7 +184,6 @@ class WorkDetailTest {
         assertEquals(11L, work.positionFor(a, line, 0))
         assertEquals(22L, work.positionFor(a, line, 1))
         assertEquals(0L, work.positionFor(b, line, 1))
-        assertEquals(33L, work.copy(sources = listOf(a), lastPlayedSourceKey = null).positionFor(a, line, 2))
     }
 
     @Test fun bookmarksPersistPerResourceAndRefreshCachedSearch() = runTest {
@@ -199,37 +198,39 @@ class WorkDetailTest {
         }))
         val core = CoreService("cache", "source", store, client(), historyDirectory = "persistent")
         val work = core.search("同作").works.single()
+        val a = work.sources.first { it.site == "🎬A" }
+        val b = work.sources.first { it.site == "🎬B" }
         try {
             assertEquals("🎬A", work.defaultSource.site)
-            core.recordPlayback(work.id, "🎬B", "0", "第一集")
+            core.recordPlayback(work.id, "🎬B", "0", "第一集", b, index = 0)
             assertEquals("🎬B", core.search("同作").works.single().defaultSource.site)
             assertEquals(2, requests)
             val unwatched = core.search("其他关键词").works.single()
             assertNull(unwatched.lastPlayedSite)
             assertEquals("🎬A", unwatched.defaultSource.site)
-            core.recordPlayback(work.id, "🎬A", "2", "02")
-            core.recordPlaybackPosition(work.id, "🎬A", "2", "02", 12000)
-            core.recordPlayback(work.id, "🎬A", "2", "03")
-            core.recordPlaybackPosition(work.id, "🎬A", "2", "03", 23000)
-            core.recordPlaybackPosition(work.id, "🎬A", "3", "02", 34000)
-            core.recordPlaybackPosition(work.id, "🎬B", "0", "第一集", 45000)
+            core.recordPlayback(work.id, "🎬A", "2", "02", a, index = 1)
+            core.recordPlaybackPosition(work.id, "🎬A", "2", "02", 12000, sourceKey = a.coverKey, index = 1)
+            core.recordPlayback(work.id, "🎬A", "2", "03", a, index = 2)
+            core.recordPlaybackPosition(work.id, "🎬A", "2", "03", 23000, sourceKey = a.coverKey, index = 2)
+            core.recordPlaybackPosition(work.id, "🎬A", "3", "02", 34000, sourceKey = a.coverKey, index = 1)
+            core.recordPlaybackPosition(work.id, "🎬B", "0", "第一集", 45000, sourceKey = b.coverKey, index = 0)
             val cached = core.search("同作").works.single()
-            assertEquals(mapOf("🎬A" to PlaybackBookmark("2", "03"), "🎬B" to PlaybackBookmark("0", "第一集")), cached.playback)
+            assertEquals(mapOf(a.coverKey to PlaybackBookmark("2", "03", 2), b.coverKey to PlaybackBookmark("0", "第一集", 0)), cached.playback)
             val saved = wireJson.parseToJsonElement(store.files.getValue("persistent/last-played-sources.json")).jsonObject
             assertEquals("🎬A", saved.text("recentSite"))
             assertEquals(1, saved["byWork"]!!.jsonObject.size)
             val persisted = saved["byWork"]!!.jsonObject.getValue(work.id).jsonObject
             assertEquals("🎬A", persisted.text("site"))
-            assertEquals(setOf("🎬A", "🎬B"), persisted.getValue("resources").jsonObject.keys)
+            assertEquals(setOf(a.coverKey, b.coverKey), persisted.getValue("resources").jsonObject.keys)
         } finally { core.close() }
         store.files.keys.filter { it.startsWith("cache/") }.forEach { store.files.remove(it) }
         val restarted = CoreService("cache", "source", store, client(), historyDirectory = "persistent")
         try {
             val restored = restarted.search("同作").works.single()
             assertEquals("🎬A", restored.lastPlayedSite)
-            assertEquals(mapOf("🎬A" to PlaybackBookmark("2", "03"), "🎬B" to PlaybackBookmark("0", "第一集")), restored.playback)
-            assertEquals(mapOf("🎬A" to mapOf("2" to mapOf("02" to 12000L, "03" to 23000L), "3" to mapOf("02" to 34000L)),
-                "🎬B" to mapOf("0" to mapOf("第一集" to 45000L))), restored.playbackPositions)
+            assertEquals(mapOf(a.coverKey to PlaybackBookmark("2", "03", 2), b.coverKey to PlaybackBookmark("0", "第一集", 0)), restored.playback)
+            assertEquals(mapOf(a.coverKey to mapOf("2" to mapOf(episodePositionKey("02", 1) to 12000L, episodePositionKey("03", 2) to 23000L), "3" to mapOf(episodePositionKey("02", 1) to 34000L)),
+                b.coverKey to mapOf("0" to mapOf(episodePositionKey("第一集", 0) to 45000L))), restored.playbackPositions)
         }
         finally { restarted.close() }
     }
@@ -306,9 +307,9 @@ class WorkDetailTest {
 
     @Test fun resumeRequiresTheRecordedLineAndExactEpisodeName() {
         val line = PlaybackSource("0", "主线", listOf(EpisodeLink("第一集", "one"), EpisodeLink("第二集", "two")))
-        assertEquals(1, line.resumeEpisodeIndex(PlaybackBookmark("0", "第二集")))
-        assertEquals(0, line.resumeEpisodeIndex(PlaybackBookmark("2", "第二集")))
-        assertEquals(0, line.resumeEpisodeIndex(PlaybackBookmark("0", "02")))
+        assertEquals(1, line.resumeEpisodeIndex(PlaybackBookmark("0", "第二集", 1)))
+        assertEquals(0, line.resumeEpisodeIndex(PlaybackBookmark("2", "第二集", 1)))
+        assertEquals(0, line.resumeEpisodeIndex(PlaybackBookmark("0", "02", 1)))
         assertEquals(0, line.resumeEpisodeIndex(null))
     }
 

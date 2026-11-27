@@ -79,21 +79,32 @@ class HlsAdDataSourceTest {
         assertEquals(playlist(), read(HlsAdDataSource(Fake(playlist().toByteArray(), uri), other)))
         assertNull(other.timeline)
     }
-    @Test fun singleVariantIsBoundToCurrentMasterResponse() {
+    @Test fun adaptiveVideoVariantsAreFilteredAndIndependentAudioIsPassedThrough() {
         val session = HlsPlaybackSession(uri, "🎬360 资源")
         val master = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\nchild/index.m3u8\n"
         assertEquals(master, read(HlsAdDataSource(Fake(master.toByteArray(), uri), session)))
         val child = Uri.parse("https://example.test/child/index.m3u8")
-        assertEquals(child, session.childPlaylist)
+        assertEquals(mapOf(child to true), session.videoVariants)
         val filtered = read(HlsAdDataSource(Fake(playlist().toByteArray(), child), session) { text ->
             filterHlsAds(text) { it.startsWith("/video/adjump/time/") }
         }, child)
         assertFalse(filtered.contains("/video/adjump/time/"))
         assertNotNull(session.timeline)
-        val changed = master + "#EXT-X-STREAM-INF:BANDWIDTH=2000\nother.m3u8\n"
+        val changed = master + "#EXT-X-STREAM-INF:BANDWIDTH=2000\nother.m3u8\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"audio\",URI=\"audio.m3u8\"\n"
         assertEquals(changed, read(HlsAdDataSource(Fake(changed.toByteArray(), uri), session)))
-        assertNull(session.childPlaylist)
-        assertNull(session.timeline)
+        val other = Uri.parse("https://example.test/other.m3u8")
+        assertEquals(mapOf(child to true, other to true), session.videoVariants)
+        val switched = read(HlsAdDataSource(Fake(playlist().toByteArray(), other), session) { text ->
+            filterHlsAds(text) { it.startsWith("/video/adjump/time/") }
+        }, other)
+        assertEquals(filtered, switched)
+        val videoTimeline = session.timeline
+        assertNotNull(videoTimeline)
+        val audio = Uri.parse("https://example.test/audio.m3u8")
+        assertEquals(playlist(), read(HlsAdDataSource(Fake(playlist().toByteArray(), audio), session) {
+            error("Audio must bypass the filter")
+        }, audio))
+        assertEquals(videoTimeline, session.timeline)
     }
 
     @Test fun keepsCueMarkersWithoutGamblingEvidence() {

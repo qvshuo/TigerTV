@@ -86,22 +86,14 @@ data class VideoWork(
             SourceAdEvidence.UNVERIFIED -> false
         }
         return available.firstOrNull { it.coverKey == lastPlayedSourceKey }
-            ?: available.singleOrNull { lastPlayedSourceKey == null && it.site == lastPlayedSite }
             ?: available.firstOrNull { it.site == recentPlayedSite && recommended(it) }
             ?: available.firstOrNull(::recommended) ?: available.firstOrNull() ?: sources.first()
     }
-    fun acceptsLegacy(source: SearchResult): Boolean =
-        sources.count { it.site == source.site } == 1 &&
-            !(lastPlayedSite == source.site && lastPlayedSourceKey != null && lastPlayedSourceKey != source.coverKey)
-
-    fun bookmarkFor(source: SearchResult): PlaybackBookmark? =
-        playback[source.coverKey] ?: playback[source.site]?.takeIf { acceptsLegacy(source) }
+    fun bookmarkFor(source: SearchResult): PlaybackBookmark? = playback[source.coverKey]
 
     fun positionFor(source: SearchResult, line: PlaybackSource, index: Int): Long {
         val episode = line.episodes.getOrNull(index) ?: return 0
         return playbackPositions[source.coverKey]?.get(line.id)?.get(episodePositionKey(episode.name, index))
-            ?: playbackPositions[source.site]?.get(line.id)?.get(episode.name)
-                ?.takeIf { acceptsLegacy(source) && line.episodes.count { item -> item.name == episode.name } == 1 }
             ?: 0
     }
 }
@@ -110,8 +102,8 @@ data class VideoWork(
 data class PlaybackSource(val id: String, val name: String, val episodes: List<EpisodeLink>) {
     fun bookmarkedIndex(bookmark: PlaybackBookmark?): Int? {
         if (bookmark?.line != id) return null
-        val savedIndex = bookmark.index
-        if (savedIndex != null && episodes.getOrNull(savedIndex)?.name == bookmark.episode) return savedIndex
+        val savedIndex = bookmark.index ?: return null
+        if (episodes.getOrNull(savedIndex)?.name == bookmark.episode) return savedIndex
         return episodes.indices.singleOrNull { episodes[it].name == bookmark.episode }
     }
 
@@ -168,7 +160,7 @@ data class RecentPlayback(
     val cardSource: SearchResult = source, val cardPoster: String? = null,
 ) {
     val positionMillis: Long get() = positions[bookmark.line]?.let { line ->
-        bookmark.index?.let { line[episodePositionKey(bookmark.episode, it)] } ?: line[bookmark.episode]
+        bookmark.index?.let { line[episodePositionKey(bookmark.episode, it)] }
     } ?: 0
 }
 
