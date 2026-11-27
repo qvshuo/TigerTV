@@ -1,6 +1,5 @@
 package art.anjing.tigertv.ui.home
 
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -164,19 +163,17 @@ fun HomeScreen(viewModel: TigerTVViewModel, onSearch: () -> Unit, onSettings: ()
         }
         if (viewModel.hotSearchCategories.isNotEmpty()) {
             item("hot-categories") {
-                Column(Modifier.fillMaxWidth()) {
-                    Text("热门推荐", style = MaterialTheme.typography.titleLarge)
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(UiMetrics.cardGap)) {
+                    Text("热门推荐", Modifier.padding(start = UiMetrics.cardGridHorizontalPadding),
+                        style = MaterialTheme.typography.titleLarge)
                     LazyRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(UiSpacing.choiceColumn),
-                        contentPadding = PaddingValues(horizontal = UiSpacing.sm, vertical = UiSpacing.choiceRow)) {
+                        contentPadding = PaddingValues(horizontal = UiMetrics.cardGridHorizontalPadding, vertical = UiSpacing.xs)) {
                         items(viewModel.hotSearchCategories, key = { it.id }) { category ->
                             SelectionChip(selected = category.id == viewModel.selectedHotCategory,
                                 onClick = { viewModel.selectHotSearchCategory(category.id) },
                                 modifier = Modifier
-                                    .then(if (category.id == viewModel.selectedHotCategory) Modifier.focusRequester(contentFocus) else Modifier)
-                                    .heightIn(min = UiMetrics.chipHeight)) {
-                                Box(Modifier.heightIn(min = UiMetrics.chipHeight - 16.dp), contentAlignment = Alignment.Center) {
-                                    Text(category.name)
-                                }
+                                    .then(if (category.id == viewModel.selectedHotCategory) Modifier.focusRequester(contentFocus) else Modifier)) {
+                                Text(category.name, maxLines = 1)
                             }
                         }
                     }

@@ -12,6 +12,7 @@ internal data class DanmakuSelectionRules(
     val maximumToleranceMs: Long,
     val minimumCountRatio: Long,
     val matchThreshold: Double,
+    val episodeMatchThreshold: Double,
     val minimumFuzzyLength: Int,
     val ambiguityGap: Double,
     val searchTimeoutMs: Long,
@@ -24,11 +25,14 @@ internal data class DanmakuSelectionRules(
 )
 @Serializable
 internal data class DanmakuTextPatterns(
+    val numericSeparator: String,
     val season: String,
     val ordinal: String,
     val englishEpisode: String,
     val date: String,
     val part: String,
+    val variantPart: String,
+    val numberedPart: String,
     val special: String,
     val bonus: String,
     val blooper: String,

@@ -33,12 +33,22 @@ class DanmakuClient internal constructor(private val network: Network, baseUrl: 
         require(titleId > 0)
         val root = Json.parseToJsonElement(network.get("$base/api/v2/bangumi/$titleId", selectionRules.episodesTimeoutMs)).jsonObject
         check(root["success"]?.jsonPrimitive?.booleanOrNull == true) { "Danmaku episodes failed" }
-        val bangumi = root["bangumi"]?.jsonObject
-        return bangumi?.get("episodes")?.jsonArray.orEmpty().mapNotNull { value ->
+        val bangumi = root["bangumi"]?.jsonObject ?: return emptyList()
+        val seasons = bangumi["seasons"]?.jsonArray.orEmpty()
+        val workSeason = danmakuSeason(bangumi["animeTitle"]?.jsonPrimitive?.contentOrNull.orEmpty())
+        val seasonById = seasons.associate { value ->
+            val item = value.jsonObject
+            val n = danmakuSeason(item["name"]?.jsonPrimitive?.contentOrNull.orEmpty())
+            item["id"]?.jsonPrimitive?.contentOrNull.orEmpty() to
+                (if (seasons.size == 1 && n == 1) workSeason ?: n else n)
+        }
+        return bangumi["episodes"]?.jsonArray.orEmpty().mapNotNull { value ->
             val item = value.jsonObject
             val id = item["episodeId"]?.jsonPrimitive?.longOrNull ?: return@mapNotNull null
+            val seasonId = item["seasonId"]?.jsonPrimitive?.contentOrNull.orEmpty()
             DanmakuEpisode(id, item["episodeTitle"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                item["episodeNumber"]?.jsonPrimitive?.contentOrNull.orEmpty())
+                item["episodeNumber"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                seasonId.takeIf { it.isNotEmpty() }?.let { seasonById[it] }, seasonId)
         }
     }
     suspend fun comments(episodeId: Long, manual: Boolean = false): DanmakuTrack {

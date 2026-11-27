@@ -3,7 +3,7 @@
   import { onMount, tick, untrack } from 'svelte'
   import Poster from './Poster.svelte'
   import { cachedHot, catalogSites, categories, displaySourceName, doubanPoster, getDetail, hot, search, webUrl, type Detail, type Episode, type HotItem, type Site, type Source, type Work } from './api.ts'
-  import { defaultDanmakuServer, getBookmark, getPosition, getRecent, getSettings, read, write, type Bookmark, type PlaybackOptions, type Recent, type Selection } from './storage.ts'
+  import { getBookmark, getPosition, getRecent, getSettings, read, write, type Bookmark, type PlaybackOptions, type Recent, type Selection } from './storage.ts'
   import snapshot from './douban-snapshot.json'
   import type PlayerComponent from './Player.svelte'
 
@@ -12,7 +12,12 @@
   let page = $state<Page>('home')
   let settings = $state(getSettings())
   let server = $state(getSettings().danmakuServer)
-  let saved = $state(false)
+  let savedAt = $state(0)
+  $effect(() => {
+    if (!savedAt) return
+    const timeout = window.setTimeout(() => { savedAt = 0 }, 2500)
+    return () => { window.clearTimeout(timeout) }
+  })
   let serverError = $state('')
   let category = $state<string>(categories[0][0])
   let hotItems = $state.raw<HotItem[]>([])
@@ -220,11 +225,10 @@
     write('work-posters', workPosters)
   }
 
-  function evidenceFor(site: Site) {
+  function isRecommended(site: Site, filterAds = true) {
     const name = displaySourceName(site.name)
-    if (settings.filterAds && sourceEvidence.verifiedFilterSources.includes(name)) return 'filter'
-    if (sourceEvidence.noGamblingInSamples.includes(name)) return 'sample'
-    return 'other'
+    return sourceEvidence.noGamblingInSamples.includes(name) ||
+      (filterAds && sourceEvidence.sourceRules.some(rule => rule.sites.includes(name)))
   }
 
   async function runSearch(value = query) {
@@ -368,7 +372,7 @@
       const key = sourceKey(item)
       return detailStates.get(key) !== 'empty' && detailStates.get(key) !== 'failed' && cachedDetail(key)?.lines.length !== 0
     })
-    const recommended = (item: Source) => evidenceFor(item.site) !== 'other'
+    const recommended = (item: Source) => isRecommended(item.site, settings.filterAds)
     const last = getRecent()[0]
     const choice = (previous && (resume ? work.sources : available).find(item => sameSource(item, previous.source))) ??
       (last && available.find(item => item.site.name === last.source.site.name && recommended(item))) ??
@@ -409,7 +413,7 @@
     write('settings', settings)
     server = address
     serverError = ''
-    saved = true
+    savedAt = Date.now()
   }
 </script>
 
@@ -457,31 +461,9 @@
 </header>
 
 <main class="shell page">
-  {#if recent.length}
-      <section aria-labelledby="recent-heading" hidden={page !== 'home'}>
-        <h2 id="recent-heading" class="catalog-lead">继续观看</h2>
-        <ul class="recent-strip">
-          {#each recent.slice(0, 4) as item, index (item.work.id)}
-            <li>
-              <button class="recent-card" onclick={() => open(item.work, item)}>
-                <Poster title={item.work.display.title} candidates={posterCandidates(item.work)} recent eager={page === 'home'} priority={index === 0 && page === 'home'}
-                  onShown={url => rememberPoster(item.work, url)} />
-                <span class="min-w-0">
-                  <strong>{item.work.display.title}</strong>
-                  <small>{item.episode || `第 ${item.index + 1} 集`}</small>
-                  <progress class="recent-progress" aria-label="观看进度" max="100" value={item.progress ?? 0}></progress>
-                </span>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      </section>
-  {/if}
   {#if page === 'home'}
-    <section aria-labelledby="hot-heading" class={recent.length ? 'mt-6' : undefined}>
-      <div class="section-heading">
-        <h2 id="hot-heading">热门推荐</h2>
-      </div>
+    <section aria-labelledby="hot-heading">
+      <h2 id="hot-heading" class="catalog-lead">热门推荐</h2>
       <div class="choices mb-3" aria-label="热门分类">
         {#each categories as [id, name] (id)}
           <button class="choice" aria-pressed={category === id} onclick={() => { category = id }}>{name}</button>
@@ -491,7 +473,7 @@
         {#each hotItems.slice(0, hotVisible) as item, index (item.id)}
           <li>
             <button class="poster-card" onclick={() => void runSearch(item.title)}>
-              <Poster title={item.title} candidates={[doubanPoster(item.poster), item.poster]} eager={index < 5} priority={index === 0 && !recent.length} />
+              <Poster title={item.title} candidates={[doubanPoster(item.poster), item.poster]} eager={index < 5} priority={index === 0} />
               <strong>{item.title}</strong>
               <small>{item.year}{item.rating ? ` · ${item.rating.toFixed(1)}` : ''}</small>
             </button>
@@ -503,6 +485,26 @@
         <button class="quiet mt-4" onclick={() => { hotAttempt += 1 }}>重试</button>
       {/if}
     </section>
+    {#if recent.length}
+      <section aria-labelledby="recent-heading" class="mt-6">
+        <h2 id="recent-heading" class="catalog-lead">继续观看</h2>
+        <ul class="recent-strip">
+          {#each recent.slice(0, 4) as item (item.work.id)}
+            <li>
+              <button class="recent-card" onclick={() => open(item.work, item)}>
+                <Poster title={item.work.display.title} candidates={posterCandidates(item.work)} recent
+                  onShown={url => rememberPoster(item.work, url)} />
+                <span class="min-w-0">
+                  <strong>{item.work.display.title}</strong>
+                  <small>{item.episode || `第 ${item.index + 1} 集`}</small>
+                  <progress class="recent-progress" aria-label="观看进度" max="100" value={item.progress ?? 0}></progress>
+                </span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
   {:else if page === 'search'}
     {#if submitted}
       <h1 class="catalog-lead search-results-title" bind:this={resultsHeading} tabindex="-1">
@@ -545,16 +547,12 @@
     </div>
     <section class="detail-section" aria-labelledby="source-heading">
       <h2 id="source-heading">资源</h2>
-      {#if detailSites.some(site => evidenceFor(site) !== 'other')}
-        <h3 class="source-group-title">推荐资源</h3>
-      {/if}
-      {#each ['recommended', 'other'] as groupType (groupType)}
-        {@const group = detailSites.filter(site => (evidenceFor(site) === 'other') === (groupType === 'other'))}
+      {#each [true, false] as recommended (recommended)}
+        {@const group = detailSites.filter(site => isRecommended(site) === recommended)}
         {#if group.length}
-          {#if groupType === 'other'}<h3 class="source-group-title">其他资源</h3>{/if}
+          <h3 class="source-group-title">{recommended ? '推荐资源' : '其他资源'}</h3>
           <div class="source-grid">
             {#each group as site (site.name)}
-              {@const evidence = evidenceFor(site)}
               {@const item = matchedSources.get(site.name)}
               {@const active = !!item && sameSource(item, source)}
               {@const key = item ? sourceKey(item) : ''}
@@ -566,7 +564,6 @@
                 disabled={!item || (cached ? !cached.lines.length : detailStates.get(key) === 'empty')}
                 onclick={() => { if (item && !active) void loadDetail(item) }}>
                 <span>{displaySourceName(site.name)}</span>
-                {#if evidence !== 'other'}<span class="source-badge">{evidence === 'sample' ? '无广告' : '去广告'}</span>{/if}
                 {#if busy}<span class="spinner" aria-hidden="true"></span>{/if}
               </button>
             {/each}
@@ -601,7 +598,7 @@
   {:else if page === 'settings'}
     <div class="settings-page">
       <section class="detail-section" aria-labelledby="playback-heading">
-        <h2 id="playback-heading">播放</h2>
+        <h2 id="playback-heading" class="catalog-lead">播放</h2>
         {#each playbackSettings as [key, label] (key)}
           <label class="setting-row">
             <span>{label}</span>
@@ -614,11 +611,11 @@
         <form class="settings-form grid gap-3" onsubmit={saveServer} novalidate>
           <label for="server">弹幕服务地址</label>
           <div class="search-form">
-            <input id="server" type="url" inputmode="url" bind:this={danmakuDraft} bind:value={server} placeholder={defaultDanmakuServer}
-              aria-invalid={!!serverError} aria-describedby="server-status" oninput={() => { saved = false; serverError = '' }} />
+            <input id="server" type="url" inputmode="url" bind:this={danmakuDraft} bind:value={server} placeholder="https://danmu.example.com"
+              aria-invalid={!!serverError} aria-describedby="server-status" oninput={() => { savedAt = 0; serverError = '' }} />
             <button class="primary">保存</button>
           </div>
-          <p class="muted" role="status" id="server-status">{serverError || (saved ? '已保存' : '')}</p>
+          <p class="muted" role="status" id="server-status">{serverError || (savedAt ? '已保存' : '')}</p>
         </form>
       </section>
     </div>

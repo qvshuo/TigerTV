@@ -3,7 +3,6 @@ package art.anjing.tigertv.ui.player
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.*
 import kotlinx.coroutines.delay
 import art.anjing.tigertv.core.danmakuRenderRules
@@ -23,7 +22,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import art.anjing.tigertv.ui.components.SelectionChip
-import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.components.UiSpacing
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.window.DialogProperties
@@ -53,7 +51,6 @@ internal fun DanmakuPlayback(
     val entry = remember { FocusRequester() }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         var keyword by remember(title) { mutableStateOf(title) }
-        val episodeRows = remember(state.episodes) { state.episodes.chunked(2) }
         val currentEpisode = state.selectedEpisode
         val busy = state.busy
         val error = state.error
@@ -102,23 +99,16 @@ internal fun DanmakuPlayback(
                                     modifier = Modifier.fillMaxWidth(), maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                         }
-                        if (episodeRows.isNotEmpty()) item {
+                        if (state.episodes.isNotEmpty()) item {
                             Text("剧集", Modifier.padding(top = UiSpacing.sm), style = MaterialTheme.typography.titleMedium)
                         }
-                        itemsIndexed(episodeRows, key = { index, _ -> "episode-row-$index" }) { _, row ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(UiSpacing.choiceColumn),
-                                verticalAlignment = Alignment.Top) {
-                                row.forEach { episode ->
-                                    SelectionChip(selected = currentEpisode == episode, onClick = { state.select(episode, onClose) },
-                                        modifier = Modifier.weight(1f)
-                                            .heightIn(min = UiMetrics.controlHeight)
-                                            .testTag("danmaku-episode-${episode.id}")) {
-                                        Text(episode.title.ifBlank {
-                                            if (episode.number.isBlank()) "未命名剧集" else "第 ${episode.number} 集"
-                                        }, modifier = Modifier.padding(vertical = UiSpacing.xs), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    }
-                                }
-                                if (row.size == 1) Spacer(Modifier.weight(1f))
+                        items(state.episodes, key = { "episode-${it.id}" }) { episode ->
+                            SelectionChip(selected = currentEpisode == episode, onClick = { state.select(episode, onClose) },
+                                modifier = Modifier.fillMaxWidth()
+                                    .testTag("danmaku-episode-${episode.id}")) {
+                                Text(episode.title.ifBlank {
+                                    if (episode.number.isBlank()) "未命名剧集" else "第 ${episode.number} 集"
+                                }, modifier = Modifier.fillMaxWidth(), maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }

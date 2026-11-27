@@ -2,7 +2,7 @@ import selectionRules from '../../shared/danmaku-selection.json' with { type: 'j
 import { foldWidth as fold, getJson, object, scalar } from './api.ts'
 
 export type Title = { id: number; title: string; source: string }
-export type DanmakuEpisode = { id: number; title: string; number: string }
+export type DanmakuEpisode = { id: number; title: string; number: string; season?: number; seasonId?: string }
 export type Comment = { time: number; mode: number; color: number; text: string }
 export type Track = { duration: number; comments: Comment[] }
 export type DanmakuMatch = { title: Title; episode: DanmakuEpisode; episodes: DanmakuEpisode[] }
@@ -19,12 +19,19 @@ const datePattern = new RegExp(textPatterns.date)
 const bonusPattern = new RegExp(textPatterns.bonus)
 const blooperPattern = new RegExp(textPatterns.blooper)
 const partPattern = new RegExp(textPatterns.part)
+const variantPart = new RegExp(textPatterns.variantPart)
+const numberedPart = new RegExp(textPatterns.numberedPart)
+const numericSeparator = new RegExp(textPatterns.numericSeparator, 'gu')
 const englishEpisode = new RegExp(textPatterns.englishEpisode, 'i')
 
 function number(text = ''): number | undefined {
   if (/^\d+$/.test(text)) {
     const value = Number(text)
     return value > 0 && value <= 2147483647 ? value : undefined
+  }
+  if (/^[零〇一二两兩三四五六七八九]+$/.test(text)) {
+    return number([...text].map(char => '零一二三四五六七八九'.indexOf(
+      char === '两' || char === '兩' ? '二' : char === '〇' ? '零' : char)).join(''))
   }
   let sum = 0
   let digit = 0
@@ -33,7 +40,7 @@ function number(text = ''): number | undefined {
       sum += (digit || 1) * (char === '十' ? 10 : 100)
       digit = 0
     } else {
-      digit = '零一二三四五六七八九'.indexOf(char === '两' ? '二' : char === '〇' ? '零' : char)
+      digit = '零一二三四五六七八九'.indexOf(char === '两' || char === '兩' ? '二' : char === '〇' ? '零' : char)
       if (digit < 0) return
     }
   }
@@ -45,17 +52,17 @@ export function season(text: string) {
 }
 
 function matchKey(text: string) {
-  return text.toLowerCase().replace(/(?<=[0-9])[\p{P}\p{Z}\s・]+(?=[0-9])/gu, '+')
-    .replace(/[0-9]+/g, run => run.replace(/^0+(?=\d)/, ''))
+  return text.toLowerCase().replace(numericSeparator, '+')
     .replace(/[\p{P}\p{Z}\s・]+/gu, '')
+    .replace(/[0-9]+/g, run => run.replace(/^0+(?=\d)/, ''))
 }
 
-function similarity(left: string, right: string) {
+function similarity(left: string, right: string, threshold = selectionRules.matchThreshold) {
   if (!left || !right) return 0
   if (left === right) return 1
   const size = Math.max(left.length, right.length)
   const length = Math.min(left.length, right.length)
-  if (length < selectionRules.minimumFuzzyLength || length < size * selectionRules.matchThreshold ||
+  if (length < selectionRules.minimumFuzzyLength || length < size * threshold ||
     (left.match(/[0-9]+/g) ?? []).join(',') !== (right.match(/[0-9]+/g) ?? []).join(',')) return 0
   const row = Array.from({ length: right.length + 1 }, (_, index) => index)
   for (let i = 0; i < left.length; i++) {
@@ -74,22 +81,23 @@ function titleParts(raw: string) {
   const text = fold(raw).replace(fromTag, '').replace(metadata, '')
   const year = [...text.matchAll(yearPattern)][0]
   const aliases = [...text.matchAll(aliasPattern)].map(match => match[1])
-  const main = text.replace(aliasPattern, '').replace(yearPattern, '').trim()
-  const names = [main, ...aliases].map(name => matchKey(name.replace(seasonPattern, ''))).filter(Boolean)
-  return { main: main.replace(/[《》]/g, '').trim(), names, year: Number(year?.[1] ?? year?.[2]) || undefined, season: season(text) }
+  const main = text.replace(aliasPattern, '').replace(yearPattern, '').replace(/[《》]/g, '').trim()
+  const key = (name: string) => matchKey(name.replace(seasonPattern, ''))
+  const names = [main, ...aliases].map(key).filter(Boolean)
+  return { main, key: key(main), names, year: Number(year?.[1] ?? year?.[2]) || undefined, season: season(main) }
 }
 
 function titleMatch(expected: ReturnType<typeof titleParts>, actual: ReturnType<typeof titleParts>, year: string, desiredSeason?: number) {
   const expectedYear = expected.year ?? (/^(19|20)\d{2}$/.test(year) ? Number(year) : undefined)
   const expectedSeason = desiredSeason ?? expected.season
   if ((expectedYear && actual.year && expectedYear !== actual.year) ||
-    (expectedSeason ?? 1) !== (actual.season ?? 1) || !actual.names.length) return
+    (expectedSeason ?? 1) !== (actual.season ?? 1) || !actual.key) return
   let score = 0
   for (const left of expected.names) for (const right of actual.names) score = Math.max(score, similarity(left, right))
   if (score < selectionRules.matchThreshold ||
     special.exec(expected.main)?.[0].toLowerCase() !== special.exec(actual.main)?.[0].toLowerCase()) return
-  const rank = score < 1 ? 3 : expectedSeason !== actual.season ? 2 : expectedYear && expectedYear === actual.year ? 0 : 1
-  return { rank, score, identity: actual.names[0] }
+  const rank = expected.key === actual.key ? expectedYear && expectedYear === actual.year ? 0 : 1 : score === 1 ? 2 : 3
+  return { rank, score, identity: JSON.stringify([actual.key, actual.year, actual.season ?? 1]) }
 }
 
 export function titleRank(query: string, candidate: string, year: string, desiredSeason?: number) {
@@ -102,28 +110,38 @@ export function titleCandidates(query: string, candidates: Title[], year: string
     const match = titleMatch(expected, titleParts(item.title), year, desiredSeason)
     return match ? [{ ...match, item }] : []
   })
-  const exact = matches.filter(match => match.rank < 3)
-  if (exact.length) {
-    const canonical = exact.filter(match => expected.names.includes(match.identity))
-    if (canonical.length) return canonical
-    const rank = Math.min(...exact.map(match => match.rank))
-    const identities = new Set(exact.filter(match => match.rank === rank).map(match => match.identity))
-    return identities.size === 1 ? exact.filter(match => identities.has(match.identity)) : []
-  }
+  const rank = Math.min(...matches.map(match => match.rank))
   const identities = new Map<string, number>()
-  for (const { identity, score } of matches) identities.set(identity, Math.max(score, identities.get(identity) ?? 0))
+  for (const match of matches) {
+    if (match.rank === rank) identities.set(match.identity, Math.max(match.score, identities.get(match.identity) ?? 0))
+  }
   const [best, runnerUp] = [...identities].sort((a, b) => b[1] - a[1])
   return best && (!runnerUp || best[1] - runnerUp[1] >= selectionRules.ambiguityGap)
-    ? matches.filter(match => match.identity === best[0]) : []
+    ? matches.filter(match => match.rank === rank && match.identity === best[0]) : []
+}
+
+function specialKind(value: string) {
+  if (['特别', '特别篇', 'sp', 'special'].includes(value)) return '特别篇'
+  if (value === 'extra') return '番外'
+  if (value === 'trailer' || value === 'preview') return '预告'
+  return value
 }
 
 function label(raw: string) {
   const text = fold(raw).replace(metadata, '').trim()
-  const [heading, subtitle = ''] = text.split(':', 2)
-  const variant = bonusPattern.test(heading) ? '加更' : blooperPattern.test(heading) ? '花絮特辑' : undefined
-  if (special.test(variant ? heading.replace(variant, '') : heading) || /上下篇|上中下/.test(heading) || special.exec(subtitle.trimStart())?.index === 0) return
+  const separator = text.indexOf(':')
+  const heading = separator < 0 ? text : text.slice(0, separator)
+  const subtitle = separator < 0 ? '' : text.slice(separator + 1).trimStart()
+  const subtitleSpecial = special.exec(subtitle)
+  const headingVariant = special.exec(heading)
+  const tag = headingVariant?.[0] ?? (subtitleSpecial?.index === 0 ? subtitleSpecial[0] : undefined)
+  const variant = bonusPattern.test(heading) ? '加更' : blooperPattern.test(heading) ? '花絮特辑' :
+    tag && specialKind(tag.toLowerCase())
+  if (/上下篇|上中下/.test(heading)) return
   const date = text.match(datePattern)?.slice(1).join('')
-  const part = heading.match(partPattern)?.[1]
+  const partNumber = number(heading.match(numberedPart)?.[1])
+  const part = heading.match(partPattern)?.[1] ?? partNumber?.toString()
+    ?? (headingVariant ? heading.slice(headingVariant.index + headingVariant[0].length).match(variantPart)?.[1] : undefined)
   const ordinalMatch = [...heading.matchAll(ordinal)].find(match => {
     const value = number(match[1])
     return value !== undefined && value < 10000
@@ -140,21 +158,23 @@ export function matchingEpisode(episodes: DanmakuEpisode[], name: string, workSe
   const expectedSeason = target.season ?? workSeason
   const matches = episodes.flatMap(episode => {
     const title = label(episode.title)
-    if (!title || (title.season && title.season !== (expectedSeason ?? 1))) return []
+    if (!title) return []
+    const actualSeason = title.season ?? episode.season
+    if (actualSeason && actualSeason !== (expectedSeason ?? 1)) return []
     if (target.variant !== title.variant || target.part !== title.part) return []
     if (target.kind && title.kind && target.kind !== title.kind) return []
+    if (target.date && title.date && target.date !== title.date) return []
     const dateAgrees = Boolean(target.date && target.date === title.date)
-    if ((target.date || target.variant === '加更') && !dateAgrees) return []
-    if (!target.number && !target.date) {
-      if (title.number || title.date) return []
-      const key = (text: string) => matchKey(fold(text).replace(metadata, '').replace(seasonPattern, ''))
-      const score = similarity(key(name), key(episode.title))
-      return score >= selectionRules.matchThreshold ? [{ episode, score }] : []
-    }
-    if (!target.number) return [{ episode, score: 1 }]
-    if (title.number) return title.number === target.number ? [{ episode, score: 1 }] : []
-    if (target.part || target.date || target.variant) return []
-    return /^\d+$/.test(episode.number.trim()) && Number(episode.number) === target.number ? [{ episode, score: .5 }] : []
+    if (target.number && title.number && target.number !== title.number) return []
+    if (dateAgrees) return [{ episode, score: title.number === target.number ? 1 : .9 }]
+    const episodeNumber = title.number ?? number(episode.number.trim())
+    if (target.number && target.number === episodeNumber)
+      return [{ episode, score: !title.number ? .5 : target.date === title.date ? 1 : .8 }]
+    if (target.number || target.date || title.number || title.date) return []
+    const key = (text: string) => matchKey(fold(text).replace(metadata, '').replace(seasonPattern, ''))
+    const threshold = selectionRules.episodeMatchThreshold
+    const score = similarity(key(name), key(episode.title), threshold)
+    return score >= threshold ? [{ episode, score }] : []
   }).sort((a, b) => b.score - a.score)
   const [best, next] = matches
   return best && (!next || best.score - next.score >= selectionRules.ambiguityGap) ? best.episode : undefined
@@ -192,9 +212,19 @@ export class DanmakuClient {
     const raw = object(await getJson(`${this.base}/api/v2/bangumi/${titleId}`, this.signal, selectionRules.episodesTimeoutMs))
     if (raw.success !== true) throw new Error('弹幕选集加载失败')
     const bangumi = object(raw.bangumi)
-    return rows(bangumi.episodes).map(row => ({
-      id: id(row.episodeId), title: scalar(row.episodeTitle), number: scalar(row.episodeNumber),
-    })).filter(item => item.id)
+    const seasons = rows(bangumi.seasons)
+    const workSeason = season(scalar(bangumi.animeTitle))
+    const seasonById = new Map(seasons.map(row => {
+      const n = season(scalar(row.name))
+      return [scalar(row.id), seasons.length === 1 && n === 1 ? workSeason ?? n : n] as const
+    }))
+    return rows(bangumi.episodes).map(row => {
+      const seasonId = scalar(row.seasonId)
+      return {
+        id: id(row.episodeId), title: scalar(row.episodeTitle), number: scalar(row.episodeNumber), seasonId,
+        season: seasonId ? seasonById.get(seasonId) : undefined,
+      }
+    }).filter(item => item.id)
   }
   async track(episodeId: number, timeout = selectionRules.trackTimeoutMs): Promise<Track> {
     this.onPhase?.('track')
@@ -407,7 +437,7 @@ export function drawComments(canvas: HTMLCanvasElement, track: Track | undefined
   }
   state.active = state.active.filter(item => time - item.comment.time < lifetime)
   state.time = time
-  ctx.lineWidth = render.stroke
+  ctx.lineWidth = 2 * render.stroke
   ctx.lineJoin = 'round'
   ctx.strokeStyle = '#000'
   for (const item of state.active) {

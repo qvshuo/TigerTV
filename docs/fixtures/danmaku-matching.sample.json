@@ -22,7 +22,7 @@
       "query": "别称",
       "candidate": "作品【又名：别称】 (2026)",
       "year": "2026",
-      "rank": 0
+      "rank": 2
     },
     {
       "query": "ＴＨＥ　ＳＩＬＥＮＴ－ＨＡＲＢＯＲ 【4K】",
@@ -284,14 +284,14 @@
           "id": 10776,
           "title": "【renren】 第01集",
           "number": "1",
-          "season": 1,
+          "season": 5,
           "seasonId": "season-57534"
         },
         {
           "id": 10777,
           "title": "【renren】 第02集",
           "number": "2",
-          "season": 1,
+          "season": 5,
           "seasonId": "season-57534"
         }
       ],
@@ -305,14 +305,14 @@
           "id": 10776,
           "title": "S01E01",
           "number": "1",
-          "season": 1,
+          "season": 5,
           "seasonId": "season-57534"
         },
         {
           "id": 10777,
           "title": "【renren】 第02集",
           "number": "2",
-          "season": 1,
+          "season": 5,
           "seasonId": "season-57534"
         }
       ],
@@ -337,7 +337,7 @@
           "seasonId": "season-other"
         }
       ],
-      "id": 10776
+      "id": null
     },
     {
       "label": "第01集",
@@ -358,7 +358,7 @@
           "seasonId": "season-57534"
         }
       ],
-      "id": 10776
+      "id": null
     },
     {
       "label": "第20261120期加更",

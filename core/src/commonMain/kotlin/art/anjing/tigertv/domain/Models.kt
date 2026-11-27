@@ -1,7 +1,6 @@
 package art.anjing.tigertv.domain
 
-import art.anjing.tigertv.core.SourceAdEvidence
-import art.anjing.tigertv.core.sourceAdEvidence
+import art.anjing.tigertv.core.isRecommendedSource
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -80,11 +79,7 @@ data class VideoWork(
     val orderedSources: List<SearchResult> get() = listOf(displaySource) + sources.filter { it.coverKey != displaySourceId }
     val defaultSource: SearchResult get() = preferredSource()
     fun preferredSource(filterAds: Boolean = true, available: List<SearchResult> = sources): SearchResult {
-        fun recommended(result: SearchResult) = when (sourceAdEvidence(result.site)) {
-            SourceAdEvidence.FILTER_VERIFIED -> filterAds
-            SourceAdEvidence.NO_GAMBLING_IN_SAMPLES -> true
-            SourceAdEvidence.UNVERIFIED -> false
-        }
+        fun recommended(result: SearchResult) = isRecommendedSource(result.site, filterAds)
         return available.firstOrNull { it.coverKey == lastPlayedSourceKey }
             ?: available.firstOrNull { it.site == recentPlayedSite && recommended(it) }
             ?: available.firstOrNull(::recommended) ?: available.firstOrNull() ?: sources.first()

@@ -24,6 +24,7 @@ import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.components.TvTextInput
 import art.anjing.tigertv.ui.player.DanmakuPreferences
 import art.anjing.tigertv.ui.requestFocusSafely
+import kotlinx.coroutines.delay
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 @Composable
@@ -37,6 +38,13 @@ internal fun SettingsScreen() {
     var filterAds by remember { mutableStateOf(playback.filterAds) }
     var saved by remember { mutableStateOf(preferences.server) }
     var draft by remember { mutableStateOf(saved) }
+    var savedNotice by remember { mutableStateOf(false) }
+    LaunchedEffect(savedNotice, saved) {
+        if (savedNotice) {
+            delay(2500)
+            savedNotice = false
+        }
+    }
     val focus = remember { FocusRequester() }
     val address = draft.trim().trimEnd('/')
     val valid = address.toHttpUrlOrNull()?.let { it.query == null && it.fragment == null } == true
@@ -48,24 +56,25 @@ internal fun SettingsScreen() {
             ScreenTitle("设置")
             Column(Modifier.widthIn(max = 840.dp).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("播放", style = MaterialTheme.typography.titleMedium)
+                Text("播放", style = MaterialTheme.typography.titleLarge)
                 PlaybackSetting("自动连播", autoNext) { autoNext = it; playback.autoNext = it }
                 PlaybackSetting("记忆倍速", rememberSpeed) { rememberSpeed = it; playback.rememberSpeed = it }
                 PlaybackSetting("去除广告", filterAds) { filterAds = it; playback.filterAds = it }
-                Text("弹幕", style = MaterialTheme.typography.titleMedium)
+                Text("弹幕", style = MaterialTheme.typography.titleLarge)
                 Text("弹幕服务地址", style = MaterialTheme.typography.bodyMedium)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    TvTextInput(draft, { draft = it }, {}, focus, Modifier.weight(1f).testTag("danmaku-server"),
+                    TvTextInput(draft, { draft = it; savedNotice = false }, {}, focus, Modifier.weight(1f).testTag("danmaku-server"),
                         hint = "https://danmu.example.com", imeAction = ImeAction.Done)
                     ActionButton(onClick = {
                         keyboard?.hide()
                         preferences.server = address
                         saved = address
                         draft = address
+                        savedNotice = true
                     }, enabled = valid && address != saved.trimEnd('/'), modifier = Modifier.testTag("danmaku-save")) { Text("保存") }
                 }
                 if (address.isNotEmpty() && !valid) Text("请输入有效的弹幕服务地址", color = MaterialTheme.colorScheme.error)
-                else if (saved.isNotBlank() && address == saved.trimEnd('/')) {
+                else if (savedNotice) {
                     Text("已保存", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -77,6 +86,7 @@ internal fun SettingsScreen() {
 private fun PlaybackSetting(label: String, enabled: Boolean, onChange: (Boolean) -> Unit) {
     ListItem(
         selected = enabled,
+        modifier = Modifier.heightIn(min = UiMetrics.controlHeight),
         scale = ListItemDefaults.scale(focusedScale = 1f),
         onClick = { onChange(!enabled) },
         headlineContent = { Text(label) },

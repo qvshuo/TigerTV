@@ -13,7 +13,7 @@ class DanmakuClientTest {
         }))
         try {
             val episodes = DanmakuClient(Network(http), "https://example.test/example-token/").episodes(42)
-            assertEquals(DanmakuEpisode(99, "正片", "2"), episodes.single())
+            assertEquals(DanmakuEpisode(99, "正片", "2", season = 2, seasonId = "two"), episodes.single())
         } finally { http.close() }
     }
 

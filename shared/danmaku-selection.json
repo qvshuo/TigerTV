@@ -23,6 +23,7 @@
   "maximumToleranceMs": 10000,
   "minimumCountRatio": 2,
   "matchThreshold": 0.85,
+  "episodeMatchThreshold": 0.75,
   "minimumFuzzyLength": 6,
   "ambiguityGap": 0.04,
   "searchTimeoutMs": 10000,
@@ -32,17 +33,20 @@
   "autoTimeoutMs": 90000,
   "requestBudget": 12,
   "textPatterns": {
-    "season": "第\\s*([0-9零〇一二两三四五六七八九十百]+)\\s*季|(?<![a-z0-9])(?:season\\s*|s)([0-9]+)(?=e[0-9]|[^a-z0-9]|$)",
-    "ordinal": "第\\s*([0-9零〇一二两三四五六七八九十百]+)\\s*([集期话話])",
+    "numericSeparator": "(?<=[0-9])[\\p{P}\\p{Z}\\s・]+(?=[0-9])",
+    "season": "第?\\s*([0-9零〇一二两兩三四五六七八九十百]+)\\s*季|(?<![a-z0-9])(?:season\\s*|s)([0-9]+)(?=e[0-9]|[^a-z0-9]|$)",
+    "ordinal": "第\\s*([0-9零〇一二两兩三四五六七八九十百]+)\\s*([集期话話])",
     "englishEpisode": "(?<![a-z0-9])(?:s\\d+\\s*)?(?:episode|ep|e)\\s*(\\d+)(?![\\d.])",
     "date": "(?<!\\d)(20\\d{2})[-./年]?(0[1-9]|1[0-2])[-./月]?(0[1-9]|[12]\\d|3[01])(?!\\d)",
-    "part": "(?:[集期话話]|(?<!\\d)(?:20\\d{2})[-./年]?(?:0[1-9]|1[0-2])[-./月]?(?:0[1-9]|[12]\\d|3[01])(?!\\d)日?)\\s*[(【\\[]?\\s*([上下中])(?=篇|集|部|[)】\\]:：\\s]|$)",
-    "special": "特别篇?|番外|加更|预告|花絮|特辑|特典|先导|前采|抢鲜|抢先|沉浸|彩蛋|\\b(?:trailer|preview|ova|oad|extra|sp|special)(?=\\b|\\d)",
-    "metadata": "[【\\[(]\\s*(?:qiyi|iqiyi|youku|qq|tencent|imgo|mgtv|mango|360|bilibili|bili|douban|dandan|renren|sohu|letv|pptv|爱奇艺|优酷|腾讯(?:视频)?|芒果\\s*tv|哔哩哔哩|国产剧|电视剧|电影|综艺|纪录片|动漫|动画|[日韩欧美港台]剧|短剧|高清|超清|蓝光|全集|完结|\\d{3,4}p|[248]k|hdr|sdr|杜比视界|web-dl|blu-ray)\\s*[\\]】)]",
+    "part": "(?:[集期话話]|(?<!\\d)(?:20\\d{2})[-./年]?(?:0[1-9]|1[0-2])[-./月]?(?:0[1-9]|[12]\\d|3[01])(?!\\d)日?)\\s*(?:纯享(?:版)?\\s*)?[(【\\[]?\\s*([上下中])(?=篇|集|部|加更|花絮|[)】\\]:：\\s]|$)",
+    "special": "普通话|国语|粤语|越南语|国际|速看|纯享|直拍|特别|番外|加更|预告|花絮|特辑|特典|先导|前采|抢鲜|抢先|沉浸|彩蛋|\\b(?:trailer|preview|ova|oad|extra|sp|special)(?=\\b|\\d)",
+    "metadata": "[【\\[(]\\s*(?:qiyi|iqiyi|youku|qq|tencent|imgo|mgtv|mango|360|migu|hanjutv|bilibili[0-9]*|bili|douban|dandan|renren|sohu|letv|pptv|爱奇艺|优酷|腾讯(?:视频)?|芒果\\s*tv|哔哩哔哩|国产剧|电视剧|电影|综艺|纪录片|动漫|动画|[日韩欧美港台]剧|短剧|高清|超清|蓝光|全集|完结|\\d{3,4}p|[248]k|hdr|sdr|杜比视界|web-dl|blu-ray)\\s*[\\]】)]",
     "sourceSuffix": "(?:\\s+from\\s+(?:qiyi|iqiyi|youku|qq|tencent|imgo|mgtv|mango|360|bilibili|bili|douban|dandan|renren|sohu|letv|pptv|爱奇艺|优酷|腾讯(?:视频)?|芒果\\s*tv|哔哩哔哩)|(?<=】)from\\s+[a-z0-9_+.-]+)\\s*$",
     "year": "[【\\[(]((?:19|20)\\d{2})[\\]】)]|\\s+((?:19|20)\\d{2})(?=\\s*$)",
     "alias": "[【\\[(](?:又名|别名|英文名|原名|aka)\\s*[:：]?\\s*([^】)\\]]+)[\\]】)]",
-    "bonus": "^加更(?:版|篇)?$|[期集话話]\\s*加更(?:版|篇)?$",
-    "blooper": "^(?:花絮特辑)$|[期集话話]\\s*花絮特辑$"
+    "numberedPart": "[集期话話]\\s*[(【\\[]([一二三四五六七八九十0-9]+)[)】\\]]",
+    "variantPart": "^\\s*(?:版\\s*)?[(【\\[]?\\s*([上下中])(?=篇|集|部|加更|花絮|[)】\\]:：\\s]|$)",
+    "bonus": "(?:^|[期集话話]\\s*)加更(?=$|版|篇|\\s|[:：])",
+    "blooper": "(?:^|[期集话話]\\s*)花絮特辑(?=$|\\s|[:：])"
   }
 }

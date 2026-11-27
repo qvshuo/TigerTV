@@ -17,7 +17,7 @@ class DanmakuMatchingTest {
     @Test fun duplicateOrUnknownMultiSeasonNumbersAreNotGuessed() {
         val first = DanmakuEpisode(1,"正片","2",1,"one")
         val second = DanmakuEpisode(2,"正片","2",2,"two")
-        assertNull(matchingDanmakuEpisode(listOf(first, second), 2, 2))
+        assertEquals(second, matchingDanmakuEpisode(listOf(first, second), 2, 2))
         val namedSecond = second.copy(title = "S02E02", number = "3", season = 1)
         assertEquals(namedSecond, matchingDanmakuEpisode(listOf(first, namedSecond), 2, 2))
         assertNull(matchingDanmakuEpisode(listOf(first.copy(season=null),second.copy(season=null)),2,2))
@@ -49,7 +49,7 @@ class DanmakuMatchingTest {
         assertEquals(first, matchingDanmakuEpisode(episodes, "第20261022期第01期", null))
         assertEquals(later, matchingDanmakuEpisode(episodes, "2026-11-05 第03期", null))
         assertNull(matchingDanmakuEpisode(episodes, "20261022期", null))
-        assertNull(matchingDanmakuEpisode(episodes, "第20261023期抢鲜版", null))
+        assertEquals(extra, matchingDanmakuEpisode(episodes, "第20261023期抢鲜版", null))
         assertNull(matchingDanmakuEpisode(episodes, "20261022 第3期", null))
         assertNull(matchingDanmakuEpisode(episodes, "第3期上", null))
         assertEquals(2, regularDanmakuEpisode("Ｓ０１Ｅ０２"))

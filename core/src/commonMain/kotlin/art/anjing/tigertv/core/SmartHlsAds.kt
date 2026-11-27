@@ -6,12 +6,15 @@ import kotlinx.serialization.json.Json
 
 @Serializable
 private data class HlsHeuristics(
-    val minSeconds: Double, val maxSeconds: Double, val sourceGroups: List<SourceAdGroup>,
-    val verifiedFilterSources: Set<String>, val noGamblingInSamples: Set<String>,
+    val common: CommonAdRules, val sourceRules: List<SourceAdGroup>, val noGamblingInSamples: Set<String>,
 )
 
 @Serializable
+private data class CommonAdRules(val minSeconds: Double, val maxSeconds: Double)
+
+@Serializable
 private data class SourceAdGroup(
+    val sites: Set<String>,
     val manifestHost: String, val segmentUri: String, val durationsMicros: List<List<Long>> = emptyList(),
     val durationWindowsMicros: List<List<Long>> = emptyList(),
     val repeated: Boolean = false, val allowEnd: Boolean = false, val contentUri: String? = null,
@@ -25,15 +28,10 @@ private data class SourceAdGroup(
 }
 
 private val heuristics by lazy { Json.decodeFromString<HlsHeuristics>(hlsHeuristicsJson) }
-enum class SourceAdEvidence { FILTER_VERIFIED, NO_GAMBLING_IN_SAMPLES, UNVERIFIED }
-
-fun sourceAdEvidence(site: String): SourceAdEvidence {
+fun isRecommendedSource(site: String, filterAds: Boolean = true): Boolean {
     val name = site.replace("🎬", "").trim()
-    return when (name) {
-        in heuristics.verifiedFilterSources -> SourceAdEvidence.FILTER_VERIFIED
-        in heuristics.noGamblingInSamples -> SourceAdEvidence.NO_GAMBLING_IN_SAMPLES
-        else -> SourceAdEvidence.UNVERIFIED
-    }
+    return name in heuristics.noGamblingInSamples ||
+        filterAds && heuristics.sourceRules.any { name in it.sites }
 }
 
 fun filterSmartHlsAds(playlist: String, playlistHost: String = ""): HlsFilterResult? {
@@ -48,13 +46,13 @@ private fun smartAdIndices(vod: HlsVod, playlistHost: String): Set<Int> {
     fun propose(start: Int, end: Int) {
         if (start >= end || (start until end).any { it in accepted }) return
         val seconds = segments.subList(start, end).sumOf { it.micros } / 1_000_000.0
-        if (seconds !in params.minSeconds..params.maxSeconds) return
+        if (seconds !in params.common.minSeconds..params.common.maxSeconds) return
         accepted.addAll(start until end)
     }
 
     val paths = segments.map { it.uri.substringBefore('?').substringBefore('#') }
     val spliceBoundaries = segments.indices.filter { segments[it].discontinuity } + segments.size
-    for (profile in params.sourceGroups) {
+    for (profile in params.sourceRules) {
         if (!profile.hostPattern.matches(playlistHost)) continue
         val hasInnerBoundary = profile.innerDiscontinuityOffsets.isNotEmpty()
         val candidates = spliceBoundaries.windowed(if (hasInnerBoundary) 3 else 2).mapNotNull { boundaries ->

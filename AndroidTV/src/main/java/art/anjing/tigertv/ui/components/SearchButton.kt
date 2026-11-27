@@ -28,9 +28,6 @@ fun SearchButton(isSearching: Boolean, onClick: () -> Unit) {
         onClick = onClick,
         enabled = !isSearching,
         modifier = Modifier.semantics { stateDescription = if (isSearching) "正在搜索…" else "" },
-        colors = androidx.tv.material3.ButtonDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary),
         contentPadding = PaddingValues(horizontal = UiSpacing.lg, vertical = 0.dp)
     ) {
         Text(stringResource(R.string.search_button), style = MaterialTheme.typography.labelLarge)

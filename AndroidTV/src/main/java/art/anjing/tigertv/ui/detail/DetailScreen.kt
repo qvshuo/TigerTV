@@ -1,8 +1,7 @@
 package art.anjing.tigertv.ui.detail
 
 import androidx.activity.compose.BackHandler
-import art.anjing.tigertv.core.SourceAdEvidence
-import art.anjing.tigertv.core.sourceAdEvidence
+import art.anjing.tigertv.core.isRecommendedSource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 
@@ -10,7 +9,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -30,15 +28,12 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalContext
-import art.anjing.tigertv.ui.player.PlaybackPreferences
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.Dp
 import androidx.tv.material3.*
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
@@ -65,20 +60,11 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
     val result = viewModel.selectedResult
     val response = viewModel.fetchResponse?.takeIf { it.site == result?.site && it.vodId == result.vodId }
     val sources = viewModel.availableSources
-    val context = LocalContext.current
-    val playbackPreferences = remember(context) { PlaybackPreferences(context) }
-    var filterAds by remember(playbackPreferences) { mutableStateOf(playbackPreferences.filterAds) }
-    DisposableEffect(playbackPreferences) {
-        val unsubscribe = playbackPreferences.observeFilterAds { filterAds = it }
-        onDispose { unsubscribe() }
-    }
     val episodes = viewModel.episodes
     LaunchedEffect(sources) { viewModel.preloadDetails(sources) }
     fun isEmpty(source: SearchResult) = viewModel.cachedDetail(source)?.playSources?.isEmpty() == true
     val preferredEpisode = viewModel.resumeEpisodeIndex
     val currentEpisode = episodes.getOrNull(preferredEpisode)
-    val episodeLabelHeight = with(LocalDensity.current) { MaterialTheme.typography.labelLarge.lineHeight.toDp() * 2 }
-    val episodeCellHeight = maxOf(UiMetrics.controlHeight, episodeLabelHeight + UiSpacing.md)
     val selectedEpisode = viewModel.selectedEpisodeIndex
     val hasResumePosition = viewModel.resumePositionMillis > 0
     var retainedDetail by remember { mutableStateOf(response) }
@@ -169,17 +155,15 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                             matches.firstOrNull { it.coverKey == result?.coverKey } ?: matches.first()
                         }
                         val sites = (viewModel.configuredSites + sources.map { it.site }).distinct()
-                        fun evidence(site: String) = sourceAdEvidence(site).let {
-                            if (it == SourceAdEvidence.FILTER_VERIFIED && !filterAds) SourceAdEvidence.UNVERIFIED else it
-                        }
-                        val groups = sites.groupBy { evidence(it) != SourceAdEvidence.UNVERIFIED }
+                        val groups = sites.groupBy { isRecommendedSource(it) }
                         Column(verticalArrangement = Arrangement.spacedBy(UiSpacing.choiceRow)) {
                             SectionTitle("资源")
                             for (recommended in listOf(true, false)) {
                                 val group = groups[recommended].orEmpty()
                                 if (group.isNotEmpty()) {
                                     Text(if (recommended) "推荐资源" else "其他资源", style = MaterialTheme.typography.labelLarge)
-                                    group.chunked(6).forEach { row ->
+                                    val columns = 6
+                                    group.chunked(columns).forEach { row ->
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ChoiceGap)) {
                                             row.forEach { site ->
                                                 key(site) {
@@ -187,12 +171,7 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                                                     val active = source != null && source.coverKey == result?.coverKey
                                                     val busy = if (source == null) viewModel.isSiteSearching(site)
                                                         else (viewModel.isFetching && active) || viewModel.isDetailLoading(source)
-                                                    val badge = when (evidence(site)) {
-                                                        SourceAdEvidence.FILTER_VERIFIED -> "去广告"
-                                                        SourceAdEvidence.NO_GAMBLING_IN_SAMPLES -> "无广告"
-                                                        SourceAdEvidence.UNVERIFIED -> null
-                                                    }
-                                                    ResourceChoice(displaySourceName(site), active, badge = badge,
+                                                    ResourceChoice(displaySourceName(site), active,
                                                         loading = busy, enabled = source != null && !isEmpty(source),
                                                         modifier = Modifier.weight(1f).then(
                                                             if (source != null && source.coverKey == focusSource?.coverKey) Modifier.focusRequester(sourceFocus) else Modifier
@@ -206,7 +185,7 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                                                     }
                                                 }
                                             }
-                                            repeat(6 - row.size) { Spacer(Modifier.weight(1f)) }
+                                            repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                                         }
                                     }
                                 }
@@ -232,7 +211,7 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                         }
                     } else {
                         itemsIndexed(episodes, key = { index, _ -> "episode-$index" }) { index, episode ->
-                            EpisodeCard(episode.name.ifBlank { "第 ${index + 1} 集" }, index == selectedEpisode, episodeCellHeight) {
+                            EpisodeCard(episode.name.ifBlank { "第 ${index + 1} 集" }, index == selectedEpisode) {
                                 onPlay(index)
                             }
                         }
@@ -296,26 +275,17 @@ private fun SectionTitle(title: String) {
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 internal fun ResourceChoice(title: String, selected: Boolean, modifier: Modifier = Modifier,
-    badge: String? = null, loading: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
+    loading: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     SelectionChip(selected = selected, onClick = onClick, enabled = enabled,
-        modifier = modifier.fillMaxWidth().heightIn(min = UiMetrics.controlHeight)) {
-        Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.controlHeight - UiSpacing.md),
+        modifier = modifier.fillMaxWidth().padding(vertical = ChoiceVerticalInset)) {
+        Row(Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(UiSpacing.xs, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically) {
             Text(title, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center)
-            if (badge != null) ResourceBadge(badge)
             if (loading) LoadingIndicator(Modifier.size(12.dp))
         }
     }
-}
-
-@Composable
-private fun ResourceBadge(label: String) {
-    val color = androidx.tv.material3.LocalContentColor.current
-    val shape = MaterialTheme.shapes.extraSmall
-    Text(label, style = MaterialTheme.typography.labelSmall, color = color,
-        modifier = Modifier.border(1.dp, color.copy(alpha = .5f), shape).padding(horizontal = UiSpacing.xs))
 }
 
 @Composable
@@ -340,18 +310,17 @@ private fun PosterPlaceholder(title: String) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun EpisodeCard(label: String, isSelected: Boolean, height: Dp, modifier: Modifier = Modifier, onPlay: () -> Unit) {
+private fun EpisodeCard(label: String, isSelected: Boolean, onPlay: () -> Unit) {
     SelectionChip(selected = isSelected, onClick = onPlay,
-        modifier = modifier.fillMaxWidth().padding(vertical = 2.dp).height(height)) {
-        Box(Modifier.fillMaxWidth().height(height - UiSpacing.md), contentAlignment = Alignment.Center) {
-            Text(label, textAlign = TextAlign.Center,
-                maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
+        modifier = Modifier.fillMaxWidth().padding(vertical = ChoiceVerticalInset)) {
+        Text(label, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+            maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
 private val ChoiceInset = UiSpacing.md
 private val ChoiceGap = UiSpacing.choiceColumn
+private val ChoiceVerticalInset = 2.dp
 
 @OptIn(ExperimentalFoundationApi::class)
 private class DetailFocusScroll(private val inset: Float) : BringIntoViewSpec {

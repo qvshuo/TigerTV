@@ -1,0 +1,171 @@
+[
+  {
+    "douban": {
+      "id": "36894893",
+      "title": "12 12 12",
+      "year": "2026",
+      "categories": [
+        "tv_american"
+      ]
+    },
+    "danmaku": [
+      {
+        "animeTitle": "12 12 12(2026)【电视剧】from renren",
+        "seasons": [
+          {
+            "id": "season-60335",
+            "name": "Season 1"
+          }
+        ],
+        "episodes": [
+          {
+            "episodeTitle": "【renren】 第01集",
+            "episodeNumber": "1",
+            "seasonId": "season-60335"
+          },
+          {
+            "episodeTitle": "【renren】 第02集",
+            "episodeNumber": "2",
+            "seasonId": "season-60335"
+          },
+          {
+            "episodeTitle": "【renren】 第03集",
+            "episodeNumber": "3",
+            "seasonId": "season-60335"
+          }
+        ]
+      }
+    ],
+    "catalog": [
+      {
+        "source": "U酷影视",
+        "title": "12 12 12",
+        "year": "2026",
+        "category": "欧美剧",
+        "lines": [
+          {
+            "name": "ukm3u8",
+            "episodes": [
+              "第01集",
+              "第02集",
+              "第03集"
+            ]
+          }
+        ]
+      },
+      {
+        "source": "百度云zy",
+        "title": "12 12 12",
+        "year": "2026",
+        "category": "欧美剧",
+        "lines": [
+          {
+            "name": "dbm3u8",
+            "episodes": [
+              "第01集",
+              "第02集",
+              "第03集"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "douban": {
+      "id": "37816820",
+      "title": "声生不息·天涯共此时",
+      "year": "2026",
+      "categories": [
+        "tv_domestic"
+      ]
+    },
+    "danmaku": [
+      {
+        "animeTitle": "声生不息·天涯共此时 竖屏直拍版(2026)【综艺】from 360",
+        "seasons": [
+          {
+            "id": "season-295301",
+            "name": "Season 1"
+          }
+        ],
+        "episodes": [
+          {
+            "episodeTitle": "【imgo】 12位唱将唱响年代金曲 2026-11-20期",
+            "episodeNumber": "1",
+            "seasonId": "season-295301"
+          },
+          {
+            "episodeTitle": "【imgo】 任贤齐陈楚生经典新唱 2026-11-27期",
+            "episodeNumber": "2",
+            "seasonId": "season-295301"
+          }
+        ]
+      },
+      {
+        "animeTitle": "声生不息·天涯共此时(2026)【综艺】from imgo",
+        "seasons": [
+          {
+            "id": "season-6424934",
+            "name": "Season 1"
+          }
+        ],
+        "episodes": [
+          {
+            "episodeTitle": "【imgo】 2026-11-20 第1期上：唱将集结惊艳首唱",
+            "episodeNumber": "1",
+            "seasonId": "season-6424934"
+          },
+          {
+            "episodeTitle": "【imgo】 2026-11-20 第1期下：陈楚生曾沛慈对唱",
+            "episodeNumber": "2",
+            "seasonId": "season-6424934"
+          },
+          {
+            "episodeTitle": "【imgo】 2026-11-27 第2期：任贤齐陈楚生经典新唱",
+            "episodeNumber": "3",
+            "seasonId": "season-6424934"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "douban": {
+      "id": "37937537",
+      "title": "喜剧之王单口季 第三季",
+      "year": "2026",
+      "categories": [
+        "tv_variety_show"
+      ]
+    },
+    "danmaku": [
+      {
+        "animeTitle": "喜剧之王单口季第3季(2026)【综艺】from iqiyi",
+        "seasons": [
+          {
+            "id": "season-979788",
+            "name": "Season 1"
+          }
+        ],
+        "episodes": [
+          {
+            "episodeTitle": "【qiyi】 第0集 先导片 60组演员开启盲盒抢金赛 先导片 庞博携60组演员开启盲盒抢金赛 翟佳宁嘻哈王越魔丸拆家",
+            "episodeNumber": "1",
+            "seasonId": "season-979788"
+          },
+          {
+            "episodeTitle": "【qiyi】 第0集 第1期(一) 郭麒麟黄渤马思纯斗舞 第1期(一) 郭麒麟黄渤马思纯斗舞 房主任爆改“回家的诱惑”",
+            "episodeNumber": "2",
+            "seasonId": "season-979788"
+          },
+          {
+            "episodeTitle": "【qiyi】 第0集 第1期(二) 林简七意识流笑疯马思纯 第1期(二) 林简七意识流脱口秀笑疯马思纯 王越锐评减肥针",
+            "episodeNumber": "3",
+            "seasonId": "season-979788"
+          }
+        ]
+      }
+    ]
+  }
+]

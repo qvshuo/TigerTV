@@ -1,6 +1,7 @@
 package art.anjing.tigertv.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,14 +32,15 @@ internal fun SelectionChip(
     val colors = MaterialTheme.colorScheme
     var focused by remember { mutableStateOf(false) }
     val focusBorder = Border(BorderStroke(2.5.dp, colors.onSurface))
-    FilterChip(selected = selected, onClick = onClick, modifier = modifier.onFocusChanged { focused = it.isFocused }, enabled = enabled,
+    FilterChip(selected = selected, onClick = onClick,
+        modifier = modifier.heightIn(min = UiMetrics.controlHeight).onFocusChanged { focused = it.isFocused }, enabled = enabled,
         colors = FilterChipDefaults.colors(
             selectedContainerColor = colors.inverseSurface, selectedContentColor = colors.inverseOnSurface,
             focusedContainerColor = Color.Transparent, focusedContentColor = colors.onSurface,
             focusedSelectedContainerColor = colors.inverseSurface, focusedSelectedContentColor = colors.inverseOnSurface,
         ),
         border = FilterChipDefaults.border(focusedBorder = focusBorder, focusedSelectedBorder = focusBorder),
-        scale = FilterChipDefaults.scale(focusedScale = 1.03f),
+        scale = FilterChipDefaults.scale(focusedScale = 1f),
     ) {
         if (focused) ProvideTextStyle(TextStyle(fontWeight = FontWeight.Bold), content)
         else content()

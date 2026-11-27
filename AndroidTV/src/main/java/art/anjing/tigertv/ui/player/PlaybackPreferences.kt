@@ -1,7 +1,6 @@
 package art.anjing.tigertv.ui.player
 
 import android.content.Context
-import android.content.SharedPreferences
 
 internal class PlaybackPreferences(context: Context) {
     private val store = context.applicationContext.getSharedPreferences("playback", Context.MODE_PRIVATE)
@@ -17,15 +16,6 @@ internal class PlaybackPreferences(context: Context) {
     var filterAds: Boolean
         get() = store.getBoolean("filterAds", true)
         set(value) { store.edit().putBoolean("filterAds", value).apply() }
-
-    fun observeFilterAds(onChange: (Boolean) -> Unit): () -> Unit {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == "filterAds") onChange(filterAds)
-        }
-        store.registerOnSharedPreferenceChangeListener(listener)
-        onChange(filterAds)
-        return { store.unregisterOnSharedPreferenceChangeListener(listener) }
-    }
 
     fun speed(workId: String): Float = if (rememberSpeed) store.getFloat("speed:$workId", 1f) else 1f
 

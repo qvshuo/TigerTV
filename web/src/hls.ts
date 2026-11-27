@@ -110,7 +110,7 @@ const encrypted = (segment: Segment) => Boolean(segment.key && segment.key !== '
 const range = (start: number, end: number) => Array.from({ length: end - start }, (_, index) => start + index)
 
 function smartAdIndices(segments: Segment[], playlistHost: string) {
-  const { minSeconds, maxSeconds } = heuristics
+  const { minSeconds, maxSeconds } = heuristics.common
   const accepted = new Set<number>()
   function propose(start: number, end: number) {
     const indices = range(start, end)
@@ -122,7 +122,7 @@ function smartAdIndices(segments: Segment[], playlistHost: string) {
 
   const paths = segments.map(segment => segment.uri.split(/[?#]/, 1)[0])
   const spliceBoundaries = [...segments.flatMap((segment, index) => segment.discontinuity ? [index] : []), segments.length]
-  for (const profile of heuristics.sourceGroups) {
+  for (const profile of heuristics.sourceRules) {
     if (!new RegExp(`^(?:${profile.manifestHost})$`).test(playlistHost)) continue
     const segmentPattern = new RegExp(`^(?:${profile.segmentUri})$`)
     const contentPattern = profile.contentUri ? new RegExp(`^(?:${profile.contentUri})$`) : undefined

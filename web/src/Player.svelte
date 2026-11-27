@@ -3,8 +3,8 @@
   import danmakuRules from '../../shared/danmaku-selection.json' with { type: 'json' }
   import '@videojs/html/video/player'
   import type { VideoPlayerElement } from '@videojs/html/video'
-  import '@videojs/html/video/skin'
-  import '@videojs/html/ui/playback-rate-button'
+  import './player-skin.ts'
+  import type { TigerVideoSkin } from './player-skin.ts'
   import '@videojs/html/i18n'
   import '@videojs/html/i18n/locales/zh-CN/register'
   import type { HlsJsVideoElement } from '@videojs/html/media/hlsjs-video'
@@ -18,7 +18,7 @@
   let { selection, episode, settings, onBack, playbackEpisodes, onSelectEpisode, inherited }:
     { selection: Selection; episode: Episode; settings: Settings; onBack: () => void; playbackEpisodes: Episode[];
       onSelectEpisode: (index: number, options?: PlaybackOptions) => void; inherited?: PlaybackOptions } = $props()
-  let container = $state<HTMLElementTagNameMap["video-skin"]>()
+  let container = $state<TigerVideoSkin>()
   let player = $state<VideoPlayerElement>()
   let danmakuLayer = $state<HTMLDivElement>()
   let canvas = $state<HTMLCanvasElement>()
@@ -280,33 +280,6 @@
     }
   })
 
-  $effect(() => {
-    const mount = container
-    if (!mount) return
-    void customElements.whenDefined('video-skin').then(() => {
-      const root = mount.shadowRoot
-      // The default skin exposes no slot in its control bar.
-      const settingsButton = root?.querySelector<HTMLButtonElement>('.video-controls-settings-button')
-      if (!settingsButton) return
-      const menu = settingsButton.getAttribute('commandfor')
-      if (menu) root?.getElementById(menu)?.remove()
-      root?.querySelector(`media-tooltip[trigger="${settingsButton.id}"]`)?.remove()
-      const rate = document.createElement('media-playback-rate-button')
-      rate.className = 'media-button'
-      rate.setAttribute('label', '倍速')
-      rate.setAttribute('rates', '0.5 0.75 1 1.25 1.5 1.75 2')
-      const label = document.createElement('span')
-      label.textContent = speed + '×'
-      rate.append(label)
-      settingsButton.replaceWith(rate)
-    })
-  })
-  $effect(() => {
-    const label = container?.shadowRoot?.querySelector('media-playback-rate-button span')
-    const rate = speed
-    if (label) label.textContent = rate + '×'
-  })
-
   function setDanmakuStatus(message: string, transient = false) {
     clearTimeout(statusTimer)
     danmakuStatus = message
@@ -481,12 +454,12 @@
   <button class="quiet" onclick={() => exit(onBack)}>← 返回</button>
 </div>
 <media-i18n lang="zh-CN"><video-player bind:this={player}>
-  <video-skin bind:this={container} class="video-surface">
+  <tiger-video-skin bind:this={container} class="video-surface">
     <div class="danmaku-layer" bind:this={danmakuLayer}>
       <canvas bind:this={canvas} class="danmaku" aria-hidden="true"></canvas>
       <p class="danmaku-status" role="status">{enabled ? danmakuStatus : ''}</p>
     </div>
-  </video-skin>
+  </tiger-video-skin>
 </video-player></media-i18n>
 
 <div class="player-meta">

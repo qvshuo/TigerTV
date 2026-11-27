@@ -1,6 +1,5 @@
 import { type Source, type Work } from './api.ts'
 
-export const defaultDanmakuServer = 'https://danmu.example.com'
 export const defaults = { autoNext: true, rememberSpeed: true, rememberVolume: true, filterAds: true, danmakuServer: '' }
 export type Settings = typeof defaults
 export type PlaybackOptions = { speed: number; volume: number; muted: boolean; danmakuEnabled: boolean }

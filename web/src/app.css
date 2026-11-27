@@ -14,6 +14,9 @@
   --space-2: .5rem;
   --space-3: .75rem;
   --space-4: 1rem;
+  --control-height: 2.5rem;
+  --compact-control-height: 2.25rem;
+  --control-font: .875rem;
 }
 body { min-width: 280px; margin: 0; }
 html { scrollbar-gutter: stable; }
@@ -44,11 +47,11 @@ h2, .search-results-title { font-size: clamp(1.08rem, 2vw, 1.25rem); line-height
 .history-section { min-height: 0; display: flex; flex-direction: column; margin-top: .85rem; }
 .history-section h2 { color: var(--muted); font-size: .875rem; font-weight: 500; }
 .history-section .section-heading { align-items: center; margin-bottom: .25rem; }
-.history-clear { min-height: 32px; padding-inline: .55rem; border-radius: .4rem; color: var(--muted); font-size: .875rem; }
+.history-clear { min-height: var(--compact-control-height); padding-inline: .55rem; border-radius: .4rem; color: var(--muted); font-size: var(--control-font); }
 .search-history { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .2rem; list-style: none; }
 .search-history button {
-  width: 100%; min-height: 36px; padding: .35rem .55rem; border-radius: .4rem;
-  text-align: start; font-size: .9rem; overflow-wrap: anywhere;
+  width: 100%; min-height: var(--compact-control-height); padding: .35rem .55rem; border-radius: .4rem;
+  text-align: start; font-size: var(--control-font); overflow-wrap: anywhere;
 }
 .search-history button:focus-visible { outline-offset: -2px; }
 .source-grid {
@@ -65,16 +68,16 @@ h2, .search-results-title { font-size: clamp(1.08rem, 2vw, 1.25rem); line-height
 .spinner { flex: none; display: inline-block; width: 1em; height: 1em; border: .13em solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(1turn); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
-.source-badge { border: 1px solid #707070; border-radius: .3rem; padding: .05rem .28rem; color: var(--muted); font-size: .72rem; white-space: nowrap; }
 .search-form { display: flex; align-items: stretch; gap: .5rem; width: min(100%, 34rem); }
 .search-form input { flex: 1; width: 0; min-width: 0; }
 input:not([type="checkbox"], [type="range"]), select {
-  min-height: 40px; border: 1px solid var(--line); border-radius: .68rem; padding: .5rem .8rem; background: var(--surface);
+  min-height: var(--control-height); border: 1px solid var(--line); border-radius: .5rem; padding: .5rem .8rem;
+  background: var(--surface); font-size: var(--control-font);
 }
 input::placeholder { color: #a9a9a9; }
 .primary, .quiet, .choice {
-  min-height: 36px; display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid transparent; border-radius: .5rem; padding: .35rem .7rem; font-size: .875rem; font-weight: 600;
+  min-height: var(--control-height); display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: .5rem; padding: .35rem .7rem; font-size: var(--control-font); font-weight: 600;
 }
 .primary { background: var(--accent); color: var(--ink); }
 .quiet, .choice { border-color: var(--line); background: #1d1d1d; }
@@ -121,12 +124,13 @@ input::placeholder { color: #a9a9a9; }
 .recent-card .poster-fallback { font-size: 1.2rem; }
 .work-overview { display: grid; grid-template-columns: clamp(5.5rem, 17vw, 10rem) minmax(0, 1fr); align-items: start; gap: clamp(.75rem, 2.5vw, 1.6rem); padding-bottom: .75rem; }
 .work-overview h1, .player-meta h1 { overflow-wrap: anywhere; }
-.hero-play { max-width: 100%; min-height: 44px; padding-inline: 1.15rem; margin-top: .9rem; text-align: start; font-size: 1rem; overflow-wrap: anywhere; }
+.hero-play { max-width: 100%; padding-inline: 1.15rem; margin-top: .9rem; text-align: start; overflow-wrap: anywhere; }
 .synopsis { margin-top: .65rem; max-width: 68ch; white-space: pre-line; line-height: 1.7; color: #dddddd; overflow-wrap: anywhere; }
 .detail-section { padding-top: var(--space-4); margin-top: var(--space-4); border-top: 1px solid var(--line); }
 .detail-section h2 { margin-bottom: var(--space-2); }
-.settings-page { max-width: 41rem; }
 .settings-page .detail-section { border-top: 0; }
+.settings-page .detail-section:first-child { margin-block-start: 0; padding-block-start: 0; }
+.settings-page .catalog-lead { margin-bottom: 1rem; }
 .settings-form .search-form { width: 100%; max-width: none; }
 .setting-row { display: flex; align-items: center; justify-content: space-between; min-height: 44px; gap: 1rem; border-bottom: 1px solid var(--line); cursor: pointer; }
 .setting-row input { width: 1rem; height: 1rem; accent-color: var(--accent); }
@@ -138,7 +142,7 @@ input::placeholder { color: #a9a9a9; }
 .player-meta { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-top: .8rem; }
 .player-meta > div { min-width: 0; }
 .player-actions { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--space-1) var(--space-2); }
-.danmaku-toggle { display: inline-flex; gap: .4rem; align-items: center; padding-inline: .45rem; font-size: .875rem; cursor: pointer; }
+.danmaku-toggle { display: inline-flex; min-height: var(--control-height); gap: .4rem; align-items: center; padding-inline: .45rem; font-size: var(--control-font); cursor: pointer; }
 .danmaku-toggle input { accent-color: var(--accent); }
 .player-meta h1 { font-size: clamp(1.6rem, 3vw, 2.3rem); margin-bottom: .25rem; }
 dialog { color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: .8rem; padding: 1.15rem; width: min(100% - 2rem, 34rem); margin: auto; }
@@ -156,7 +160,7 @@ dialog::backdrop { background: #000b; overflow: hidden; overscroll-behavior: con
 .picker-field { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
 .picker-trigger {
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
-  min-height: 44px; padding: var(--space-2) var(--space-3);
+  min-height: var(--control-height); padding: var(--space-2) var(--space-3); font-size: var(--control-font);
   border: 1px solid var(--line); border-radius: .5rem; list-style: none; cursor: pointer;
   overflow-wrap: anywhere;
 }
@@ -168,8 +172,9 @@ dialog::backdrop { background: #000b; overflow: hidden; overscroll-behavior: con
   position: fixed; inset: auto; margin: 0; z-index: 1;
   padding: var(--space-1); border: 1px solid var(--line); border-radius: .5rem; background: var(--surface); color: inherit;
 }
+.picker-field ul:not([data-positioned]) { visibility: hidden; }
 .picker-field li button {
-  width: 100%; min-height: 36px; padding: var(--space-2) var(--space-3);
+  width: 100%; min-height: var(--compact-control-height); padding: var(--space-2) var(--space-3); font-size: var(--control-font);
   border-radius: .35rem; text-align: start; overflow-wrap: anywhere;
 }
 .picker-field li button[aria-current="true"], .picker-field li button:focus-visible { background: #383838; }
@@ -181,8 +186,7 @@ dialog::backdrop { background: #000b; overflow: hidden; overscroll-behavior: con
 .picker-status:not(:empty) { margin-top: var(--space-3); }
 @media (min-width: 65rem) { .shell { width: min(100% - 5rem, 76rem); } }
 @media (pointer: coarse) {
-  .primary, .quiet, .choice, .history-clear, .search-history button, .danmaku-toggle, .picker-field li button,
-  input:not([type="checkbox"], [type="range"]), select { min-height: 44px; }
+  :root { --control-height: max(44px, 2.5rem); --compact-control-height: var(--control-height); }
   input:not([type="checkbox"], [type="range"]), select { font-size: 1rem; }
 }
 @media (max-width: 23rem) {

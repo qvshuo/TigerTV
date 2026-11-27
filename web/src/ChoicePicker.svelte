@@ -15,12 +15,13 @@
     const box = trigger.getBoundingClientRect()
     const below = window.innerHeight - box.bottom - 12
     const above = box.top - 12
+    panel.style.width = `${box.width}px`
     const up = below < Math.min(panel.scrollHeight, 224) && above > below
     panel.style.left = `${box.left}px`
-    panel.style.width = `${box.width}px`
     panel.style.maxHeight = `${Math.max(0, Math.min(224, up ? above : below))}px`
     panel.style.top = up ? 'auto' : `${box.bottom + 4}px`
     panel.style.bottom = up ? `${window.innerHeight - box.top + 4}px` : 'auto'
+    panel.dataset.positioned = ''
   }
   function close() {
     if (native) panel.hidePopover()
@@ -38,6 +39,7 @@
     event.preventDefault()
     if (native && !panel.matches(':popover-open')) panel.showPopover()
     if (!native && !fallbackOpen) {
+      panel.removeAttribute('data-positioned')
       fallbackOpen = true
       await tick()
     }
@@ -59,6 +61,7 @@
     popovertarget={native ? id + '-options' : undefined} aria-expanded={native ? undefined : fallbackOpen}
     aria-controls={id + '-options'} onkeydown={move} onclick={() => {
       if (!native) {
+        if (!fallbackOpen) panel.removeAttribute('data-positioned')
         fallbackOpen = !fallbackOpen
         void tick().then(place)
       }
@@ -69,7 +72,7 @@
     </svg>
   </button>
   <ul bind:this={panel} id={id + '-options'} popover={native ? 'auto' : undefined} hidden={!native && !fallbackOpen}
-    role="list" aria-labelledby={id} ontoggle={place}>
+    role="list" aria-labelledby={id} onbeforetoggle={() => panel.removeAttribute('data-positioned')} ontoggle={place}>
     {#each items as item (item.id)}
       <li>
         <button type="button" aria-current={value === item.id ? 'true' : undefined} onkeydown={move} onclick={() => {

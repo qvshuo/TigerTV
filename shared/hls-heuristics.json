@@ -1,10 +1,9 @@
 {
-  "verifiedFilterSources": ["-爱奇艺-", "360 资源", "魔都资源", "优质资源", "非凡资源"],
   "noGamblingInSamples": ["光速资源", "红牛资源", "百度云zy"],
-  "minSeconds": 5,
-  "maxSeconds": 60,
-  "sourceGroups": [
+  "common": { "minSeconds": 5, "maxSeconds": 60 },
+  "sourceRules": [
     {
+      "sites": ["-爱奇艺-"],
       "manifestHost": "play\\.ly166\\.com",
       "segmentUri": "/stream/[^?#]+\\.jpeg",
       "durationsMicros": [
@@ -19,6 +18,7 @@
       "contentUri": "/videos/[^?#]+\\.jpeg"
     },
     {
+      "sites": ["魔都资源", "魔都动漫"],
       "manifestHost": "(?:play|bf)\\.modujx\\d+\\.com",
       "segmentUri": "(?:https://(?:play|bf)\\.modujx\\d+\\.com)?/[^?#]+/10137kb/hls/[^/?#]+\\.ts",
       "durationsMicros": [
@@ -46,6 +46,7 @@
       "allowEnd": true
     },
     {
+      "sites": ["360 资源"],
       "manifestHost": "vod\\.360zyx\\.vip",
       "segmentUri": "https://vod\\.360zyx\\.vip/[^?#]+/hls/[^/?#]+\\.ts",
       "contentUri": "/[^?#]+/hls/[^/?#]+\\.ts",
@@ -61,6 +62,7 @@
       "allowEnd": true
     },
     {
+      "sites": ["优质资源", "艾旦影视"],
       "manifestHost": "(?:(?:cdn|svip)\\.yzzy(?:vip-\\d+|\\d+-play)\\.(?:com|vip)|vvip\\.high26-playback\\.com)",
       "segmentUri": "[0-9a-f]{32}\\.ts",
       "contentUri": "[0-9a-f]{32}\\.ts",
@@ -83,13 +85,24 @@
       "requireAllDurations": true
     },
     {
+      "sites": ["非凡资源", "艾旦影视"],
       "manifestHost": "vip\\.ffzy-plays\\.com",
       "segmentUri": "[0-9a-f]{32}\\.ts",
       "contentUri": "[0-9a-f]{32}\\.ts",
       "durationsMicros": [[4867000, 3333000, 5600000, 2867000, 2967000]],
       "innerDiscontinuityOffsets": [2, 3]
     },
-    {"manifestHost": "bfikuncdn\\.com", "segmentUri": "/\\d{8}/[^/?#]+/10\\d{3}kb/hls/[^/?#]+\\.ts", "contentUri": "https://kkzycdn\\.com(?::65)?/[^?#]+\\.ts", "durationWindowsMicros": [[2800000, 3200000], [2800000, 3200000], [4800000, 5200000], [2800000, 3200000], [2800000, 3200000], [400000, 900000]], "repeated": true, "allowEnd": true},
-    {"manifestHost": "v\\.lfthirtytwo\\.com", "segmentUri": "/\\d{8}/[^/?#]+/2000k/hls/[0-9a-f]{17}\\.ts", "contentUri": "[0-9a-f]{17}\\.ts", "durationWindowsMicros": [[3800000, 4200000], [3800000, 4200000], [3800000, 4200000], [3800000, 4200000], [3800000, 4200000], [3800000, 4200000], [1500000, 2000000]], "repeated": true}
+    {
+      "sites": ["非凡资源", "艾旦影视"],
+      "manifestHost": "vod\\.ffzy-bofang\\.com",
+      "segmentUri": "[0-9a-f]{32}\\.ts",
+      "contentUri": "[0-9a-f]{32}\\.ts",
+      "durationsMicros": [
+        [4866667, 3333333, 5600000, 2866667, 2966667],
+        [6033333, 3333333, 5766667, 2233333]
+      ]
+    },
+    {"sites": ["iKun资源"], "manifestHost": "bfikuncdn\\.com", "segmentUri": "/\\d{8}/[^/?#]+/10\\d{3}kb/hls/[^/?#]+\\.ts", "contentUri": "https://kkzycdn\\.com(?::65)?/[^?#]+\\.ts", "durationWindowsMicros": [[2800000, 3200000], [2800000, 3200000], [4800000, 5200000], [2800000, 3200000], [2800000, 3200000], [400000, 900000]], "repeated": true, "allowEnd": true},
+    {"sites": ["艾旦影视"], "manifestHost": "v\\.lfthirtytwo\\.com", "segmentUri": "/\\d{8}/[^/?#]+/2000k/hls/[0-9a-f]{17}\\.ts", "contentUri": "[0-9a-f]{17}\\.ts", "durationWindowsMicros": [[3800000, 4200000], [3800000, 4200000], [3800000, 4200000], [3800000, 4200000], [3800000, 4200000], [3800000, 4200000], [1500000, 2000000]], "repeated": true}
   ]
 }

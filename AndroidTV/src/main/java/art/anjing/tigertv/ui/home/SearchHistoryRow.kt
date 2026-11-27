@@ -1,6 +1,5 @@
 package art.anjing.tigertv.ui.home
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -42,9 +41,9 @@ fun SearchHistoryRow(
                 text = stringResource(R.string.history_title),
                 style = MaterialTheme.typography.titleLarge
             )
-            ActionButton(onClick = onClear, height = UiMetrics.chipHeight, colors = androidx.tv.material3.ButtonDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+            ActionButton(onClick = onClear, height = UiMetrics.compactControlHeight, colors = androidx.tv.material3.ButtonDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
                 contentPadding = PaddingValues(horizontal = 16.dp)) {
-                Text(stringResource(R.string.clear_history), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.clear_history))
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
@@ -58,11 +57,9 @@ fun SearchHistoryRow(
                     selected = false,
                     onClick = { onSelect(item) },
                     onLongClick = { onRemove(item) },
-                    modifier = Modifier.heightIn(min = UiMetrics.chipHeight),
+                    modifier = Modifier.heightIn(min = UiMetrics.compactControlHeight),
                 ) {
-                    Box(Modifier.heightIn(min = UiMetrics.chipHeight - 16.dp), contentAlignment = Alignment.Center) {
-                        Text(item, style = MaterialTheme.typography.bodyMedium)
-                    }
+                    Text(item, maxLines = 1)
                 }
             }
         }
