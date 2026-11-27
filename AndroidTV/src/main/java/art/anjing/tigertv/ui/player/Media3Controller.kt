@@ -1,5 +1,7 @@
 package art.anjing.tigertv.ui.player
 
+import art.anjing.tigertv.core.productDefaults
+
 import android.content.Context
 import androidx.core.net.toUri
 import androidx.compose.runtime.getValue
@@ -60,7 +62,7 @@ class Media3Controller(context: Context) {
     private var ended = false
     private var closed = false
 
-    fun load(url: String, positionMillis: Long, title: String, site: String, onStarted: () -> Unit, onPosition: (Long) -> Unit, onError: (String) -> Unit, filterAds: Boolean = true, speed: Float = 1f) {
+    fun load(url: String, positionMillis: Long, title: String, site: String, onStarted: () -> Unit, onPosition: (Long) -> Unit, onError: (String) -> Unit, filterAds: Boolean = productDefaults.filterAds, speed: Float = 1f) {
         if (closed) return
         unload()
         if (inBackground) {

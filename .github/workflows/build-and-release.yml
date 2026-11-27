@@ -211,6 +211,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
+      - name: Check architecture boundaries
+        run: python3 scripts/check-architecture.py
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: web/package.json

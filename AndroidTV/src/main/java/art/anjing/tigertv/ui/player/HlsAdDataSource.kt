@@ -1,5 +1,7 @@
 package art.anjing.tigertv.ui.player
 
+import art.anjing.tigertv.core.productDefaults
+
 import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.media3.common.C
@@ -15,7 +17,7 @@ import java.io.ByteArrayOutputStream
 
 internal fun mayFilterHls(uri: Uri): Boolean = uri.path?.endsWith(".m3u8", ignoreCase = true) == true
 
-internal class HlsPlaybackSession(val uri: Uri, val site: String, val filterAds: Boolean = true) {
+internal class HlsPlaybackSession(val uri: Uri, val site: String, val filterAds: Boolean = productDefaults.filterAds) {
     @Volatile var timeline: MediaTimeline? = null
     @Volatile var videoVariants: Map<Uri, Boolean> = emptyMap()
 }

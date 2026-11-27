@@ -1,3 +1,4 @@
+import doubanCategories from '../../shared/douban-categories.json' with { type: 'json' }
 import networkTimeouts from '../../shared/network-timeouts.json' with { type: 'json' }
 import { isIP } from 'node:net'
 import { object, parseJson, readBounded, readText } from '../common/http.ts'
@@ -6,7 +7,7 @@ import { hotLimit, posterRoute } from '../common/douban.ts'
 
 export const metadataPrefix = '/api/metadata/'
 const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15'
-const categories = new Set(['tv_domestic', 'tv_variety_show', 'tv_american', 'tv_korean', 'tv_japanese', 'tv_animation'])
+const categories = new Set(doubanCategories.map(({ collection }) => collection))
 const cardFields = ['vod_id', 'vod_name', 'vod_pic', 'vod_year', 'vod_remarks', 'type_name']
 const detailFields = [...cardFields, 'vod_content', 'vod_area', 'vod_play_from', 'vod_play_url']
 const operations = ['ac', 'wd', 'ids', 'pg', 'pagesize']

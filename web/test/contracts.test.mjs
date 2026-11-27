@@ -4,7 +4,10 @@ import { readFileSync } from 'node:fs'
 import { integer, parseConfig, parseJson, parseLines, webUrl, workId } from '../src/api.ts'
 import { hlsVideoVariants } from '../src/hls-loader.ts'
 import { filterPlaylist, effectiveTime, originalTime } from '../src/hls.ts'
-import { autoMatch, DanmakuClient, drawComments, fitsDanmaku, matchingEpisode, shouldUpgrade, titleCandidates, titleRank } from '../src/danmaku.ts'
+import { autoMatch, shouldUpgrade } from '../src/danmaku/selection.ts'
+import { DanmakuClient } from '../src/danmaku/client.ts'
+import { drawComments, fitsDanmaku } from '../src/danmaku/canvas.ts'
+import { matchingEpisode, titleCandidates, titleRank } from '../src/danmaku/matching.ts'
 import { getBookmark, getPosition, getRecent, getSettings, getSpeed, getVolume, recordStarted, savePosition, saveSpeed, saveVolume, write } from '../src/storage.ts'
 
 const fixture = name => readFileSync(new URL(`../../docs/fixtures/${name}.sample.json`, import.meta.url), 'utf8')

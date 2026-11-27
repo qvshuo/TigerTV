@@ -1,5 +1,7 @@
 package art.anjing.tigertv.ui.viewmodel
 
+import art.anjing.tigertv.core.preferredSource
+
 import android.content.Context
 import android.util.Log
 import art.anjing.tigertv.TigerTVApplication
@@ -12,7 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import art.anjing.tigertv.core.CoreService
+import art.anjing.tigertv.core.productDefaults
 import art.anjing.tigertv.data.Result
 import art.anjing.tigertv.data.TigerTVRepository
 import art.anjing.tigertv.domain.workId
@@ -41,9 +43,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import kotlin.time.Duration.Companion.minutes
-import kotlin.time.TimeMark
-import kotlin.time.TimeSource
 
 class TigerTVViewModel(
     private val repository: TigerTVRepository,
@@ -143,54 +142,19 @@ class TigerTVViewModel(
     var fetchResponse by mutableStateOf<FetchResponse?>(null)
         private set
 
-    private val detailCache = mutableStateMapOf<String, Pair<TimeMark, FetchResponse>>()
-    private val detailLoads = mutableMapOf<String, Deferred<Result<FetchResponse>>>()
-    private val checkedDetails = mutableStateMapOf<String, Boolean>()
+    private val detailRequests = DetailRequests(viewModelScope) { repository.fetch(it.site, it.vodId) }
 
-    fun cachedDetail(source: SearchResult): FetchResponse? = detailCache[source.coverKey]
-        ?.takeIf { it.first.elapsedNow() < 5.minutes }?.second
-
-    fun isDetailLoading(source: SearchResult): Boolean = cachedDetail(source) == null && checkedDetails[source.coverKey] != true
-
-    private fun requestDetail(source: SearchResult): Deferred<Result<FetchResponse>> {
-        val key = source.coverKey
-        detailLoads[key]?.let { return it }
-        checkedDetails[key] = false
-        lateinit var pending: Deferred<Result<FetchResponse>>
-        pending = viewModelScope.async(start = CoroutineStart.LAZY) {
-            try {
-                repository.fetch(source.site, source.vodId).also { result ->
-                    ensureActive()
-                    if (result is Result.Success) {
-                        if (detailCache.size >= 64 && key !in detailCache) {
-                            detailCache.maxByOrNull { it.value.first.elapsedNow() }?.let { detailCache.remove(it.key) }
-                        }
-                        detailCache[key] = TimeSource.Monotonic.markNow() to result.data
-                    }
-                }
-            } finally {
-                if (detailLoads[key] === pending) {
-                    checkedDetails[key] = true
-                    detailLoads.remove(key)
-                }
-            }
-        }
-        detailLoads[key] = pending
-        pending.start()
-        return pending
-    }
+    fun cachedDetail(source: SearchResult): FetchResponse? = detailRequests.cachedDetail(source)
+    fun isDetailLoading(source: SearchResult): Boolean = detailRequests.isDetailLoading(source)
 
     suspend fun preloadDetails(sources: List<SearchResult>) {
         val others = sources.filter { it.coverKey != selectedResult?.coverKey && cachedDetail(it) == null }
-        others.chunked(3).forEach { batch -> batch.map(::requestDetail).awaitAll() }
+        others.chunked(3).forEach { batch -> batch.map(detailRequests::requestDetail).awaitAll() }
     }
 
     private fun cancelDetailRequests() {
         fetchJob?.cancel()
-        val pending = detailLoads.values.toList()
-        detailLoads.clear()
-        checkedDetails.clear()
-        pending.forEach { it.cancel() }
+        detailRequests.cancelPending()
     }
 
     var selectedEpisodeIndex by mutableIntStateOf(-1)
@@ -589,7 +553,7 @@ class TigerTVViewModel(
         isFetching = true
 
         fetchJob = viewModelScope.launch {
-            val fetched = requestDetail(result).await()
+            val fetched = detailRequests.requestDetail(result).await()
             ensureActive()
             when (fetched) {
                 is Result.Success -> applyDetail(fetched.data)
@@ -654,7 +618,7 @@ class TigerTVViewModel(
     private fun addHistory(item: String) {
         searchHistory.remove(item)
         searchHistory.add(0, item)
-        while (searchHistory.size > CoreService.MAX_SEARCH_HISTORY) {
+        while (searchHistory.size > productDefaults.searchHistoryLimit) {
             searchHistory.removeAt(searchHistory.size - 1)
         }
         historyRevision++

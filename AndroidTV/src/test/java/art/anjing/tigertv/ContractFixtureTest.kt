@@ -1,5 +1,7 @@
 package art.anjing.tigertv
 
+import art.anjing.tigertv.core.defaultSource
+
 import art.anjing.tigertv.domain.SearchResponse
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals

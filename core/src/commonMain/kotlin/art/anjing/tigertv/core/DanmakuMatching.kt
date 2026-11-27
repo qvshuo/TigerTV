@@ -44,9 +44,9 @@ private val aliasTag = Regex(selectionRules.textPatterns.alias, RegexOption.IGNO
 private val titleSpacing = Regex("[\\p{P}\\p{Z}\\s・]+")
 private val numericRun = Regex("[0-9]+")
 private val numberSeparator = Regex(selectionRules.textPatterns.numericSeparator)
-private fun matchKey(value: String): String = numericRun.replace(
-    titleSpacing.replace(numberSeparator.replace(value.lowercase(), "+"), ""),
-) { match -> match.value.trimStart('0').ifEmpty { "0" } }
+private fun matchKey(value: String): String = numberSeparator.split(value.lowercase()).joinToString("+") { part ->
+    numericRun.replace(titleSpacing.replace(part, "")) { match -> match.value.trimStart('0').ifEmpty { "0" } }
+}
 
 private fun similarity(left: String, right: String, threshold: Double = selectionRules.matchThreshold): Double {
     if (left.isEmpty() || right.isEmpty()) return 0.0

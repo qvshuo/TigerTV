@@ -8,27 +8,30 @@ val generateContractFixtures = tasks.register("generateContractFixtures") {
     inputs.dir(source)
     outputs.file(output)
     doLast {
-        fun literal(text: String) = "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("$", "\\$") + "\""
+        fun literal(text: String) = "\"" + text.replace("\\", "\\").replace("\"", "\"").replace("\n", "\\n").replace("\r", "\\r").replace("$", "\\$") + "\""
         output.get().asFile.apply {
             parentFile.mkdirs()
             writeText("package art.anjing.tigertv.core\ninternal val contractFixtures = mapOf(\n" + source.listFiles()!!.sortedBy { it.name }.joinToString(",\n") { literal(it.name) + " to " + literal(it.readText()) } + "\n)\n")
         }
     }
 }
-val generatePlaybackRules = tasks.register("generatePlaybackRules") {
-    val heuristics = project.file("../shared/hls-heuristics.json")
-    val danmakuSelection = project.file("../shared/danmaku-selection.json")
-    val networkTimeouts = project.file("../shared/network-timeouts.json")
-    val output = layout.buildDirectory.file("generated/playback/PlaybackRules.kt")
-    inputs.files(heuristics, danmakuSelection, networkTimeouts)
+val generateSharedConfig = tasks.register("generateSharedConfig") {
+    val files = mapOf(
+        "hlsHeuristicsJson" to "hls-heuristics.json",
+        "danmakuSelectionJson" to "danmaku-selection.json",
+        "networkTimeoutsJson" to "network-timeouts.json",
+        "doubanCategoriesJson" to "douban-categories.json",
+        "productDefaultsJson" to "product-defaults.json",
+    ).mapValues { project.file("../shared/${it.value}") }
+    val output = layout.buildDirectory.file("generated/shared/SharedConfig.kt")
+    inputs.files(files.values)
     outputs.file(output)
     doLast {
         output.get().asFile.apply {
             parentFile.mkdirs()
-            writeText("package art.anjing.tigertv.core\n" +
-                "internal const val hlsHeuristicsJson = \"\"\"" + heuristics.readText().trim() + "\"\"\"\n" +
-                "internal const val danmakuSelectionJson = \"\"\"" + danmakuSelection.readText().trim() + "\"\"\"\n" +
-                "internal const val networkTimeoutsJson = \"\"\"" + networkTimeouts.readText().trim() + "\"\"\"\n")
+            writeText("package art.anjing.tigertv.core\n" + files.entries.joinToString("\n", postfix = "\n") { (name, file) ->
+                "internal const val $name = \"\"\"${file.readText().trim()}\"\"\""
+            })
         }
     }
 }
@@ -53,7 +56,7 @@ kotlin {
     applyDefaultHierarchyTemplate()
     sourceSets {
         commonTest { kotlin.srcDir(generateContractFixtures.map { layout.buildDirectory.dir("generated/fixtures").get() }) }
-        commonMain { kotlin.srcDir(generatePlaybackRules.map { layout.buildDirectory.dir("generated/playback").get() }) }
+        commonMain { kotlin.srcDir(generateSharedConfig.map { layout.buildDirectory.dir("generated/shared").get() }) }
         commonMain.dependencies {
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
             api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")

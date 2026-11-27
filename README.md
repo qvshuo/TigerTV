@@ -16,8 +16,6 @@
 - **命令行工具**：搜索、获取链接、生成 Quantumult X 直连规则、查看日志
 - **Agent Skill**：影视搜索、链接获取、直连规则与下载流程指引
 
-Android TV 是主力客户端，Web/PWA 面向桌面和移动端，CLI 继续支持 macOS arm64、Linux x86_64 和 arm64。macOS SwiftUI 客户端永久停止开发，源码已归档。Windows 和 Linux 原生图形客户端不在产品范围内。
-
 ## 截图
 
 ### Android TV
@@ -94,6 +92,4 @@ tigertv logs
 
 [Agent Skill](skills/SKILL.md) 提供完整的 Agent 工作流；下载剧集另需 `yt-dlp` 和 `ffmpeg`。
 
-## 开发
-
-构建与发布见 [开发说明](docs/README.md)，数据与交互见 [契约](docs/contract.md)，实现约定见 [AGENTS.md](AGENTS.md)。
+[开发与发布](docs/README.md)

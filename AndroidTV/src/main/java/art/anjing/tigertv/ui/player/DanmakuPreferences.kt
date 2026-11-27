@@ -1,5 +1,7 @@
 package art.anjing.tigertv.ui.player
 
+import art.anjing.tigertv.core.productDefaults
+
 import android.content.Context
 import android.content.SharedPreferences
 import art.anjing.tigertv.core.DanmakuChoice
@@ -47,7 +49,7 @@ internal class DanmakuPreferences(context: Context) {
             (listOf(workId) + identity).joinToString("") { "${it.length}:$it" }
 
         var enabled: Boolean
-            get() = store.getBoolean(enabledKey, true)
+            get() = store.getBoolean(enabledKey, productDefaults.danmakuEnabled)
             set(value) { store.edit().putBoolean(enabledKey, value).apply() }
 
         private fun titleKey(server: String) = danmakuPreferenceKey(server, workId, sourceKey)

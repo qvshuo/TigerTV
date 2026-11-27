@@ -1,5 +1,7 @@
 package art.anjing.tigertv.ui.results
 
+import art.anjing.tigertv.core.defaultSource
+
 import art.anjing.tigertv.ui.components.MediaCard
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.draw.clip

@@ -1,3 +1,4 @@
+import doubanCategories from '../../shared/douban-categories.json' with { type: 'json' }
 import networkTimeouts from '../../shared/network-timeouts.json' with { type: 'json' }
 import { object, parseJson, readText } from '../common/http.ts'
 import { hotLimit, posterKey } from '../common/douban.ts'
@@ -223,10 +224,7 @@ export async function getDetail(source: Source, signal: AbortSignal): Promise<De
     lines: parseLines(scalar(row.vod_play_url), scalar(row.vod_play_from)) }
 }
 
-export const categories = [
-  ['tv_domestic', '国产剧'], ['tv_variety_show', '综艺'], ['tv_american', '英美剧'],
-  ['tv_korean', '韩剧'], ['tv_japanese', '日剧'], ['tv_animation', '动漫'],
-] as const
+export const categories = doubanCategories.map(({ collection, name }) => [collection, name] as const)
 
 export function doubanPoster(url: string) {
   const route = posterKey(url)

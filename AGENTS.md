@@ -1,8 +1,11 @@
 # TigerTV 工程约定
 
-- 持续维护 Android TV、Web/PWA 和原生 CLI。Android TV 与 CLI 共用 Kotlin Core，Web 使用 Bun + TypeScript。桌面和移动端使用 Web/PWA。macOS SwiftUI 永久停止开发，客户端和专属 bridge 源码已归档，日常构建、测试和发布只覆盖活跃目标。Windows 和 Linux 原生 GUI 不在产品范围内。CLI 保留 macOS arm64、Linux x86_64 和 arm64。
-- 跨端修改遵循 [契约](docs/contract.md) 和 [夹具](docs/fixtures/)。HLS 参数与弹幕匹配规则放在 `shared/`。优先复用现有逻辑，保持取消传播和会话隔离。
-- Bun 只提供 Web 和白名单元数据。媒体清单、分片、视频及密钥由客户端直连。Android TV 和 CLI 独立访问原站，弹幕服务独立部署。私有 API 地址、令牌、真实临时媒体 URL 和原始日志不得入库。
-- 去广告限打断剧情的博彩插播。生产规则必须跨作品复用，可采用经验证的来源级特征。片名、集数、固定时间点和完整 URI 不得作为生产指纹。按[验收口径](docs/development/android-tv-sources.md#博彩插播验收口径)报告效果。
-- Android TV 优先使用原生 TV Material 控件及 D-pad 路径。保留导航返回焦点和播放会话边界。不要修改 Android Studio 或 AVD 的窗口设置，不用 `-no-window` 启动模拟器。通用 APK 同时包含 `armeabi-v7a` 和 `arm64-v8a`。
-- 按 [开发与发布](docs/README.md) 执行受影响平台的现有检查。保留依赖升级与工具链诊断，保留用户截图和 IDE 改动。签名只用指定证书，每次发布增加 versionCode。提交、推送、发布及部署需要用户明确授权。
+- 活跃产品只有 Android TV、Web/PWA 和原生 CLI。Android TV 和 CLI 依赖 Kotlin Core，Core 依赖 Domain，Domain 不得反向依赖 Core、网络或存储。Web 浏览器和 Bun Gateway 仅共用纯工具与契约，浏览器不得依赖服务器代码。macOS SwiftUI 与 nativeBridge 已归档，不进入活跃构建。
+- 新增实现前搜索现有调用方。一个业务概念只保留一份定义，同一职责只保留一种实现。迁移所有真实调用方后删除旧实现。每份可变状态明确读写所有者和生命周期，保留取消传播及播放会话隔离。
+- 跨端规则和默认值以 `shared/` 为准，行为以[契约](docs/contract.md)与[夹具](docs/fixtures/)为准。平台各自实现播放和 UI。没有实际调用方或外部契约的兼容、转发与包装应删除。
+- Bun 只提供 Web 和白名单元数据。媒体清单、分片、视频和密钥由客户端直连。弹幕服务独立部署。私有 API 地址、令牌、真实临时媒体 URL 和原始日志不得入库。
+- 去广告限打断剧情的博彩插播。生产规则必须跨作品复用。片名、集数、固定时间点和完整 URI 不得作为指纹。按[验收口径](docs/development/android-tv-sources.md#博彩插播验收口径)报告效果。
+- 默认不写注释。通过命名、类型和结构表达意图。仅保留代码无法表达的重要约定、隐含约束和特殊行为，以及必要的版权、许可证和生成标记。
+- 默认不新增测试。只有明确的高风险回归且现有契约夹具或静态约束无法覆盖时，才考虑最小必要测试。保留有价值的夹具，不为覆盖率添加测试或框架。测试、构建、Lint、类型检查、E2E 和其他验证仅在用户明确要求时执行。交付时说明未执行的验证。
+- Android TV 优先使用原生 TV Material 和 D-pad，保留返回焦点与播放会话边界。不修改 Android Studio 或 AVD 窗口设置，不用 `-no-window` 启动模拟器。通用 APK 同时包含 `armeabi-v7a` 和 `arm64-v8a`。
+- 保留用户未提交的工作、截图、IDE 改动、工具链诊断和发布能力。签名只用指定证书，每次发布增加 versionCode。提交、推送、发布和部署须获明确授权。入口与命令见[开发与发布](docs/README.md)。

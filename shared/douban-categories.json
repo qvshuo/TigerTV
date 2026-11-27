@@ -1,0 +1,8 @@
+[
+  {"id":"chinese","name":"国产剧","collection":"tv_domestic"},
+  {"id":"tvshow","name":"综艺","collection":"tv_variety_show"},
+  {"id":"american","name":"英美剧","collection":"tv_american"},
+  {"id":"korean","name":"韩剧","collection":"tv_korean"},
+  {"id":"japanese","name":"日剧","collection":"tv_japanese"},
+  {"id":"animation","name":"动漫","collection":"tv_animation"}
+]

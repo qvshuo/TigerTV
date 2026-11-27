@@ -1,6 +1,8 @@
+import productDefaults from '../../shared/product-defaults.json' with { type: 'json' }
 import { type Source, type Work } from './api.ts'
 
-export const defaults = { autoNext: true, rememberSpeed: true, rememberVolume: true, filterAds: true, danmakuServer: '' }
+export const defaults = { autoNext: productDefaults.autoNext, rememberSpeed: productDefaults.rememberSpeed,
+  rememberVolume: true, filterAds: productDefaults.filterAds, danmakuServer: '' }
 export type Settings = typeof defaults
 export type PlaybackOptions = { speed: number; volume: number; muted: boolean; danmakuEnabled: boolean }
 export type Selection = { work: Work; source: Source; line: string; episode: string; index: number }

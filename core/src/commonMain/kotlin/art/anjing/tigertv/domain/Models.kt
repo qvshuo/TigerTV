@@ -1,6 +1,5 @@
 package art.anjing.tigertv.domain
 
-import art.anjing.tigertv.core.isRecommendedSource
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -77,13 +76,6 @@ data class VideoWork(
 ) {
     val displaySource: SearchResult get() = sources.first { it.coverKey == displaySourceId }
     val orderedSources: List<SearchResult> get() = listOf(displaySource) + sources.filter { it.coverKey != displaySourceId }
-    val defaultSource: SearchResult get() = preferredSource()
-    fun preferredSource(filterAds: Boolean = true, available: List<SearchResult> = sources): SearchResult {
-        fun recommended(result: SearchResult) = isRecommendedSource(result.site, filterAds)
-        return available.firstOrNull { it.coverKey == lastPlayedSourceKey }
-            ?: available.firstOrNull { it.site == recentPlayedSite && recommended(it) }
-            ?: available.firstOrNull(::recommended) ?: available.firstOrNull() ?: sources.first()
-    }
     fun bookmarkFor(source: SearchResult): PlaybackBookmark? = playback[source.coverKey]
 
     fun positionFor(source: SearchResult, line: PlaybackSource, index: Int): Long {

@@ -1,14 +1,16 @@
 <script lang="ts">
+  import productDefaults from '../../shared/product-defaults.json' with { type: 'json' }
   import sourceEvidence from '../../shared/hls-heuristics.json' with { type: 'json' }
   import { onMount, tick, untrack } from 'svelte'
+  import { catalogDetails, sourceKey } from './catalog-details.svelte.ts'
   import Poster from './Poster.svelte'
-  import { cachedHot, catalogSites, categories, displaySourceName, doubanPoster, getDetail, hot, search, webUrl, type Detail, type Episode, type HotItem, type Site, type Source, type Work } from './api.ts'
+  import { cachedHot, catalogSites, categories, displaySourceName, doubanPoster, hot, search, webUrl, type Detail, type Episode, type HotItem, type Site, type Source, type Work } from './api.ts'
   import { getBookmark, getPosition, getRecent, getSettings, read, write, type Bookmark, type PlaybackOptions, type Recent, type Selection } from './storage.ts'
   import snapshot from './douban-snapshot.json'
   import type PlayerComponent from './Player.svelte'
 
+  const { searchHistoryLimit } = productDefaults
   type Page = 'home' | 'search' | 'detail' | 'play' | 'settings'
-  const searchHistoryLimit = 12
   let page = $state<Page>('home')
   let settings = $state(getSettings())
   let server = $state(getSettings().danmakuServer)
@@ -47,10 +49,7 @@
   let detailBusy = $state(false)
   let detailError = $state('')
   let selectedLine = $state(0)
-  const detailCache = new Map<string, { expires: number; value: Detail }>()
-  const detailPending = new Map<string, Promise<Detail>>()
-  let detailStates = $state.raw(new Map<string, 'ready' | 'empty' | 'failed'>())
-  let detailVisit = $state.raw<AbortController>()
+  const details = catalogDetails()
   let detailSelection = 0
   let selection = $state.raw<Selection>()
   let video = $state.raw<Episode>()
@@ -97,7 +96,7 @@
     if (page === next) return
     const returningWork = !push && next === 'search' && page === 'detail' ? selected?.id : undefined
     if (page === 'play' && next !== 'play') recent = getRecent()
-    if (next !== 'detail' && next !== 'play') detailVisit?.abort()
+    if (next !== 'detail' && next !== 'play') details.leave()
     if (next === 'home') searchRequest?.abort()
     page = next
     if (push) window.history.pushState({ tigerPage: next }, '', next === 'home' ? location.pathname : '#' + next)
@@ -123,7 +122,7 @@
     window.history.replaceState({ tigerPage: 'home' }, '', location.pathname + location.search)
     if (initial === 'search') void tick().then(() => searchPanel?.showPopover())
     else if (initial !== 'home') show(initial)
-    return () => { searchRequest?.abort(); detailVisit?.abort() }
+    return () => { searchRequest?.abort(); details.leave() }
   })
   async function refreshCatalog() {
     try { configuredSites = await catalogSites() } catch { }
@@ -133,7 +132,7 @@
     if (next === 'play' && selection && video) show(next, false)
     else if (next === 'detail' && selected) {
       show(next, false)
-      ensureDetailVisit()
+      details.enter()
       if (source && !detail) void loadDetail(source)
     } else if (next === 'search' || next === 'settings') show(next, false)
     else show('home', false)
@@ -225,7 +224,7 @@
     write('work-posters', workPosters)
   }
 
-  function isRecommended(site: Site, filterAds = true) {
+  function isRecommended(site: Site, filterAds = productDefaults.filterAds) {
     const name = displaySourceName(site.name)
     return sourceEvidence.noGamblingInSamples.includes(name) ||
       (filterAds && sourceEvidence.sourceRules.some(rule => rule.sites.includes(name)))
@@ -270,67 +269,29 @@
     } finally { if (searchRequest === request) searchBusy = false }
   }
 
-  function ensureDetailVisit() {
-    if (!detailVisit || detailVisit.signal.aborted) {
-      detailVisit = new AbortController()
-      detailPending.clear()
-      detailStates = new Map()
-    }
-    return detailVisit
-  }
-
-  function cachedDetail(key: string) {
-    const entry = detailCache.get(key)
-    if (entry && entry.expires > Date.now()) return entry.value
-    if (entry) detailCache.delete(key)
-  }
-
-  function requestDetail(item: Source, visit: AbortController) {
-    const key = sourceKey(item)
-    const cached = cachedDetail(key)
-    if (cached) return Promise.resolve(cached)
-    const pending = detailPending.get(key)
-    if (pending) return pending
-    const request = getDetail(item, visit.signal).then(value => {
-      if (!visit.signal.aborted) {
-        if (detailCache.size >= 64) detailCache.delete(detailCache.keys().next().value!)
-        detailCache.set(key, { expires: Date.now() + 5 * 60_000, value })
-        detailStates = new Map(detailStates).set(key, value.lines.length ? 'ready' : 'empty')
-      }
-      return value
-    }).catch(error => {
-      if (!visit.signal.aborted) detailStates = new Map(detailStates).set(key, 'failed')
-      throw error
-    }).finally(() => {
-      if (detailPending.get(key) === request) detailPending.delete(key)
-    })
-    detailPending.set(key, request)
-    return request
-  }
-
   $effect(() => {
-    if (page !== 'detail' || !visibleWork || !detailVisit) return
-    const visit = detailVisit
+    if (page !== 'detail' || !visibleWork || !details.visit) return
+    const visit = details.visit
     const items = visibleWork.sources
     let active = true
     void (async () => {
       for (let index = 0; active && !visit.signal.aborted && index < items.length; index += 3) {
-        await Promise.allSettled(items.slice(index, index + 3).map(item => requestDetail(item, visit)))
+        await Promise.allSettled(items.slice(index, index + 3).map(item => details.request(item, visit)))
       }
     })()
     return () => { active = false }
   })
 
   async function loadDetail(nextSource: Source, resume?: Recent) {
-    const visit = ensureDetailVisit()
+    const visit = details.enter()
     const attempt = ++detailSelection
     source = nextSource
     selectedLine = 0
-    const cached = cachedDetail(sourceKey(nextSource))
+    const cached = details.cached(sourceKey(nextSource))
     detailBusy = !cached
     detailError = ''
     try {
-      const loaded = cached ?? await requestDetail(nextSource, visit)
+      const loaded = cached ?? await details.request(nextSource, visit)
       if (visit.signal.aborted || attempt !== detailSelection) return
       detail = loaded
       const directLine = loaded.lines.findIndex(item => item.episodes.every(episode => /\.(?:m3u8|mp4)$/i.test(episode.url.split(/[?#]/, 1)[0])))
@@ -352,7 +313,6 @@
       }
     } finally { if (attempt === detailSelection) detailBusy = false }
   }
-  const sourceKey = (item: Source) => JSON.stringify([item.site.name, item.id])
   function sameSource(a: Source, b?: Source) { return a.site.name === b?.site.name && a.id === b.id }
   function identifyEpisode(work: Work, source: Source, line: Detail['lines'][number], index: number): Selection {
     const episode = line.episodes[index].name
@@ -370,7 +330,7 @@
     const previous = resume ?? getRecent().find(item => item.work.id === work.id)
     const available = work.sources.filter(item => {
       const key = sourceKey(item)
-      return detailStates.get(key) !== 'empty' && detailStates.get(key) !== 'failed' && cachedDetail(key)?.lines.length !== 0
+      return details.state(key) !== 'empty' && details.state(key) !== 'failed' && details.cached(key)?.lines.length !== 0
     })
     const recommended = (item: Source) => isRecommended(item.site, settings.filterAds)
     const last = getRecent()[0]
@@ -556,12 +516,12 @@
               {@const item = matchedSources.get(site.name)}
               {@const active = !!item && sameSource(item, source)}
               {@const key = item ? sourceKey(item) : ''}
-              {@const cached = item && cachedDetail(key)}
-              {@const busy = item ? (active && detailBusy) || (!cached && !detailStates.has(key))
+              {@const cached = item && details.cached(key)}
+              {@const busy = item ? (active && detailBusy) || (!cached && !details.state(key))
                 : detailFromResults && searchBusy && !settledSearchSites.has(site.name)}
               <button class="choice source-choice" aria-pressed={active}
                 aria-busy={busy}
-                disabled={!item || (cached ? !cached.lines.length : detailStates.get(key) === 'empty')}
+                disabled={!item || (cached ? !cached.lines.length : details.state(key) === 'empty')}
                 onclick={() => { if (item && !active) void loadDetail(item) }}>
                 <span>{displaySourceName(site.name)}</span>
                 {#if busy}<span class="spinner" aria-hidden="true"></span>{/if}

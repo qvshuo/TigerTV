@@ -28,7 +28,7 @@ private data class SourceAdGroup(
 }
 
 private val heuristics by lazy { Json.decodeFromString<HlsHeuristics>(hlsHeuristicsJson) }
-fun isRecommendedSource(site: String, filterAds: Boolean = true): Boolean {
+fun isRecommendedSource(site: String, filterAds: Boolean = productDefaults.filterAds): Boolean {
     val name = site.replace("🎬", "").trim()
     return name in heuristics.noGamblingInSamples ||
         filterAds && heuristics.sourceRules.any { name in it.sites }

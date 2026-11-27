@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises'
-import { categories } from '../src/api.ts'
+import categories from '../../shared/douban-categories.json' with { type: 'json' }
 
-const collections = await Promise.all(categories.map(async ([id]) => {
+const collections = await Promise.all(categories.map(async ({ collection: id }) => {
   const url = new URL(`https://m.douban.com/rexxar/api/v2/subject_collection/${id}/items?start=0&count=12`)
   const response = await fetch(url, {
     headers: { Referer: 'https://m.douban.com/tv/' },

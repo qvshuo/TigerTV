@@ -10,8 +10,9 @@
   import type { HlsJsVideoElement } from '@videojs/html/media/hlsjs-video'
   import { displaySourceName, webUrl, type Episode } from './api.ts'
   import { effectiveTime, originalTime, type Interval } from './hls.ts'
-  import { episodeIdentity, getPosition, getSpeed, getVolume, read, recordStarted, savePosition, saveSpeed, saveVolume, write, type PlaybackOptions, type Selection, type Settings } from './storage.ts'
-  import { autoMatch, DanmakuClient, danmakuLoading, drawComments, type DanmakuEpisode, type DanmakuMatch, type SavedDanmakuEpisode, type Title, type Track } from './danmaku.ts'
+  import { getPosition, getSpeed, getVolume, recordStarted, savePosition, saveSpeed, saveVolume, type PlaybackOptions, type Selection, type Settings } from './storage.ts'
+  import { drawComments } from './danmaku/canvas.ts'
+  import { danmakuSession } from './danmaku/session.svelte.ts'
   import ChoicePicker from './ChoicePicker.svelte'
 
   type Media = HTMLVideoElement | HlsJsVideoElement
@@ -30,19 +31,10 @@
   let muted = $state(false)
   let speed = $state(1)
   let removed = $state.raw<Interval[]>([])
-  let track = $state.raw<Track>()
-  let enabled = $state(true)
-  let keyword = $state('')
-  let titles = $state.raw<Title[]>([])
-  let episodes = $state.raw<DanmakuEpisode[]>([])
-  let manualTitle = $state(0)
-  let manualEpisode = $state(0)
-  let activeDanmaku = $state.raw<DanmakuMatch>()
-  let danmakuStatus = $state('')
-  let statusTimer: ReturnType<typeof setTimeout> | undefined
-  let manualStatus = $state('')
-  let request: AbortController | undefined
-  let automatic: AbortController | undefined
+  const danmaku = danmakuSession(
+    () => selection, () => settings.danmakuServer, () => inherited?.danmakuEnabled,
+    () => Boolean(dialog?.open), () => dialog?.close(),
+  )
   let flush = () => {}
   let wakeDanmaku: (reset?: boolean) => void = () => {}
   let buffering = true
@@ -204,7 +196,7 @@
         savePosition(session, 0, 100)
         lastSaved = 0
         if (settings.autoNext && playbackEpisodes[session.index + 1]) onSelectEpisode(session.index + 1, {
-          speed: el.playbackRate, volume: el.volume, muted: el.muted, danmakuEnabled: enabled,
+          speed: el.playbackRate, volume: el.volume, muted: el.muted, danmakuEnabled: danmaku.enabled,
         })
       })
       on('error', () => {
@@ -280,84 +272,10 @@
     }
   })
 
-  function setDanmakuStatus(message: string, transient = false) {
-    clearTimeout(statusTimer)
-    danmakuStatus = message
-    if (transient) statusTimer = setTimeout(() => { danmakuStatus = '' }, danmakuRules.render.statusDurationMs)
-  }
-
-  const danmakuTitleKey = (server: string, session: Selection) => 'danmaku-title:' + JSON.stringify([server, session.work.id, session.source.site.name, session.source.id])
-  const danmakuEpisodeKey = (title: string, session: Selection) => 'danmaku-episode:' + JSON.stringify([title, ...episodeIdentity(session)])
-  const titleKey = $derived(danmakuTitleKey(settings.danmakuServer, selection))
-  const episodeKey = $derived(danmakuEpisodeKey(titleKey, selection))
-  $effect(() => {
-    const server = settings.danmakuServer
-    const session = selection
-    const title = titleKey
-    const episode = episodeKey
-    const showDanmaku = inherited?.danmakuEnabled ?? read('danmaku-enabled:' + episode, true)
-    enabled = showDanmaku
-    untrack(() => dialog?.close())
-    keyword = session.work.display.title
-    titles = []
-    episodes = []
-    manualTitle = 0
-    manualEpisode = 0
-    track = undefined
-    activeDanmaku = undefined
-    setDanmakuStatus('')
-    manualStatus = ''
-    if (server && showDanmaku) untrack(() => startDanmaku(server, session, title, episode))
-    return () => { clearTimeout(statusTimer); request?.abort(); request = automatic = undefined }
-  })
-
-  function owns(controller: AbortController, session: Selection, server: string) {
-    return request === controller && !controller.signal.aborted && session === selection && server === settings.danmakuServer
-  }
-
-  function startDanmaku(server: string, session: Selection, title: string, episode: string) {
-    const controller = new AbortController()
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(danmakuRules.autoTimeoutMs)])
-    request = automatic = controller
-    void autoMatch(new DanmakuClient(server, signal, phase => {
-      if (!signal.aborted && owns(controller, session, server) && !track) setDanmakuStatus(danmakuLoading[phase])
-    }), session.work.display.title, session.work.display.year, session.episode,
-      { title: read<number | undefined>(title, undefined),
-        episode: read<SavedDanmakuEpisode | undefined>(episode, undefined) },
-      (result, match) => {
-        if (signal.aborted || !owns(controller, session, server)) return
-        track = result
-        activeDanmaku = match
-        if (dialog?.open) restoreDanmakuChoice()
-        setDanmakuStatus('')
-      }, signal,
-      candidates => {
-        if (!owns(controller, session, server) || signal.aborted) return
-        titles = [...new Map([...titles, ...candidates].map(candidate => [candidate.id, candidate])).values()]
-      })
-      .then(() => { if (owns(controller, session, server) && !track) setDanmakuStatus('未找到本集弹幕', true) })
-      .catch(() => { if (owns(controller, session, server) && !track) setDanmakuStatus('无法加载弹幕', true) })
-      .finally(() => {
-        if (request === controller) request = undefined
-        if (automatic === controller) automatic = undefined
-      })
-  }
-  function setDanmakuEnabled(value: boolean) {
-    enabled = value
-    setDanmakuStatus('')
-    write('danmaku-enabled:' + episodeKey, enabled)
-    if (!enabled && automatic) {
-      automatic.abort()
-      if (request === automatic) request = undefined
-      automatic = undefined
-    } else if (enabled && !track && !request && settings.danmakuServer) {
-      startDanmaku(settings.danmakuServer, selection, titleKey, episodeKey)
-    }
-  }
   $effect(() => {
     const element = canvas
     if (!element) return
-    const selected = enabled ? track : undefined
+    const selected = danmaku.enabled ? danmaku.track : undefined
     let frame = 0
     let timer = 0
     let reset = false
@@ -391,59 +309,8 @@
     }
   })
 
-  async function manual<T>(work: (client: DanmakuClient) => Promise<T>, apply: (value: T) => void) {
-    request?.abort()
-    setDanmakuStatus('')
-    const session = selection
-    const server = settings.danmakuServer
-    const controller = new AbortController()
-    request = controller
-    try {
-      const result = await work(new DanmakuClient(server, controller.signal, phase => {
-        if (owns(controller, session, server)) manualStatus = danmakuLoading[phase]
-      }))
-      if (owns(controller, session, server)) { manualStatus = ''; apply(result) }
-    } catch {
-      if (owns(controller, session, server)) manualStatus = '无法加载弹幕'
-    } finally {
-      if (request === controller) request = undefined
-    }
-  }
-  function chooseTitle(id: number) {
-    manualTitle = id
-    manualEpisode = 0
-    episodes = []
-    if (id) void manual(client => client.episodes(id), value => {
-      episodes = value
-      if (!value.length) manualStatus = '暂无剧集'
-    })
-  }
-  function chooseEpisode(id: number) {
-    const title = titles.find(item => item.id === manualTitle)
-    const episode = episodes.find(item => item.id === id)
-    if (!title || !episode) return
-    const choice = { title, episode, episodes }
-    const savedTitleKey = titleKey
-    const savedEpisodeKey = episodeKey
-    manualEpisode = id
-    void manual(client => client.track(id, danmakuRules.manualTrackTimeoutMs), value => {
-      if (!value.comments.some(comment => comment.mode === 1)) { manualStatus = '未找到本集弹幕'; return }
-      activeDanmaku = choice
-      track = value
-      write(savedTitleKey, title.id)
-      write(savedEpisodeKey, { title: title.id, id, titleItem: title, episodeItem: episode })
-      dialog?.close()
-    })
-  }
-  function restoreDanmakuChoice() {
-    const match = activeDanmaku
-    if (match && !titles.some(item => item.id === match.title.id)) titles = [match.title, ...titles]
-    manualTitle = match?.title.id ?? 0
-    manualEpisode = match?.episode.id ?? 0
-    episodes = match?.episodes ?? []
-  }
   function showDanmakuPicker(trigger: HTMLButtonElement) {
-    restoreDanmakuChoice()
+    danmaku.restoreDanmakuChoice()
     showPicker(trigger, dialog)
   }
 </script>
@@ -457,7 +324,7 @@
   <tiger-video-skin bind:this={container} class="video-surface">
     <div class="danmaku-layer" bind:this={danmakuLayer}>
       <canvas bind:this={canvas} class="danmaku" aria-hidden="true"></canvas>
-      <p class="danmaku-status" role="status">{enabled ? danmakuStatus : ''}</p>
+      <p class="danmaku-status" role="status">{danmaku.enabled ? danmaku.status : ''}</p>
     </div>
   </tiger-video-skin>
 </video-player></media-i18n>
@@ -470,7 +337,7 @@
   <div class="player-actions">
     <button class="quiet" onclick={event => showPicker(event.currentTarget, episodeDialog)} aria-haspopup="dialog">选集</button>
     <label class="danmaku-toggle">
-      <input type="checkbox" role="switch" checked={enabled} onchange={event => setDanmakuEnabled(event.currentTarget.checked)} />
+      <input type="checkbox" role="switch" checked={danmaku.enabled} onchange={event => danmaku.setDanmakuEnabled(event.currentTarget.checked)} />
       弹幕
     </label>
     <button class="quiet" onclick={event => showDanmakuPicker(event.currentTarget)} aria-haspopup="dialog">选择弹幕</button>
@@ -505,26 +372,22 @@
   {#if settings.danmakuServer}
     <form class="search-form" onsubmit={event => {
       event.preventDefault()
-      manualTitle = 0; manualEpisode = 0; episodes = []
-      if (keyword.trim()) void manual(client => client.search(keyword.trim()), value => {
-        titles = value
-        if (!value.length) manualStatus = '未找到本集弹幕'
-      })
+      danmaku.search()
     }}>
-      <input type="search" aria-label="弹幕作品名" enterkeyhint="search" bind:value={keyword} required />
+      <input type="search" aria-label="弹幕作品名" enterkeyhint="search" bind:value={danmaku.keyword} required />
       <button class="primary">搜索</button>
     </form>
-    {#if titles.length}
-      <ChoicePicker label="来源" value={manualTitle}
-        items={titles.map(item => ({ id: item.id, label: [item.title, item.source].filter(Boolean).join(' · ') }))}
-        onSelect={chooseTitle} />
+    {#if danmaku.titles.length}
+      <ChoicePicker label="来源" value={danmaku.manualTitle}
+        items={danmaku.titles.map(item => ({ id: item.id, label: [item.title, item.source].filter(Boolean).join(' · ') }))}
+        onSelect={danmaku.chooseTitle} />
     {/if}
-    {#if episodes.length}
-      <ChoicePicker label="剧集" value={manualEpisode}
-        items={episodes.map(item => ({ id: item.id, label: item.title || item.number || '未命名剧集' }))}
-        onSelect={chooseEpisode} />
+    {#if danmaku.episodes.length}
+      <ChoicePicker label="剧集" value={danmaku.manualEpisode}
+        items={danmaku.episodes.map(item => ({ id: item.id, label: item.title || item.number || '未命名剧集' }))}
+        onSelect={danmaku.chooseEpisode} />
     {/if}
-    <p class="muted picker-status" role="status">{manualStatus}</p>
+    <p class="muted picker-status" role="status">{danmaku.manualStatus}</p>
   {:else}
     <p class="muted">未设置弹幕服务地址</p>
   {/if}

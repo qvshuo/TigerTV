@@ -1,6 +1,6 @@
 import { mkdir, rename, appendFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { categories } from '../src/api.ts'
+import categories from '../../shared/douban-categories.json' with { type: 'json' }
 import { hotLimit } from '../common/douban.ts'
 
 const [gateway, directory] = Bun.argv.slice(2)
@@ -45,7 +45,7 @@ async function pool<T>(jobs: Iterable<T>, visit: (job: T) => Promise<void>) {
 }
 function report() { console.log(JSON.stringify(stats)) }
 const works = new Map<string, { id: string; title: string; year: string; categories: Set<string> }>()
-await pool(categories, async ([category]) => {
+await pool(categories, async ({ collection: category }) => {
   const seen = new Set<string>()
   for (let start = 0; ; start += hotLimit) {
     const page = await request('douban', category + '-' + start, new URL(`hot/${category}?start=${start}`, metadata), data => ({
