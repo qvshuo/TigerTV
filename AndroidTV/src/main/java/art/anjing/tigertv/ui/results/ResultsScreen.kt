@@ -130,7 +130,7 @@ private fun ResultsGrid(
     viewModel: TigerTVViewModel,
     restoreSourceKey: String?,
     coverFallbacks: Map<String, String>,
-    onLoadCoverFallback: (SearchResult) -> Unit,
+    onLoadCoverFallback: (VideoWork) -> Unit,
     onSelectResult: (SearchResult) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -186,11 +186,11 @@ private fun WorkCard(
     poster: String?,
     onPosterShown: (String) -> Unit,
     coverFallbacks: Map<String, String>,
-    onLoadCoverFallback: (SearchResult) -> Unit,
+    onLoadCoverFallback: (VideoWork) -> Unit,
     onSelectResult: (SearchResult) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LaunchedEffect(work.sources) { work.orderedSources.forEach(onLoadCoverFallback) }
+    LaunchedEffect(work.sources) { onLoadCoverFallback(work) }
     MediaCard(onClick = { onSelectResult(work.defaultSource) }, modifier = modifier) {
         WorkPoster(
             workId = work.id,

@@ -54,5 +54,19 @@
     "vod_name": "逐玉第二季（2026）",
     "vod_year": "2026",
     "expected": "e"
+  },
+  {
+    "site": "另一站",
+    "vod_id": 5,
+    "vod_name": "逐玉",
+    "vod_year": "未知",
+    "expected": "f"
+  },
+  {
+    "site": "未知年份",
+    "vod_id": 9,
+    "vod_name": "逐玉",
+    "vod_year": "",
+    "expected": "g"
   }
 ]

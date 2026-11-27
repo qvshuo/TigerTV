@@ -1,6 +1,7 @@
 package art.anjing.tigertv
 
 import android.content.Context
+import android.util.Log
 import art.anjing.tigertv.data.Result
 import art.anjing.tigertv.data.TigerTVRepository
 import art.anjing.tigertv.domain.*
@@ -32,6 +33,8 @@ class WorkSelectionTest {
 
     @Before fun setUp() {
         Dispatchers.setMain(dispatcher)
+        mockkStatic(Log::class)
+        every { Log.w(any<String>(), any<String>()) } returns 0
         repository = mockk(relaxed = true)
         coEvery { repository.loadConfig() } returns Result.Success(SourceConfig())
         coEvery { repository.loadHistory() } returns emptyList()
@@ -44,7 +47,7 @@ class WorkSelectionTest {
         viewModel = TigerTVViewModel(repository, context)
     }
 
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @After fun tearDown() { unmockkStatic(Log::class); Dispatchers.resetMain() }
 
     private fun hotItem(title: String) = art.anjing.tigertv.domain.HotSearchItem(title, title, "2026", "", null, 0, "")
 
@@ -87,6 +90,22 @@ class WorkSelectionTest {
         advanceUntilIdle()
         assertNull(viewModel.takeExactRecentEpisode())
         assertNull(viewModel.playbackUrl)
+    }
+
+    @Test fun recentPlaybackKeepsMatchingSourcesWhenOriginalFails() = runTest(dispatcher) {
+        viewModel.onKeywordChange("逐玉")
+        viewModel.search()
+        advanceUntilIdle()
+        val work = viewModel.works.single()
+        coEvery { repository.fetch("B", 99) } returns Result.Error(IllegalStateException("unavailable"))
+        viewModel.openRecentPlayback(RecentPlayback(work.id, b, PlaybackBookmark("0", second.name), emptyMap(), 0, 1))
+        advanceUntilIdle()
+        assertEquals(b, viewModel.selectedResult)
+        assertEquals(setOf(a, b), viewModel.availableSources.toSet())
+        assertNull(viewModel.takeExactRecentEpisode())
+        viewModel.selectResult(a)
+        advanceUntilIdle()
+        assertEquals(listOf(first, second), viewModel.episodes)
     }
 
     @Test fun supersededConfigFailureCannotReplaceSuccessfulRetry() = runTest(dispatcher) {
@@ -174,7 +193,7 @@ class WorkSelectionTest {
         coVerify(exactly = 0) { repository.addHistory(any()) }
     }
 
-    @Test fun disposingViewModelWaitsForPendingProgressBeforeClosingCore() = runTest(dispatcher) {
+    @Test fun disposingViewModelLeavesPersistenceWithRepository() = runTest(dispatcher) {
         viewModel.onKeywordChange("逐玉")
         viewModel.search()
         advanceUntilIdle()
@@ -185,21 +204,14 @@ class WorkSelectionTest {
         val session = requireNotNull(viewModel.playbackSession)
         viewModel.playbackDidStart(session)
         advanceUntilIdle()
-        val events = mutableListOf<String>()
-        coEvery { repository.recordPlaybackPosition(any(), any(), any(), any(), any(), matchNullable { true }, any(), any()) } coAnswers {
-            delay(100)
-            events += "saved"
-        }
-        every { repository.close() } answers { events += "closed" }
         viewModel.savePlaybackPosition(session, 123_000)
-        runCurrent()
         val store = androidx.lifecycle.ViewModelStore()
         store.put("player", viewModel)
         store.clear()
-        runCurrent()
-        assertTrue(events.isEmpty())
-        advanceUntilIdle()
-        assertEquals(listOf("saved", "closed"), events)
+        verify(exactly = 1) {
+            repository.recordPlaybackPosition(session.workId, session.site, session.line, session.episode,
+                123_000, null, session.sourceKey, session.index)
+        }
     }
 
     @Test fun progressKeepsItsOriginalIdentityAcrossNavigationAndRetry() = runTest(dispatcher) {
@@ -335,6 +347,34 @@ class WorkSelectionTest {
         assertEquals(listOf(a, b), viewModel.works.single().sources)
     }
 
+    @Test fun coverRequestsShareThreePermitsAndStopAtTheFirstValidSource() = runTest(dispatcher) {
+        val c = b.copy(site = "C", vodId = 100)
+        val other = (2..5).map { a.copy(vodId = it, vodName = "作品$it") }
+        val works = aggregateWorks(listOf(a, b, c) + other)
+        coEvery { repository.search(any(), any()) } returns Result.Success(SearchResponse("逐玉", works))
+        val calls = mutableListOf<Pair<String, Int>>()
+        val release = CompletableDeferred<Unit>()
+        coEvery { repository.resolveCoverFallback(any(), any()) } coAnswers {
+            val site = firstArg<String>()
+            val id = secondArg<Int>()
+            calls += site to id
+            release.await()
+            if (site == a.site && id == a.vodId) "invalid" else "https://cover.test/$id.jpg"
+        }
+        viewModel.onKeywordChange("逐玉")
+        viewModel.search()
+        advanceUntilIdle()
+        works.forEach(viewModel::loadCoverFallbackIfPossible)
+        runCurrent()
+        assertEquals(3, calls.size)
+        assertFalse(calls.any { it.first == b.site })
+        release.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(6, calls.size)
+        assertFalse(calls.any { it.first == c.site })
+        assertEquals("https://cover.test/99.jpg", viewModel.coverFallbacks[b.coverKey])
+    }
+
     @Test fun newSearchCancelsVisibleCoverRequests() = runTest(dispatcher) {
         var cancelled = false
         coEvery { repository.resolveCoverFallback(any(), any()) } coAnswers {
@@ -343,7 +383,7 @@ class WorkSelectionTest {
         viewModel.onKeywordChange("逐玉")
         viewModel.search()
         runCurrent()
-        viewModel.loadCoverFallbackIfPossible(a)
+        viewModel.loadCoverFallbackIfPossible(viewModel.works.single())
         runCurrent()
         viewModel.onKeywordChange("另一部")
         viewModel.search()
@@ -352,21 +392,16 @@ class WorkSelectionTest {
         assertTrue(viewModel.coverFallbacks.isEmpty())
     }
 
-    @Test fun historyWritesPreserveUserOrder() = runTest(dispatcher) {
-        var persisted = listOf<String>()
-        coEvery { repository.addHistory(any()) } coAnswers {
-            val item = firstArg<String>()
-            delay(100)
-            persisted = listOf(item)
-        }
-        coEvery { repository.clearHistory() } coAnswers { persisted = emptyList() }
+    @Test fun historyChangesReachTheRepositoryInUserOrder() = runTest(dispatcher) {
         runCurrent()
         viewModel.onKeywordChange("逐玉")
         viewModel.search()
-        runCurrent()
         viewModel.clearHistory()
-        advanceUntilIdle()
-        assertTrue(persisted.isEmpty())
+        verifyOrder {
+            repository.addHistory("逐玉")
+            repository.clearHistory()
+        }
+        assertTrue(viewModel.searchHistory.isEmpty())
     }
 
     @Test fun leavingResultsCancelsSearchAndClearsState() = runTest(dispatcher) {

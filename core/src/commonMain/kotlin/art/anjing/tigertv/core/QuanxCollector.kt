@@ -8,7 +8,7 @@ import kotlinx.coroutines.sync.*
 
 private const val REQUEST_LIMIT = 1000
 private const val PROBE_BATCH_SIZE = 6
-private class ProbeBudgetExceeded(phase: String) : IllegalStateException("QX ${phase}达到 $REQUEST_LIMIT 次 HTTP 请求预算")
+private class ProbeBudgetExceeded(phase: String, limit: Int) : IllegalStateException("QX ${phase}达到 $limit 次 HTTP 请求预算")
 private val playlistUri = Regex("(?:^|[:,])(?:SERVER-)?URI=\"([^\"]+)\"")
 private val mediaExtensions = setOf("mp4", "m4v", "mov", "mkv", "webm", "ts", "m4s", "aac", "mp3", "mpd", "zip", "srt", "vtt")
 private val playlistTags = setOf("#EXT-X-MEDIA", "#EXT-X-I-FRAME-STREAM-INF", "#EXT-X-RENDITION-REPORT", "#EXT-X-IMAGE-STREAM-INF")
@@ -50,11 +50,15 @@ internal class QuanxCollector(
         val dynamicSteering: Boolean = false,
     )
 
-    private inner class Budget(val name: String) {
+    private inner class Budget(val name: String, private val siteLimit: Int) {
         val connections = Semaphore(24)
         private var requests = 0
-        suspend fun take() = mutex.withLock {
-            if (requests >= REQUEST_LIMIT) throw ProbeBudgetExceeded(name)
+        private val bySite = mutableMapOf<SiteScan, Int>()
+        suspend fun take(scan: SiteScan) = mutex.withLock {
+            val used = bySite[scan] ?: 0
+            if (used >= siteLimit) throw ProbeBudgetExceeded("$name 单来源", siteLimit)
+            if (requests >= REQUEST_LIMIT) throw ProbeBudgetExceeded(name, REQUEST_LIMIT)
+            bySite[scan] = used + 1
             requests++
         }
     }
@@ -66,7 +70,7 @@ internal class QuanxCollector(
         return budget.connections.withPermit {
             network.response(url, Long.MAX_VALUE, socketTimeoutMillis = 30_000, connectTimeoutMillis = 15_000, onRedirect = ::remember, onRequest = { target ->
                 remember(target)
-                budget.take()
+                budget.take(scan)
             })
         }
     }
@@ -80,18 +84,21 @@ internal class QuanxCollector(
         mutex.withLock { mediaHosts += host }
     }
 
-    private suspend fun probe(url: String, isLeaf: Boolean, budget: Budget): Probe {
+    private suspend fun probe(url: String, isLeaf: Boolean, budget: Budget, scan: SiteScan): Probe {
         var owner = false
         val memo = if (isLeaf) mediaProbes else playlistProbes
         val deferred = mutex.withLock { memo.getOrPut(url) { owner = true; CompletableDeferred() } }
-        if (!owner) return deferred.await()
+        if (!owner) {
+            val result = deferred.await()
+            return if (result.error is ProbeBudgetExceeded) probe(url, isLeaf, budget, scan) else result
+        }
         try {
             suspend fun request(range: Boolean) = budget.connections.withPermit {
                 network.response(
                     url, Long.MAX_VALUE, socketTimeoutMillis = 30_000, connectTimeoutMillis = 15_000, extraHeaders = if (range) mapOf("Range" to "bytes=0-0") else emptyMap(),
                     headersOnly = isLeaf, skipMediaBody = true, onRequest = { target ->
                         rememberMedia(target)
-                        budget.take()
+                        budget.take(scan)
                     }, onRedirect = ::rememberMedia,
                 )
             }
@@ -109,6 +116,7 @@ internal class QuanxCollector(
             deferred.complete(Probe(error = IllegalStateException("共享 QX 请求提前结束", error)))
             throw error
         } catch (error: Exception) {
+            if (error is ProbeBudgetExceeded) mutex.withLock { memo.remove(url) }
             return Probe(error = error).also { deferred.complete(it) }
         }
     }
@@ -175,16 +183,17 @@ internal class QuanxCollector(
         val scans = sites.map { site ->
             SiteScan(site).also { scan -> quanxHost(site.api)?.let { scan.api += it } }
         }
-        val discoveryBudget = Budget("资源站发现")
-        val playlistBudget = Budget("播放入口和清单探测")
-        val mediaBudget = Budget("媒体跳转探测")
+        val siteLimit = (REQUEST_LIMIT / scans.size.coerceAtLeast(1)).coerceAtLeast(1)
+        val discoveryBudget = Budget("资源站发现", siteLimit)
+        val playlistBudget = Budget("播放入口和清单探测", siteLimit)
+        val mediaBudget = Budget("媒体跳转探测", siteLimit)
         phase(scans) { discover(it, keyword, discoveryBudget) }
         phase(scans) { walkPlaylists(it, playlistBudget) }
         phase(scans) { scan ->
             val representatives = scan.leaves.distinctBy(::quanxHost).toSet()
             val ordered = representatives.asSequence() + scan.leaves.asSequence().filterNot { it in representatives }
             for (batch in ordered.chunked(PROBE_BATCH_SIZE)) {
-                val errors = parallel(batch) { probe(it, true, mediaBudget).error }
+                val errors = parallel(batch) { probe(it, true, mediaBudget, scan).error }
                 for (error in errors.filterNotNull()) {
                     if (error is ProbeBudgetExceeded) throw error
                     report(scan, error)
@@ -283,7 +292,7 @@ internal class QuanxCollector(
         val visited = scan.roots.toMutableSet()
         while (queue.isNotEmpty()) {
             val batch = List(minOf(queue.size, PROBE_BATCH_SIZE)) { queue.removeFirst() }
-            val results = parallel(batch) { probe(it, false, budget) }
+            val results = parallel(batch) { probe(it, false, budget, scan) }
             val children = mutableListOf<String>()
             for (result in results) {
                 result.error?.takeUnless { it is ProbeBudgetExceeded }?.let { report(scan, it) }

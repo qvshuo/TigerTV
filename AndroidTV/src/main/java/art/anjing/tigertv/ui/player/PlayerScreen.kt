@@ -15,7 +15,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -23,7 +22,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -35,17 +33,12 @@ import androidx.media3.ui.PlayerView
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import androidx.tv.material3.Icon
-import androidx.compose.ui.res.painterResource
-import art.anjing.tigertv.R
 import art.anjing.tigertv.domain.displaySourceName
-import art.anjing.tigertv.core.DanmakuChoice
-import art.anjing.tigertv.ui.components.ActionButton
 import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.components.LoadingOverlay
 import art.anjing.tigertv.ui.requestFocusSafely
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
 import kotlinx.coroutines.delay
-import kotlinx.serialization.json.Json
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -74,45 +67,29 @@ fun PlayerScreen(
     var danmakuMenu by remember { mutableStateOf(false) }
     var danmakuQuick by remember { mutableStateOf(false) }
     val danmakuScope = rememberCoroutineScope()
-    val preferences = remember { context.applicationContext.getSharedPreferences("danmaku", 0) }
+    val preferences = remember(context) { DanmakuPreferences(context) }
     val playbackPreferences = remember { PlaybackPreferences(context) }
     var automaticOptions by remember { mutableStateOf<AutomaticPlaybackOptions?>(null) }
     val inheritedOptions = automaticOptions?.takeIf { it.revision == viewModel.playbackRevision }
-    var configuredServer by remember { mutableStateOf(preferences.getString("server", "").orEmpty()) }
+    var configuredServer by remember(preferences) { mutableStateOf(preferences.server) }
     DisposableEffect(preferences) {
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == "server") configuredServer = preferences.getString("server", "").orEmpty()
-        }
-        preferences.registerOnSharedPreferenceChangeListener(listener)
-        onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+        val unsubscribe = preferences.observeServer { configuredServer = it }
+        onDispose { unsubscribe() }
     }
     val session = viewModel.playbackSession
     val workTitle = viewModel.fetchResponse?.vodName.orEmpty().ifBlank { viewModel.selectedResult?.vodName.orEmpty() }
     val workYear = viewModel.fetchResponse?.vodYear.orEmpty().takeIf { it.toIntOrNull() in 1900..2099 }
         ?: viewModel.selectedResult?.vodYear.orEmpty()
-    val legacyIdentity = listOf(session?.workId.orEmpty(), session?.site.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty())
-        .joinToString("") { "${it.length}:$it" }
-    val identity = listOf(session?.workId.orEmpty(), session?.sourceKey.orEmpty(),
-        session?.line.orEmpty(), session?.episode.orEmpty(), session?.index.toString()).joinToString("") { "${it.length}:$it" }
-    val legacyEpisode = session?.legacySite == true && session.legacyEpisode
-    val danmakuState = remember(identity, viewModel.playbackRevision) {
-        fun titleKey(server: String) = danmakuPreferenceKey(server, session?.workId.orEmpty(), session?.sourceKey.orEmpty())
-        fun episodeKey(server: String) = danmakuPreferenceKey(server, session?.workId.orEmpty(),
-            session?.sourceKey.orEmpty(), session?.line.orEmpty(), session?.episode.orEmpty(), session?.index.toString())
-        DanmakuState(danmakuScope, viewModel::danmakuClient, inheritedOptions?.danmakuEnabled ?: preferences.getBoolean("enabled:$identity", if (legacyEpisode) preferences.getBoolean("enabled:$legacyIdentity", true) else true),
-            rememberTitle = { server, id -> preferences.edit().putLong(titleKey(server), id).apply() },
-            preferredTitle = { server -> preferences.getLong(titleKey(server), -1).takeIf { it > 0 }
-                ?: if (session?.legacySite == true) preferences.getLong(
-                    danmakuPreferenceKey(server, session.workId, session.site), -1).takeIf { it > 0 } else null },
+    val episodePreferences = remember(preferences, session?.copy(positionMillis = 0, revision = 0)) {
+        preferences.forEpisode(session)
+    }
+    val danmakuState = remember(episodePreferences, viewModel.playbackRevision) {
+        DanmakuState(danmakuScope, viewModel::danmakuClient, inheritedOptions?.danmakuEnabled ?: episodePreferences.enabled,
+            rememberTitle = episodePreferences::rememberTitle,
+            preferredTitle = episodePreferences::preferredTitle,
             workYear = workYear, episodeLabel = session?.episode.orEmpty(),
-            rememberEpisode = { server, choice ->
-                preferences.edit().putString(episodeKey(server), Json.encodeToString(choice)).apply()
-            },
-            preferredEpisode = { server ->
-                (preferences.getString(episodeKey(server), null) ?: if (legacyEpisode)
-                    preferences.getString(danmakuPreferenceKey(server, session.workId, session.site, session.line, session.episode), null)
-                    else null)?.let { runCatching { Json.decodeFromString<DanmakuChoice>(it) }.getOrNull() }
-            })
+            rememberEpisode = episodePreferences::rememberEpisode,
+            preferredEpisode = episodePreferences::preferredEpisode)
     }
     DisposableEffect(danmakuState) { onDispose { danmakuState.close() } }
     LaunchedEffect(danmakuState, danmakuState.enabled, configuredServer) {
@@ -128,7 +105,6 @@ fun PlayerScreen(
     val speedFocus = remember { FocusRequester() }
     val danmakuFocus = remember { FocusRequester() }
     val speedOptionFocus = remember { FocusRequester() }
-    val retryFocus = remember { FocusRequester() }
     fun requestFocus(area: PlayerFocusArea) { focusRequest = area to (focusRequest.second + 1) }
     fun interact() { controls = controls.show(SystemClock.elapsedRealtime()) }
     fun showControls(area: PlayerFocusArea) {
@@ -184,7 +160,6 @@ fun PlayerScreen(
     LaunchedEffect(focusRequest, blocked, playbackError, controls.visible, controls.speedMenuOpen, windowFocused, lifecycleState) {
         if (!windowFocused || lifecycleState != Lifecycle.State.RESUMED) return@LaunchedEffect
         when {
-            playbackError != null -> requestFocusSafely(retryFocus)
             blocked || !controls.visible -> requestFocusSafely(surfaceFocus)
             controls.speedMenuOpen -> requestFocusSafely(speedOptionFocus)
             focusRequest.first == PlayerFocusArea.Timeline -> requestFocusSafely(timelineFocus)
@@ -365,19 +340,21 @@ fun PlayerScreen(
             val episode = viewModel.episodes.getOrNull(viewModel.selectedEpisodeIndex)
             PlaybackControls(
                 title = listOfNotNull(viewModel.fetchResponse?.vodName, episode?.name).joinToString(" · "),
-                resource = listOfNotNull(displaySourceName(viewModel.selectedResult?.site.orEmpty()),
-                    "去广告".takeIf { controller.playbackTimeline != null }).joinToString(" · "),
+                resource = displaySourceName(viewModel.selectedResult?.site.orEmpty()),
                 snapshot = snapshot, controls = controls, timelineFocus = timelineFocus, playFocus = playFocus,
                 speedFocus = speedFocus, speedOptionFocus = speedOptionFocus, danmakuFocus = danmakuFocus,
                 danmakuOpen = danmakuQuick, danmakuEnabled = danmakuState.enabled,
                 onDanmakuMenu = { controls = controls.copy(speedMenuOpen = false); danmakuQuick = !danmakuQuick; interact() },
                 onDanmakuAction = { action ->
                     when (action) {
-                        4 -> {
+                        DanmakuAction.Choose -> {
                             danmakuState.showCurrentChoice()
                             danmakuMenu = true
                         }
-                        0 -> { danmakuState.toggleEnabled(); preferences.edit().putBoolean("enabled:$identity", danmakuState.enabled).apply() }
+                        DanmakuAction.Toggle -> {
+                            danmakuState.toggleEnabled()
+                            episodePreferences.enabled = danmakuState.enabled
+                        }
                     }
                     danmakuQuick = false; interact(); requestFocus(PlayerFocusArea.Danmaku)
                 },
@@ -406,21 +383,8 @@ fun PlayerScreen(
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))
                 .padding(horizontal = UiMetrics.pageHorizontalPadding, vertical = UiMetrics.pageVerticalPadding),
                 contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text(error, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(16.dp))
-                    ActionButton(onClick = { controller.unload(); viewModel.retryPlayback() },
-                        modifier = Modifier.focusRequester(retryFocus).widthIn(min = 144.dp).focusProperties {
-                            up = FocusRequester.Cancel
-                            down = FocusRequester.Cancel
-                            left = FocusRequester.Cancel
-                            right = FocusRequester.Cancel
-                        }) {
-                        Icon(painterResource(R.drawable.player_refresh), contentDescription = null, modifier = Modifier.size(24.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.retry))
-                    }
-                }
+                Text(error, style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
             }
         }
     }

@@ -8,7 +8,9 @@ import coil3.disk.DiskCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
+import art.anjing.tigertv.core.CoreService
 import art.anjing.tigertv.core.USER_AGENT
+import art.anjing.tigertv.data.TigerTVRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,6 +19,13 @@ import art.anjing.tigertv.data.CoverDiskCachePruner
 import okio.Path.Companion.toPath
 
 class TigerTVApplication : Application(), SingletonImageLoader.Factory {
+
+    val repository: TigerTVRepository by lazy {
+        TigerTVRepository(CoreService(
+            cacheDir.resolve("shared-v1").absolutePath,
+            historyDirectory = filesDir.resolve("shared-v1").absolutePath,
+        ))
+    }
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

@@ -259,6 +259,8 @@ class PlayerRemoteTest {
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag("danmaku-server").assertIsFocused()
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
+        assertEquals("", compose.onNodeWithTag("danmaku-server").fetchSemanticsNode()
+            .config[SemanticsProperties.EditableText].text)
         compose.onNodeWithTag("danmaku-server").performTextReplacement("https://fixture.test")
         compose.onNodeWithTag("danmaku-server").performImeAction()
         assertNull(instrumentation.targetContext.getSharedPreferences("danmaku", 0).getString("server", null))
@@ -370,56 +372,18 @@ class PlayerRemoteTest {
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
     }
 
-    @Test fun failureAfterPlaybackIsClearedFocusesRetryAndBackExits() {
+    @Test fun playbackFailureShowsErrorAndRemoteBackExits() {
         compose.runOnIdle { model.clearPlayback() }
         compose.waitForIdle()
-        compose.runOnIdle { model.setPlaybackError("Fixture failure while already blocked") }
+        compose.runOnIdle { model.setPlaybackError("Fixture native playback failure") }
         compose.waitUntil(5_000) {
-            compose.onAllNodes(hasText("重试") and isFocused()).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodes(hasText("无法播放")).fetchSemanticsNodes().isNotEmpty()
         }
-        remote(KeyEvent.KEYCODE_DPAD_DOWN)
-        compose.mainClock.advanceTimeBy(500)
-        compose.onNodeWithText("重试").assertIsFocused()
+        compose.onNodeWithText("无法播放").assertIsDisplayed()
+        compose.onNodeWithText("重试").assertDoesNotExist()
         captureWhenRequested("playback-error")
         remote(KeyEvent.KEYCODE_BACK)
         assertEquals(1, exits)
-    }
-
-    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-    @Test fun playbackFailureRetriesTheSameSourceLineAndEpisode() {
-        compose.runOnIdle {
-            model.selectPlaybackSource(1)
-            model.selectEpisode(1)
-        }
-        compose.waitUntil(10_000) {
-            model.playbackUrl != null &&
-                model.works.single().let { work -> work.bookmarkFor(work.sources.first { it.site == "🎬测试" }) }?.line == "1"
-        }
-        compose.runOnIdle { model.setPlaybackError("Fixture native playback failure") }
-        compose.waitUntil(5_000) {
-            compose.onAllNodes(hasText("重试") and isFocused()).fetchSemanticsNodes().isNotEmpty()
-        }
-        compose.onNodeWithText("重试").assertIsFocused()
-        compose.onAllNodes(hasClickAction()).assertCountEquals(1)
-        compose.onNodeWithText("返回").assertDoesNotExist()
-        listOf(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT).forEach {
-            remote(it)
-            compose.onNodeWithText("重试").assertIsFocused()
-        }
-        compose.onNodeWithText("切换来源").assertDoesNotExist()
-        remote(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { model.playbackErrorMessage == null && model.playbackUrl != null }
-        compose.waitUntil(10_000) {
-            var ready = false
-            compose.runOnIdle { ready = findPlayerView(rootView)?.player?.playbackState == androidx.media3.common.Player.STATE_READY }
-            ready
-        }
-        assertEquals("🎬测试", model.selectedResult?.site)
-        assertEquals(1, model.selectedPlaybackSourceIndex)
-        assertEquals(1, model.selectedEpisodeIndex)
-        compose.onNodeWithText("重试").assertDoesNotExist()
-        remote(KeyEvent.KEYCODE_MEDIA_PAUSE)
-        compose.onNodeWithTag("player-play").assertIsFocused()
     }
 
     @Test fun pauseNavigationSpeedAndLayeredBackUseTheRemote() {

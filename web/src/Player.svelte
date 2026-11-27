@@ -29,9 +29,6 @@
   let volume = $state(1)
   let muted = $state(false)
   let speed = $state(1)
-  let failed = $state.raw<Selection>()
-  const error = $derived(failed === selection)
-  let playbackAttempt = $state(0)
   let removed = $state.raw<Interval[]>([])
   let track = $state.raw<Track>()
   let enabled = $state(true)
@@ -114,7 +111,6 @@
     const mount = container
     const priorOptions = inherited
     const overlay = danmakuLayer
-    void playbackAttempt
     if (!mount || !overlay) return
     const prefs = untrack(() => ({ ...settings }))
     const url = webUrl(link)
@@ -142,6 +138,7 @@
       wakeDanmaku(true)
       const events = new AbortController()
       let playedHere = false
+      let failed = false
       function save() {
         if (!playedHere || ended || el.seeking || !Number.isFinite(el.currentTime)) return
         livePosition = originalTime(el.currentTime, removed)
@@ -202,7 +199,7 @@
         saveVolume(volume, muted, prefs.rememberVolume)
       })
       on('ended', () => {
-        if (!active || !playedHere || ended || error) return
+        if (!active || !playedHere || ended || failed) return
         ended = true
         savePosition(session, 0, 100)
         lastSaved = 0
@@ -222,7 +219,7 @@
           install()
           return
         }
-        failed = session
+        failed = true
       })
       const visibility = () => { if (document.hidden) save() }
       document.addEventListener('visibilitychange', visibility, { signal: events.signal })
@@ -492,9 +489,6 @@
 <svelte:document onfullscreenchange={fullscreenChanged} />
 <div class="mb-5 flex flex-wrap items-center gap-3">
   <button class="quiet" onclick={() => exit(onBack)}>← 返回</button>
-  {#if error}
-    <button class="quiet" onclick={() => { failed = undefined; playbackAttempt++ }}>重试</button>
-  {/if}
 </div>
 <media-i18n lang="zh-CN"><video-player bind:this={player}>
   <video-skin bind:this={container} class="video-surface">

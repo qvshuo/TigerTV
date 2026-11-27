@@ -88,6 +88,8 @@
       "contentUri": "[0-9a-f]{32}\\.ts",
       "durationsMicros": [[4867000, 3333000, 5600000, 2867000, 2967000]],
       "innerDiscontinuityOffsets": [2, 3]
-    }
+    },
+    {"manifestHost": "bfikuncdn\\.com", "segmentUri": "/\\d{8}/[^/?#]+/10\\d{3}kb/hls/[^/?#]+\\.ts", "contentUri": "https://kkzycdn\\.com(?::65)?/[^?#]+\\.ts", "durationWindowsMicros": [[2800000, 3200000], [2800000, 3200000], [4800000, 5200000], [2800000, 3200000], [2800000, 3200000], [400000, 900000]], "repeated": true, "allowEnd": true},
+    {"manifestHost": "v\\.lfthirtytwo\\.com", "segmentUri": "/\\d{8}/[^/?#]+/2000k/hls/[0-9a-f]{17}\\.ts", "contentUri": "[0-9a-f]{17}\\.ts", "durationWindowsMicros": [[3800000, 4200000], [3800000, 4200000], [3800000, 4200000], [3800000, 4200000], [3800000, 4200000], [3800000, 4200000], [1500000, 2000000]], "repeated": true}
   ]
 }

@@ -1,5 +1,6 @@
 package art.anjing.tigertv.ui
 
+import art.anjing.tigertv.TigerTVApplication
 import art.anjing.tigertv.ui.player.PlaybackPreferences
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,9 +37,9 @@ sealed class Screen(val route: String) {
 fun TigerTVApp(
     navController: NavHostController = rememberNavController()
 ) {
-    val appContext = LocalContext.current.applicationContext
+    val application = LocalContext.current.applicationContext as TigerTVApplication
     val viewModel: TigerTVViewModel = viewModel(
-        factory = remember(appContext) { TigerTVViewModelFactory(appContext) }
+        factory = remember(application) { TigerTVViewModelFactory(application) }
     )
 
     TigerTVNavHost(viewModel, navController)

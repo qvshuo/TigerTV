@@ -567,7 +567,7 @@
                 disabled={!item || (cached ? !cached.lines.length : detailStates.get(key) === 'empty')}
                 onclick={() => { if (item && !active) void loadDetail(item) }}>
                 <span>{displaySourceName(site.name)}</span>
-                {#if evidence !== 'other'}<span class="source-badge">{evidence === 'sample' ? '无插播' : '去广告'}</span>{/if}
+                {#if evidence !== 'other'}<span class="source-badge">{evidence === 'sample' ? '无广告' : '去广告'}</span>{/if}
                 {#if busy}<span class="spinner" aria-hidden="true"></span>{/if}
               </button>
             {/each}

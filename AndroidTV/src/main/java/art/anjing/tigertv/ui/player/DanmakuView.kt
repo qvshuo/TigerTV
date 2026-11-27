@@ -51,7 +51,13 @@ internal class DanmakuView(context: Context) : View(context) {
     }
     fun bind(media: Player, data: DanmakuTrack?, enabled: Boolean, loading: DanmakuPhase? = null, message: String? = null, timeline: () -> MediaTimeline?) {
         var changed = false
-        if (player !== media) { player?.removeListener(listener); player = media; media.addListener(listener); reset(); changed = true }
+        if (player !== media) {
+            if (isAttachedToWindow) player?.removeListener(listener)
+            player = media
+            if (isAttachedToWindow) media.addListener(listener)
+            reset()
+            changed = true
+        }
         if (track !== data) {
             track = data
             comments = data?.comments.orEmpty()
@@ -128,8 +134,10 @@ internal class DanmakuView(context: Context) : View(context) {
         val gap = paint.textSize * render.gapEm
         while (cursor < comments.size && comments[cursor].timeMs <= now) {
             val comment = comments[cursor++]
-            active.removeAll { comment.timeMs - it.comment.timeMs >= lifetime }
-            if (comment.mode != 1 || active.size >= render.visibleLimit) continue
+            if (active.size >= render.visibleLimit) {
+                active.removeAll { comment.timeMs - it.comment.timeMs >= lifetime }
+                if (active.size >= render.visibleLimit) continue
+            }
             val text = comment.text.take(100)
             val textWidth = widths.get(text) ?: paint.measureText(text).also { widths.put(text, it) }
             val lane = (0 until lanes).firstOrNull { lane ->
@@ -160,5 +168,16 @@ internal class DanmakuView(context: Context) : View(context) {
         }
     }
     fun release() { removeCallbacks(wake); player?.removeListener(listener); player = null; active.clear(); lastInLane.fill(null); comments = emptyList(); track = null; widths.evictAll() }
-    override fun onDetachedFromWindow() { release(); super.onDetachedFromWindow() }
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        player?.addListener(listener)
+        reset()
+        invalidate()
+    }
+
+    override fun onDetachedFromWindow() {
+        removeCallbacks(wake)
+        player?.removeListener(listener)
+        super.onDetachedFromWindow()
+    }
 }

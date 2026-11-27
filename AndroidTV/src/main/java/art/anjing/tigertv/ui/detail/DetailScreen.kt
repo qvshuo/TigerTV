@@ -65,7 +65,13 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
     val result = viewModel.selectedResult
     val response = viewModel.fetchResponse?.takeIf { it.site == result?.site && it.vodId == result.vodId }
     val sources = viewModel.availableSources
-    val filterAds = PlaybackPreferences(LocalContext.current).filterAds
+    val context = LocalContext.current
+    val playbackPreferences = remember(context) { PlaybackPreferences(context) }
+    var filterAds by remember(playbackPreferences) { mutableStateOf(playbackPreferences.filterAds) }
+    DisposableEffect(playbackPreferences) {
+        val unsubscribe = playbackPreferences.observeFilterAds { filterAds = it }
+        onDispose { unsubscribe() }
+    }
     val episodes = viewModel.episodes
     LaunchedEffect(sources) { viewModel.preloadDetails(sources) }
     fun isEmpty(source: SearchResult) = viewModel.cachedDetail(source)?.playSources?.isEmpty() == true
@@ -183,7 +189,7 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                                                         else (viewModel.isFetching && active) || viewModel.isDetailLoading(source)
                                                     val badge = when (evidence(site)) {
                                                         SourceAdEvidence.FILTER_VERIFIED -> "去广告"
-                                                        SourceAdEvidence.NO_GAMBLING_IN_SAMPLES -> "无插播"
+                                                        SourceAdEvidence.NO_GAMBLING_IN_SAMPLES -> "无广告"
                                                         SourceAdEvidence.UNVERIFIED -> null
                                                     }
                                                     ResourceChoice(displaySourceName(site), active, badge = badge,

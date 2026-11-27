@@ -154,7 +154,7 @@ class WorkDetailTest {
     }
 
     @Test fun sourcePriorityUsesSuccessfulPlaybackAndRecommendationsWithoutLookingAtPosters() {
-        val first = SearchResult("普通资源", 1, "同一作品", vodPic = "https://example.test/poster.jpg")
+        val first = SearchResult("普通资源", 1, "同一作品", vodYear = "2026", vodPic = "https://example.test/poster.jpg")
         val second = first.copy(site = "🎬360 资源", vodId = 2, vodPic = "")
         val third = second.copy(site = "🎬红牛资源", vodId = 3)
         val work = aggregateWorks(listOf(first, second, third)).single()
@@ -167,7 +167,7 @@ class WorkDetailTest {
     }
 
     @Test fun qualifiedPositionsSeparateDuplicateNamesAndSameSiteWorks() {
-        val a = SearchResult("A", 1, "同一作品")
+        val a = SearchResult("A", 1, "同一作品", vodYear = "2026")
         val b = a.copy(vodId = 2)
         val line = PlaybackSource("line", "", listOf(EpisodeLink("", "a"), EpisodeLink("", "b"), EpisodeLink("唯一", "c")))
         val work = aggregateWorks(listOf(a, b)).single().copy(

@@ -96,7 +96,7 @@ class Media3Controller(context: Context) {
                     val duration = player.duration
                     if (mayFilter) {
                         val effective = currentSession.timeline?.videoToEffective(positionMillis)?.timeMs ?: positionMillis
-                        player.seekTo(if (duration != C.TIME_UNSET && effective >= duration) 0 else effective)
+                        if (effective > 0) player.seekTo(if (duration != C.TIME_UNSET && effective >= duration) 0 else effective)
                     } else if (duration != C.TIME_UNSET && positionMillis >= duration) player.seekTo(0)
                     restoring = false
                 }

@@ -39,6 +39,8 @@ function vod(text: string) {
     } else if (line.startsWith('#EXT-X-PROGRAM-DATE-TIME:') || line.startsWith('#EXT-X-CUE-OUT:') || line === '#EXT-X-CUE-IN') {
       if (duration) return
       tags.push(line)
+    } else if (line.startsWith('#') && !line.startsWith('#EXT')) {
+      continue
     } else if (line.startsWith('#')) {
       if (duration || segments.length || !/^#EXT-X-(?:VERSION:\d+|TARGETDURATION:\d+|MEDIA-SEQUENCE:\d+|PLAYLIST-TYPE:VOD)$/.test(line)) return
       headers.push(line)
@@ -104,17 +106,20 @@ function smartAdIndices(segments: Segment[], playlistHost: string) {
       if (!start || (end === segments.length && !profile.allowEnd) || !contentSide(paths[start - 1]) ||
         (end !== segments.length && !contentSide(paths[end]))) continue
       const group = segments.slice(start, end)
-      const durationIndex = profile.durationsMicros.findIndex(durations => durations.length === group.length &&
-        group.every((segment, index) => segment.micros === durations[index] && !encrypted(segment) &&
-          segmentPattern.test(paths[start + index])))
-      if (durationIndex < 0) continue
-      seenDurations.add(durationIndex)
+      if (!group.every((segment, offset) => !encrypted(segment) && segmentPattern.test(paths[start + offset]))) continue
+      const durationIndex = profile.durationsMicros?.findIndex(durations => durations.length === group.length &&
+        group.every((segment, offset) => segment.micros === durations[offset])) ?? -1
+      const windows = profile.durationWindowsMicros
+      const matchesWindows = windows?.length === group.length && windows.every(([min, max], offset) =>
+        group[offset].micros >= min && group[offset].micros <= max)
+      if (durationIndex < 0 && !matchesWindows) continue
+      if (durationIndex >= 0) seenDurations.add(durationIndex)
       const key = JSON.stringify(paths.slice(start, end))
       const runs = matches.get(key) ?? []
       runs.push([start, end])
       matches.set(key, runs)
     }
-    if (profile.requireAllDurations && seenDurations.size !== profile.durationsMicros.length) continue
+    if (profile.requireAllDurations && seenDurations.size !== profile.durationsMicros?.length) continue
     for (const runs of matches.values()) if (!profile.repeated || runs.length > 1) {
       for (const [start, end] of runs) propose(start, end)
     }

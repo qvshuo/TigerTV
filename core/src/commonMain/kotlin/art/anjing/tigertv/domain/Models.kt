@@ -135,7 +135,7 @@ internal fun foldWidth(text: String): String {
 
 private fun workIdentity(title: String, year: String, coverKey: String): String {
     val normalizedTitle = title.filterNot { it.isWhitespace() }.lowercase()
-    val identity = if (normalizedTitle.isEmpty()) listOf(kotlinx.serialization.json.JsonNull,
+    val identity = if (normalizedTitle.isEmpty() || year.isEmpty()) listOf(kotlinx.serialization.json.JsonNull,
         kotlinx.serialization.json.JsonPrimitive(coverKey))
     else listOf(kotlinx.serialization.json.JsonPrimitive(normalizedTitle), kotlinx.serialization.json.JsonPrimitive(year))
     return kotlinx.serialization.json.JsonArray(identity).toString()
@@ -145,7 +145,7 @@ fun workId(source: SearchResult): String {
     val title = foldWidth(source.vodName).trim()
     val withoutAlias = taggedAlias.replace(title, "").ifBlank { title }
     val rawYear = foldWidth(source.vodYear).trim().takeUnless { it == "0" }.orEmpty()
-    val year = yearWithUnit.matchEntire(rawYear)?.groupValues?.get(1) ?: rawYear
+    val year = yearWithUnit.matchEntire(rawYear)?.groupValues?.get(1).orEmpty()
     val tagged = taggedYear.find(withoutAlias)
     if (tagged != null && (year.isEmpty() || year == tagged.groupValues[1])) {
         val main = withoutAlias.substring(0, tagged.range.first).trimEnd()

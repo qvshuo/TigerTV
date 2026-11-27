@@ -12,7 +12,8 @@ private data class HlsHeuristics(
 
 @Serializable
 private data class SourceAdGroup(
-    val manifestHost: String, val segmentUri: String, val durationsMicros: List<List<Long>>,
+    val manifestHost: String, val segmentUri: String, val durationsMicros: List<List<Long>> = emptyList(),
+    val durationWindowsMicros: List<List<Long>> = emptyList(),
     val repeated: Boolean = false, val allowEnd: Boolean = false, val contentUri: String? = null,
     val requireAllDurations: Boolean = false, val innerDiscontinuityOffsets: Set<Int> = emptySet(),
 ) {
@@ -62,7 +63,11 @@ private fun smartAdIndices(vod: HlsVod, playlistHost: String): Set<Int> {
             if (hasInnerBoundary && boundaries[1] - start !in profile.innerDiscontinuityOffsets) return@mapNotNull null
             val group = segments.subList(start, end)
             val matches = start > 0 && (end != segments.size || profile.allowEnd) &&
-                group.map { it.micros } in profile.durationsMicros &&
+                (group.map { it.micros } in profile.durationsMicros ||
+                    group.size == profile.durationWindowsMicros.size && group.indices.all { index ->
+                        val (min, max) = profile.durationWindowsMicros[index]
+                        group[index].micros in min..max
+                    }) &&
                 (start until end).all { !segments[it].encrypted && profile.segmentPattern.matches(paths[it]) } &&
                 profile.contentSide(paths[start - 1]) &&
                 (end == segments.size || profile.contentSide(paths[end]))

@@ -22,7 +22,7 @@ import art.anjing.tigertv.ui.components.ActionButton
 import art.anjing.tigertv.ui.components.ScreenTitle
 import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.components.TvTextInput
-import art.anjing.tigertv.ui.player.DEFAULT_DANMAKU_SERVER
+import art.anjing.tigertv.ui.player.DanmakuPreferences
 import art.anjing.tigertv.ui.requestFocusSafely
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
@@ -30,13 +30,13 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 internal fun SettingsScreen() {
     val context = LocalContext.current
     val keyboard = LocalSoftwareKeyboardController.current
-    val preferences = remember { context.applicationContext.getSharedPreferences("danmaku", 0) }
+    val preferences = remember(context) { DanmakuPreferences(context) }
     val playback = remember { PlaybackPreferences(context) }
     var autoNext by remember { mutableStateOf(playback.autoNext) }
     var rememberSpeed by remember { mutableStateOf(playback.rememberSpeed) }
     var filterAds by remember { mutableStateOf(playback.filterAds) }
-    var saved by remember { mutableStateOf(preferences.getString("server", "").orEmpty()) }
-    var draft by remember { mutableStateOf(saved.ifBlank { DEFAULT_DANMAKU_SERVER }) }
+    var saved by remember { mutableStateOf(preferences.server) }
+    var draft by remember { mutableStateOf(saved) }
     val focus = remember { FocusRequester() }
     val address = draft.trim().trimEnd('/')
     val valid = address.toHttpUrlOrNull()?.let { it.query == null && it.fragment == null } == true
@@ -56,10 +56,10 @@ internal fun SettingsScreen() {
                 Text("弹幕服务地址", style = MaterialTheme.typography.bodyMedium)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     TvTextInput(draft, { draft = it }, {}, focus, Modifier.weight(1f).testTag("danmaku-server"),
-                        hint = DEFAULT_DANMAKU_SERVER, imeAction = ImeAction.Done)
+                        hint = "https://danmu.example.com", imeAction = ImeAction.Done)
                     ActionButton(onClick = {
                         keyboard?.hide()
-                        preferences.edit().putString("server", address).apply()
+                        preferences.server = address
                         saved = address
                         draft = address
                     }, enabled = valid && address != saved.trimEnd('/'), modifier = Modifier.testTag("danmaku-save")) { Text("保存") }

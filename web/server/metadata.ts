@@ -12,6 +12,12 @@ const detailFields = [...cardFields, 'vod_content', 'vod_area', 'vod_play_from',
 const operations = ['ac', 'wd', 'ids', 'pg', 'pagesize']
 type Site = { name: string; api: string; gateway: string }
 
+const trustedHttp = 'http://caiji.dyttzyapi.com/api.php/provide/vod'
+const trustedWrappers = new Set([
+  'https://pz.v88.qzz.io/?url=https://api.apibdzy.com/api.php/provide/vod',
+  'https://pz.v88.qzz.io/?url=https://lovedan.net/api.php/provide/vod',
+])
+
 export function loadSources(raw: unknown, subset = '') {
   const sites = new Map<string, Site>()
   const seen = new Set<string>()
@@ -20,16 +26,19 @@ export function loadSources(raw: unknown, subset = '') {
     const { name, api, ...rest } = object(value)
     if ((selected.size && !selected.has(key)) || !/^[a-z0-9_.-]+$/i.test(key) ||
       typeof name !== 'string' || !name.includes('🎬') || '_comment' in rest || typeof api !== 'string' || seen.has(api)) continue
-    const authority = /^https:\/\/([^/?#\\]+)(?:[/?]|$)/i.exec(api)?.[1]
-    if (!authority || authority.includes(':')) continue
-    let url: URL
-    try { url = new URL(api) } catch { continue }
-    if (url.username || url.password || url.hash || !url.hostname.includes('.') ||
-      isIP(url.hostname) || url.searchParams.has('url')) continue
+    let url: URL | undefined
+    try { url = new URL(api) } catch { /* Report rejected configured sources below. */ }
+    const trusted = api === trustedHttp || trustedWrappers.has(api)
+    if (!trusted && (!url || !/^https:\/\/[^/?#\\:]+(?:[/?]|$)/i.test(api) ||
+      url.username || url.password || url.hash || !url.hostname.includes('.') ||
+      isIP(url.hostname) || url.searchParams.has('url'))) {
+      console.warn(`Unsupported metadata source: ${key}`)
+      continue
+    }
     sites.set(key, { name, api, gateway: key })
     seen.add(api)
   }
-  if (!sites.size) throw new Error('No HTTPS metadata sources configured')
+  if (!sites.size) throw new Error('No supported metadata sources configured')
   return sites
 }
 
@@ -78,8 +87,9 @@ export function createMetadata(sites: Map<string, Site>, origin = '', requestUps
       const params = inbound.searchParams
       if (new Set(params.keys()).size !== params.size) return fail(400, 'Duplicate parameter')
       target = new URL(site.api)
-      for (const flag of operations) target.searchParams.delete(flag)
-      const query = target.searchParams
+      const nested = trustedWrappers.has(site.api) ? new URL(target.searchParams.get('url')!) : undefined
+      const query = (nested ?? target).searchParams
+      for (const flag of operations) query.delete(flag)
       query.set('ac', 'detail')
       if (operation === 'search') {
         const keyword = params.get('q')?.trim()
@@ -96,6 +106,7 @@ export function createMetadata(sites: Map<string, Site>, origin = '', requestUps
         query.set('ids', id)
         fields = detailFields
       }
+      if (nested) target.searchParams.set('url', nested.href)
     } else return fail(404, 'Unknown metadata route')
 
     if (pending >= 20) return fail(503, 'Metadata busy')

@@ -39,6 +39,8 @@ import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.requestFocusSafely
 import kotlin.math.abs
 
+enum class DanmakuAction { Toggle, Choose }
+
 enum class PlayerFocusArea { Surface, Timeline, Actions, Speed, SpeedButton, Danmaku }
 
 @Composable
@@ -49,7 +51,7 @@ fun PlaybackControls(
     onFocus: (PlayerFocusArea) -> Unit, onPrevious: () -> Unit, onNext: () -> Unit,
     onTogglePlayback: () -> Unit, onSpeedMenu: () -> Unit, onSpeed: (Float) -> Unit,
     onSeekTo: (Long) -> Unit, danmakuOpen: Boolean, danmakuEnabled: Boolean,
-    onDanmakuMenu: () -> Unit, onDanmakuAction: (Int) -> Unit
+    onDanmakuMenu: () -> Unit, onDanmakuAction: (DanmakuAction) -> Unit
 ) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Brush.verticalGradient(
         0f to Color.Black.copy(alpha = 0.72f),
@@ -80,12 +82,12 @@ fun PlaybackControls(
                 Surface(modifier = Modifier.align(Alignment.End).padding(end = 16.dp).width(152.dp).heightIn(max = speedMenuHeight),
                     shape = MaterialTheme.shapes.extraLarge, tonalElevation = 3.dp) {
                     Column(Modifier.verticalScroll(rememberScrollState()).padding(12.dp).focusGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        ListItem(selected = false, onClick = { onDanmakuAction(0) },
+                        ListItem(selected = false, onClick = { onDanmakuAction(DanmakuAction.Toggle) },
                             scale = ListItemDefaults.scale(focusedScale = 1f),
                             shape = ListItemDefaults.shape(shape = MaterialTheme.shapes.large),
                             headlineContent = { Text(if (danmakuEnabled) "关闭弹幕" else "开启弹幕") },
                             modifier = Modifier.fillMaxWidth().testTag("danmaku-action-0"))
-                        ListItem(selected = false, onClick = { onDanmakuAction(4) },
+                        ListItem(selected = false, onClick = { onDanmakuAction(DanmakuAction.Choose) },
                             scale = ListItemDefaults.scale(focusedScale = 1f),
                             shape = ListItemDefaults.shape(shape = MaterialTheme.shapes.large),
                             headlineContent = { Text("选择弹幕") },

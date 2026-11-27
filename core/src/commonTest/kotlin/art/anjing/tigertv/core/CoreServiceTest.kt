@@ -580,8 +580,8 @@ class CoreServiceTest {
         assertEquals(groups, empty.ruleGroups(exported))
     }
 
-    @Test fun quanxStopsAtBudgetAfterProbingEarlierWorks() = runTest {
-        val store = MemoryStorage().apply { files["source"] = config }
+    @Test fun quanxKeepsBudgetForOtherSitesAndStillProbesEarlierWorks() = runTest {
+        val store = MemoryStorage().apply { files["source"] = config.replace("\"null\":null", "\"small\":{\"name\":\"🎬小站\",\"api\":\"https://small.test/api\"}") }
         var requests = 0
         var details = 0
         var errors = 0
@@ -592,6 +592,10 @@ class CoreServiceTest {
                     headersOf(HttpHeaders.Location, request.url.toString().replace("a.test", "redirected-api.test")))
             }
             respond(when {
+                request.url.host == "small.test" && request.url.parameters["ac"] == "list" ->
+                    """{"code":1,"list":[{"vod_id":1}]}"""
+                request.url.host == "small.test" ->
+                    """{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://small-media.test/first.m3u8"}]}"""
                 request.url.parameters["ac"] == "list" -> """{"code":1,"list":[${(1..1500).joinToString(",") { """{"vod_id":$it}""" }}]}"""
                 request.url.parameters["ids"] != null -> {
                     details++
@@ -602,12 +606,13 @@ class CoreServiceTest {
         })), logger = Logger { _, _, _ -> errors++ })
         try {
             val result = core.collectQuanxDomains("test")
-            assertEquals(1002, requests)
-            assertEquals(998, details)
+            assertEquals(505, requests)
+            assertEquals(498, details)
             assertEquals(1, errors)
             assertEquals(listOf("🎬一"), result.incompleteSites)
             assertTrue("redirected-api.test" in result.api)
             assertTrue("segments.test" in result.m3u8)
+            assertTrue("small-media.test" in result.urls)
             assertFalse(result.m3u8.any { "data:" in it })
         } finally { core.close() }
     }

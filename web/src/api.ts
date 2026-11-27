@@ -95,7 +95,7 @@ function sourceFrom(site: Site, value: unknown): Source {
 
 function workIdentity(title: string, year: string, source: Source) {
   const text = title.replace(/[\s\u001c-\u001f]/gu, '').toLowerCase()
-  return JSON.stringify(text ? [text, year] : [null, `${source.site.name}-${source.id}`])
+  return JSON.stringify(text && year ? [text, year] : [null, `${source.site.name}-${source.id}`])
 }
 export function foldWidth(text: string) {
   return text.replace(/[\u3000\uff01-\uff5e]/g, char => char === '\u3000' ? ' ' : String.fromCharCode(char.charCodeAt(0) - 0xfee0))
@@ -104,7 +104,7 @@ export function workId(source: Source) {
   const title = foldWidth(source.title).trim()
   const primary = title.replace(/[（(【](?:又名|别名|原名|英文名|aka)\s*[:：]\s*[^)）】]+[)）】]\s*$/i, '') || title
   const rawYear = foldWidth(source.year).trim()
-  const year = /^((?:19|20)[0-9]{2})\s*年?$/.exec(rawYear)?.[1] ?? (rawYear === '0' ? '' : rawYear)
+  const year = /^((?:19|20)[0-9]{2})\s*年?$/.exec(rawYear)?.[1] ?? ''
   const tag = /[（(【]((?:19|20)[0-9]{2})[)）】]\s*$/.exec(primary)
   if (tag && (!year || tag[1] === year)) {
     const main = primary.slice(0, tag.index).trimEnd()

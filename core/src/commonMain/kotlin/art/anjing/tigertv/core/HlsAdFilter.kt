@@ -80,6 +80,7 @@ internal fun parseHlsVod(playlist: String): HlsVod? {
                 if (extinf != null) return null
                 tags.add(line)
             }
+            line.startsWith('#') && !line.startsWith("#EXT") -> Unit
             !line.startsWith('#') -> {
                 val duration = extinf ?: return null
                 if (line.any { it.isWhitespace() }) return null

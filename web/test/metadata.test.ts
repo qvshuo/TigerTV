@@ -94,3 +94,27 @@ test('serves only public Douban JPEG posters with the required referer', async (
   expect(response.headers.get('Content-Type')).toBe('image/jpeg')
   expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes)
 })
+
+test('default HTTP and nested metadata endpoints keep a fixed upstream', async () => {
+  const raw = await Bun.file(new URL('../../skills/references/LunaTV-config.json', import.meta.url)).json()
+  const sites = loadSources(raw)
+  const expected = new Set(['dyttzyapi.com', 'bdzy1.com', 'lovedan.net'])
+  const handle = createMetadata(sites, '', async (target, init) => {
+    const url = new URL(String(target))
+    const inner = new URL(url.searchParams.get('url') ?? url.href)
+    expect(init?.redirect).toBe('error')
+    expect(inner.searchParams.get('wd')).toBe('中文&url=http://127.0.0.1')
+    expect(inner.searchParams.has('url')).toBe(false)
+    expect(inner.pathname).toBe('/api.php/provide/vod')
+    expect(['caiji.dyttzyapi.com', 'api.apibdzy.com', 'lovedan.net']).toContain(inner.hostname)
+    return Response.json({ code: 1, list: [] })
+  })
+  for (const key of expected) {
+    expect(sites.has(key)).toBe(true)
+    const query = new URLSearchParams({ q: '中文&url=http://127.0.0.1' })
+    expect((await handle(new Request(`http://local/api/metadata/search/${key}?${query}`))).status).toBe(200)
+    query.set('url', 'http://127.0.0.1')
+    expect((await handle(new Request(`http://local/api/metadata/search/${key}?${query}`))).status).toBe(400)
+  }
+  expect((await handle(new Request('http://local/api/metadata/media/bdzy1.com'))).status).toBe(404)
+})

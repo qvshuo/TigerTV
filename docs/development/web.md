@@ -23,6 +23,8 @@ docker compose -f web/compose.yaml -f web/compose.network.yaml up -d --build
 
 Gateway 限定上游来源、接口及公开豆瓣海报路径。默认同源，`TIGERTV_WEB_ORIGIN` 只允许指定 Origin 的元数据客户端。浏览器直连媒体 CDN 和用户的弹幕服务，由这些上游决定 TLS、授权、CORS 及播放兼容性。原生 HLS 在不能安全拦截清单时保留原流。
 
+Gateway 允许默认配置里电影天堂的固定 HTTP 端点和百度云zy、艾旦的两个固定嵌套端点。搜索和详情参数写入内层 URL，外层及目标域名由可信配置决定。请求禁止跟随重定向，被拒绝的配置键会写入启动日志。
+
 ## 历史验证
 
 Chrome、Firefox ESR 及 WebKit 自动化曾以真实 360 流验证播放和过滤接缝。Chrome 另验证画中画。WebKit 自动化不能代替 Safari 应用或 iOS 真机。默认来源当前状态需重测。
