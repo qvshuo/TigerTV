@@ -19,7 +19,7 @@ import androidx.tv.material3.MaterialTheme
 fun MediaCard(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Card(
         onClick = onClick,
-        scale = CardDefaults.scale(focusedScale = UiMetrics.focusedScale),
+        scale = CardDefaults.scale(focusedScale = UiMetrics.subtleFocusScale),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(

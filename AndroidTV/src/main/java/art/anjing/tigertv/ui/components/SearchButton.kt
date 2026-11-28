@@ -32,7 +32,7 @@ fun SearchButton(isSearching: Boolean, onClick: () -> Unit) {
         contentPadding = PaddingValues(horizontal = UiSpacing.lg, vertical = 0.dp)
     ) {
         Spacer(Modifier.width(24.dp + UiSpacing.sm))
-        Text(stringResource(R.string.search_button), style = MaterialTheme.typography.labelLarge)
+        Text(stringResource(R.string.search_button), style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.width(UiSpacing.sm))
         Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
             if (isSearching) {

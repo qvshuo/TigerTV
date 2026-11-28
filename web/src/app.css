@@ -125,7 +125,10 @@ input::placeholder { color: #a9a9a9; }
 .recent-card .poster-fallback { font-size: 1.2rem; }
 .work-overview { display: grid; grid-template-columns: clamp(5.5rem, 17vw, 10rem) minmax(0, 1fr); align-items: start; gap: clamp(.75rem, 2.5vw, 1.6rem); padding-bottom: .75rem; }
 .work-overview h1, .player-meta h1 { overflow-wrap: anywhere; }
-.hero-play { max-width: 100%; padding-inline: 1.15rem; margin-top: .9rem; text-align: start; overflow-wrap: anywhere; }
+.hero-play {
+  min-block-size: 2.75rem; max-width: 100%; border-radius: 999px;
+  padding-inline: 1.3rem; margin-top: .9rem; text-align: center; overflow-wrap: anywhere;
+}
 .synopsis { margin-top: .65rem; max-width: 68ch; white-space: pre-line; line-height: 1.7; color: #dddddd; overflow-wrap: anywhere; }
 .detail-section { padding-top: var(--space-4); margin-top: var(--space-4); border-top: 1px solid var(--line); }
 .detail-section h2 { margin-bottom: var(--space-2); }

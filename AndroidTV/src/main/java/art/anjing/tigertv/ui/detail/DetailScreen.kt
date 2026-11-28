@@ -282,6 +282,7 @@ private fun SectionTitle(title: String) {
 internal fun ResourceChoice(title: String, selected: Boolean, modifier: Modifier = Modifier,
     loading: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     SelectionChip(selected = selected, onClick = onClick, enabled = enabled,
+        focusedScale = UiMetrics.subtleFocusScale,
         modifier = modifier.fillMaxWidth().padding(vertical = ChoiceVerticalInset)) {
         Row(Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(UiSpacing.xs, Alignment.CenterHorizontally),
@@ -317,6 +318,7 @@ private fun PosterPlaceholder(title: String) {
 @Composable
 private fun EpisodeCard(label: String, isSelected: Boolean, onPlay: () -> Unit) {
     SelectionChip(selected = isSelected, onClick = onPlay,
+        focusedScale = UiMetrics.subtleFocusScale,
         modifier = Modifier.fillMaxWidth().padding(vertical = ChoiceVerticalInset)) {
         Text(label, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
             maxLines = 2, overflow = TextOverflow.Ellipsis)
