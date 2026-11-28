@@ -23,6 +23,7 @@ object UiSpacing {
 object UiMetrics {
     const val focusedScale = 1.1f
     const val subtleFocusScale = 1f + (focusedScale - 1f) / 2f
+    const val quarterFocusScale = 1f + (focusedScale - 1f) / 4f
     val choiceHeight = 36.dp
     val pageHorizontalPadding = 48.dp
     val pageVerticalPadding = 20.dp

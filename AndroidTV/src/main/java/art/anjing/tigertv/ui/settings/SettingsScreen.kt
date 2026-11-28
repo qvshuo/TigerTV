@@ -64,7 +64,7 @@ internal fun SettingsScreen() {
                 Text("弹幕服务地址", style = MaterialTheme.typography.bodyMedium)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     TvTextInput(draft, { draft = it; savedNotice = false }, {}, focus, Modifier.weight(1f).testTag("danmaku-server"),
-                        hint = "https://danmu.example.com", imeAction = ImeAction.Done)
+                        hint = "https://danmu.example.com", imeAction = ImeAction.Done, focusedScale = 1f)
                     ActionButton(onClick = {
                         keyboard?.hide()
                         preferences.server = address
@@ -87,7 +87,7 @@ private fun PlaybackSetting(label: String, enabled: Boolean, onChange: (Boolean)
     ListItem(
         selected = enabled,
         modifier = Modifier.heightIn(min = UiMetrics.controlHeight),
-        scale = ListItemDefaults.scale(focusedScale = UiMetrics.focusedScale),
+        scale = ListItemDefaults.scale(focusedScale = UiMetrics.quarterFocusScale),
         onClick = { onChange(!enabled) },
         headlineContent = { Text(label) },
         trailingContent = { Text(if (enabled) "开启" else "关闭") },

@@ -51,7 +51,6 @@ internal fun DanmakuPlayback(
         onRelease = { it.release() }, modifier = Modifier.fillMaxSize().testTag("danmaku-overlay"))
     if (!menuOpen) return
     val entry = remember { FocusRequester() }
-    val optionFocusScale = 1f + (UiMetrics.focusedScale - 1f) / 4f
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         var keyword by remember(title) { mutableStateOf(title) }
         val currentEpisode = state.selectedEpisode
@@ -99,7 +98,7 @@ internal fun DanmakuPlayback(
                         }
                         items(titles, key = { "title-${it.id}" }) { result ->
                             SelectionChip(selected = state.selectedTitle == result, onClick = { state.select(result) },
-                                focusedScale = optionFocusScale,
+                                focusedScale = UiMetrics.quarterFocusScale,
                                 modifier = Modifier.fillMaxWidth().testTag("danmaku-title-${result.id}")) {
                                 Text(listOf(result.title, result.source).filter { it.isNotBlank() }.joinToString(" · "),
                                     modifier = Modifier.fillMaxWidth(), maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -110,7 +109,7 @@ internal fun DanmakuPlayback(
                         }
                         items(state.episodes, key = { "episode-${it.id}" }) { episode ->
                             SelectionChip(selected = currentEpisode == episode, onClick = { state.select(episode, onClose) },
-                                focusedScale = optionFocusScale,
+                                focusedScale = UiMetrics.quarterFocusScale,
                                 modifier = Modifier.fillMaxWidth()
                                     .testTag("danmaku-episode-${episode.id}")) {
                                 Text(episode.title.ifBlank {
