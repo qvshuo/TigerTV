@@ -27,6 +27,7 @@ data class SearchResult(
 
 fun coverCacheKey(site: String, vodId: Int): String = "$site-$vodId"
 fun displaySourceName(site: String): String = site.replace("🎬", "").trim()
+fun isCatalogSource(name: String): Boolean = "🎬" in name && "🔞" !in name
 
 @Serializable
 data class FetchResponse(
@@ -61,8 +62,17 @@ data class SourceConfig(
 data class SourceSite(
     val name: String,
     val api: String,
-    val detail: String? = null
+    val detail: String? = null,
+    val recommendation: SourceRecommendation? = null,
 )
+
+@Serializable
+enum class SourceRecommendation(val code: String) {
+    @SerialName("ad_filter_verified")
+    AD_FILTER_VERIFIED("ad_filter_verified"),
+    @SerialName("no_gambling_in_samples")
+    NO_GAMBLING_IN_SAMPLES("no_gambling_in_samples"),
+}
 
 @Serializable
 data class VideoWork(

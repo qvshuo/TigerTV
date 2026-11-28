@@ -3,6 +3,7 @@
   import { onMount, tick, untrack } from 'svelte'
   import { catalogDetails, sourceKey } from './catalog-details.svelte.ts'
   import Poster from './Poster.svelte'
+  import { isCatalogSource } from '../common/source-config.ts'
   import { cachedHot, catalogSites, categories, displaySourceName, doubanPoster, hot, search, webUrl, type Detail, type Episode, type HotItem, type Site, type Source, type Work } from './api.ts'
   import { getBookmark, getPosition, getRecent, getSettings, read, write, type Bookmark, type PlaybackOptions, type Recent, type Selection } from './storage.ts'
   import snapshot from './douban-snapshot.json'
@@ -65,10 +66,19 @@
   const line = $derived(detail?.lines[selectedLine])
   const visibleWork = $derived(results.find(work => work.id === selected?.id) ?? selected)
   const detailSites = $derived.by(() => {
-    const sites = new Map(configuredSites.map(site => [site.name, site]))
-    for (const item of visibleWork?.sources ?? []) if (!sites.has(item.site.name)) sites.set(item.site.name, item.site)
+    const sites = new Map<string, Site>()
+    for (const site of configuredSites) if (!sites.has(site.name)) sites.set(site.name, site)
+    if (!sites.size) {
+      for (const { site: { name, api } } of visibleWork?.sources ?? []) {
+        if (isCatalogSource(name) && !sites.has(name)) sites.set(name, { name, api })
+      }
+    }
     return [...sites.values()]
   })
+  const sourceGroups = $derived([
+    { title: '推荐资源', sites: detailSites.filter(site => site.recommendation) },
+    { title: '其他资源', sites: detailSites.filter(site => !site.recommendation) },
+  ])
   const matchedSources = $derived.by(() => {
     const bySite = new Map<string, Source>()
     for (const item of visibleWork?.sources ?? []) {
@@ -351,6 +361,11 @@
     settings = { ...settings, [key]: value }
     write('settings', settings)
   }
+  async function openDanmakuSettings() {
+    show('settings')
+    await tick()
+    if (page === 'settings') danmakuDraft?.focus()
+  }
   function saveServer(event: SubmitEvent) {
     event.preventDefault()
     const address = server.trim().replace(/\/+$/, '')
@@ -498,26 +513,30 @@
         </button>
       </div>
     </div>
-    <section class="detail-section" aria-labelledby="source-heading">
-      <h2 id="source-heading">资源</h2>
-      <div class="source-grid">
-        {#each detailSites as site (site.name)}
-          {@const item = matchedSources.get(site.name)}
-          {@const active = !!item && sameSource(item, source)}
-          {@const key = item ? sourceKey(item) : ''}
-          {@const cached = item && details.cached(key)}
-          {@const busy = item ? (active && detailBusy) || (!cached && !details.state(key))
-            : detailFromResults && searchBusy && !settledSearchSites.has(site.name)}
-          <button class="choice source-choice" aria-pressed={active}
-            aria-busy={busy}
-            disabled={!item || (cached ? !cached.lines.length : details.state(key) === 'empty')}
-            onclick={() => { if (item && !active) void loadDetail(item) }}>
-            <span>{displaySourceName(site.name)}</span>
-            {#if busy}<span class="spinner" aria-hidden="true"></span>{/if}
-          </button>
-        {/each}
-      </div>
-    </section>
+    {#each sourceGroups as group, index (group.title)}
+      {#if group.sites.length}
+        <section class="detail-section" aria-labelledby={'source-heading-' + index}>
+          <h2 id={'source-heading-' + index}>{group.title}</h2>
+          <div class="source-grid">
+            {#each group.sites as site (site.name)}
+              {@const item = matchedSources.get(site.name)}
+              {@const active = !!item && sameSource(item, source)}
+              {@const key = item ? sourceKey(item) : ''}
+              {@const cached = item && details.cached(key)}
+              {@const busy = item ? (active && detailBusy) || (!cached && !details.state(key))
+                : detailFromResults && searchBusy && !settledSearchSites.has(site.name)}
+              <button class="choice source-choice" aria-pressed={active}
+                aria-busy={busy}
+                disabled={!item || (cached ? !cached.lines.length : details.state(key) === 'empty')}
+                onclick={() => { if (item && !active) void loadDetail(item) }}>
+                <span>{displaySourceName(site.name)}</span>
+                {#if busy}<span class="spinner" aria-hidden="true"></span>{/if}
+              </button>
+            {/each}
+          </div>
+        </section>
+      {/if}
+    {/each}
     <section class="detail-section" aria-labelledby="episode-heading">
       <h2 id="episode-heading">选集</h2>
       {#if !detailBusy && detailError}
@@ -537,7 +556,7 @@
     {#if Player}
       <Player {selection} episode={video} {settings} {inherited}
         playbackEpisodes={line?.episodes ?? []}
-        onBack={() => back('detail')} onSelectEpisode={play} />
+        onBack={() => back('detail')} onDanmakuSettings={openDanmakuSettings} onSelectEpisode={play} />
     {:else if playerLoadFailed}
       <p role="alert">播放器加载失败</p>
       <button class="quiet mt-4" onclick={() => back('detail')}>← 返回</button>

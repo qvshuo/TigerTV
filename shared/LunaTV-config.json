@@ -8,7 +8,8 @@
     "ikunzy.com": {
       "name": "🎬iKun资源",
       "api": "https://ikunzyapi.com/api.php/provide/vod",
-      "detail": "https://ikunzy.com"
+      "detail": "https://ikunzy.com",
+      "recommendation": "ad_filter_verified"
     },
     "dyttzyapi.com": {
       "name": "🎬电影天堂",
@@ -28,7 +29,8 @@
     "360zy.com": {
       "name": "🎬360 资源",
       "api": "https://360zyzz.com/api.php/provide/vod",
-      "detail": "https://360zy.com"
+      "detail": "https://360zy.com",
+      "recommendation": "ad_filter_verified"
     },
     "jszyapi.com": {
       "name": "🎬极速资源",
@@ -38,7 +40,8 @@
     "www.moduzy.net": {
       "name": "🎬魔都资源",
       "api": "https://www.mdzyapi.com/api.php/provide/vod",
-      "detail": "https://www.moduzy.net"
+      "detail": "https://www.moduzy.net",
+      "recommendation": "ad_filter_verified"
     },
     "ffzyapi.com": {
       "name": "🎬非凡资源",
@@ -73,17 +76,20 @@
     "api.guangsuapi.com": {
       "name": "🎬光速资源",
       "api": "https://api.guangsuapi.com/api.php/provide/vod",
-      "detail": "https://api.guangsuapi.com"
+      "detail": "https://api.guangsuapi.com",
+      "recommendation": "no_gambling_in_samples"
     },
     "www.hongniuzy.com": {
       "name": "🎬红牛资源",
       "api": "https://www.hongniuzy2.com/api.php/provide/vod",
-      "detail": "https://www.hongniuzy.com"
+      "detail": "https://www.hongniuzy.com",
+      "recommendation": "no_gambling_in_samples"
     },
     "caiji.moduapi.cc": {
       "name": "🎬魔都动漫",
       "api": "https://caiji.moduapi.cc/api.php/provide/vod",
-      "detail": "https://caiji.moduapi.cc"
+      "detail": "https://caiji.moduapi.cc",
+      "recommendation": "ad_filter_verified"
     },
     "www.ryzyw.com": {
       "name": "🎬如意资源",
@@ -93,12 +99,14 @@
     "www.haohuazy.com": {
       "name": "🎬豪华资源",
       "api": "https://hhzyapi.com/api.php/provide/vod",
-      "detail": "https://www.haohuazy.com"
+      "detail": "https://www.haohuazy.com",
+      "recommendation": "no_gambling_in_samples"
     },
     "bdzy1.com": {
       "name": "🎬百度云zy",
       "api": "https://pz.v88.qzz.io/?url=https://api.apibdzy.com/api.php/provide/vod",
-      "detail": "https://bdzy1.com"
+      "detail": "https://bdzy1.com",
+      "recommendation": "no_gambling_in_samples"
     },
     "lovedan.net": {
       "name": "🎬艾旦影视",

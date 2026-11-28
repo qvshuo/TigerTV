@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import { createMetadata, loadSources, metadataPrefix } from '../server/metadata.ts'
 
 const sources = loadSources({ api_site: {
-  first: { name: '🎬 Alpha', api: 'https://catalog.test/api?ac=list&keep=1' },
+  first: { name: '🎬 Alpha', api: 'https://catalog.test/api?ac=list&keep=1', recommendation: 'ad_filter_verified' },
   second: { name: '🎬 Beta', api: 'https://beta.test/api' },
   duplicate: { name: '🎬 Same', api: 'https://beta.test/api' },
   proxy: { name: '🎬 Wrapper', api: 'https://wrapped.test/api?url=x' },
@@ -30,7 +30,9 @@ test('metadata routes keep source order, enforce CORS and project only catalog f
     handle(new Request('http://localhost' + metadataPrefix + path, options))
   const config = await call('config', { headers: { Origin: 'https://web.test' } })
   expect(config.headers.get('Access-Control-Allow-Origin')).toBe('https://web.test')
-  expect(Object.keys((await config.json()).api_site)).toEqual(['first', 'second'])
+  const catalog = (await config.json()).api_site
+  expect(Object.keys(catalog)).toEqual(['first', 'second'])
+  expect(catalog.first.recommendation).toBe('ad_filter_verified')
   expect((await call('config', { headers: { Origin: 'https://other.test' } })).headers.has('Access-Control-Allow-Origin')).toBe(false)
   for (const [route, status] of [
     ['detail/other?id=1', 404], ['search/proxy?q=x', 404], ['search/first?q=x&page=101', 400],

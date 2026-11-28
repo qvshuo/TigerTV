@@ -2,10 +2,11 @@ import doubanCategories from '../../shared/douban-categories.json' with { type: 
 import networkTimeouts from '../../shared/network-timeouts.json' with { type: 'json' }
 import { object, parseJson, readText } from '../common/http.ts'
 import { hotLimit, posterKey } from '../common/douban.ts'
+import { isCatalogSource, sourceRecommendation, type SourceRecommendation } from '../common/source-config.ts'
 import { foldWidth } from './common/text.ts'
 export { object, parseJson }
 
-export type Site = { name: string; api: string; gateway?: string }
+export type Site = { name: string; api: string; gateway?: string; recommendation?: SourceRecommendation }
 export const displaySourceName = (name: string) => name.replaceAll("🎬", "").trim()
 export type Source = { site: Site; id: number; title: string; year: string; poster: string; remarks: string; category?: string; area?: string }
 export const sourceIdentity = (source: Source) => [source.site.name, source.id] as const
@@ -69,8 +70,10 @@ export function parseConfig(raw: unknown): GatewaySite[] {
     const entry = object(value)
     const name = scalar(entry.name)
     const api = scalar(entry.api)
-    if (name.includes('🎬') && !('_comment' in entry) && api && !sites.has(api) &&
-      /^[a-z0-9_.-]+$/i.test(key) && (entry.gateway === undefined || entry.gateway === key)) sites.set(api, { name, api, gateway: key })
+    if (!isCatalogSource(name) || '_comment' in entry || !api || sites.has(api) ||
+      !/^[a-z0-9_.-]+$/i.test(key) || (entry.gateway !== undefined && entry.gateway !== key)) continue
+    const recommendation = sourceRecommendation(entry.recommendation)
+    sites.set(api, { name, api, gateway: key, ...(recommendation && { recommendation }) })
   }
   if (!sites.size) throw new Error('找不到可用资源站')
   return [...sites.values()]

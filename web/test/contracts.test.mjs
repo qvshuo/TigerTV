@@ -34,6 +34,9 @@ test('MacCMS input, first-arrival identity, preserved parameters and playback gr
     c: { name: '🎬C', api: 'https://c.example', _comment: null },
   } })
   assert.deepEqual(config, [{ name: '🎬A', api: 'https://a.example', gateway: 'a' }])
+  assert.deepEqual(parseConfig(json('config')).map(({ name, recommendation }) => [name, recommendation]), [
+    ['🎬-爱奇艺-', 'ad_filter_verified'], ['🎬金鹰点播', undefined], ['🎬抽样来源', 'no_gambling_in_samples'],
+  ])
   assert.equal(webUrl('https://media.example/剧集%2F/第一集.m3u8?token=猫+2'),
     'https://media.example/%E5%89%A7%E9%9B%86%2F/%E7%AC%AC%E4%B8%80%E9%9B%86.m3u8?token=%E7%8C%AB+2')
 })

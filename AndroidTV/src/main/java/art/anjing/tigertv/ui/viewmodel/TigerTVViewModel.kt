@@ -25,6 +25,7 @@ import art.anjing.tigertv.domain.RecentPlayback
 import art.anjing.tigertv.domain.FetchResponse
 import art.anjing.tigertv.domain.VideoWork
 import art.anjing.tigertv.domain.SearchResult
+import art.anjing.tigertv.domain.SourceSite
 import art.anjing.tigertv.data.normalizeCoverUrl
 import coil3.SingletonImageLoader
 import coil3.request.CachePolicy
@@ -121,7 +122,7 @@ class TigerTVViewModel(
         private set
     val availableSources: List<SearchResult>
         get() = selectedWork?.sources.orEmpty()
-    var configuredSites by mutableStateOf<List<String>>(emptyList())
+    var configuredSites by mutableStateOf<List<SourceSite>>(emptyList())
         private set
     private var settledSearchSites by mutableStateOf<Set<String>>(emptySet())
     fun isSiteSearching(site: String): Boolean = recentWork == null && isSearching && site !in settledSearchSites
@@ -335,7 +336,7 @@ class TigerTVViewModel(
         configJob = viewModelScope.launch {
             val result = repository.loadConfig()
             ensureActive()
-            if (result is Result.Success) configuredSites = result.data.apiSite.values.map { it.name }.distinct()
+            if (result is Result.Success) configuredSites = result.data.apiSite.values.distinctBy { it.name }
             configErrorMessage = when (result) {
                 is Result.Success -> null
                 is Result.Error -> "资源暂不可用"

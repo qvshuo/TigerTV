@@ -4,12 +4,24 @@
     "iqiyi.example": {
       "name": "🎬-爱奇艺-",
       "api": "https://api.example-iqiyi.com/api.php/provide/vod",
-      "detail": "https://example-iqiyi.com"
+      "detail": "https://example-iqiyi.com",
+      "recommendation": "ad_filter_verified"
     },
     "jinying.example": {
       "name": "🎬金鹰点播",
       "api": "https://api.example-jinying.com/api.php/provide/vod",
-      "detail": "https://example-jinying.com"
+      "detail": "https://example-jinying.com",
+      "recommendation": "unknown"
+    },
+    "sampled.example": {
+      "name": "🎬抽样来源",
+      "api": "https://sampled.example/api",
+      "recommendation": "no_gambling_in_samples"
+    },
+    "adult.example": {
+      "name": "🎬🔞排除来源",
+      "api": "https://adult.example/api",
+      "recommendation": "ad_filter_verified"
     },
     "disabled.example": {
       "name": "backup-disabled-source",

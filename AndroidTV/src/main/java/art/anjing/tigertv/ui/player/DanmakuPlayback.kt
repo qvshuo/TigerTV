@@ -76,7 +76,8 @@ internal fun DanmakuPlayback(
                     item { Text("选择弹幕", style = MaterialTheme.typography.headlineSmall) }
                     if (!state.isConfigured) {
                         item {
-                            ActionButton(onClick = onSettings, modifier = Modifier.focusRequester(entry).testTag("danmaku-open-settings")) {
+                            ActionButton(onClick = onSettings, height = UiMetrics.compactControlHeight,
+                                modifier = Modifier.focusRequester(entry).testTag("danmaku-open-settings")) {
                                 Text("前往设置")
                             }
                         }
@@ -85,8 +86,9 @@ internal fun DanmakuPlayback(
                             Row(Modifier.fillMaxWidth().padding(vertical = UiSpacing.sm),
                                 horizontalArrangement = Arrangement.spacedBy(UiSpacing.choiceColumn), verticalAlignment = Alignment.CenterVertically) {
                                 TvTextInput(keyword, { keyword = it }, ::match, entry, Modifier.weight(1f).testTag("danmaku-query"),
-                                    hint = "作品名称", focusedScale = 1f)
+                                    hint = "作品名称", focusedScale = 1f, height = UiMetrics.compactControlHeight)
                                 ActionButton(onClick = ::match, enabled = keyword.isNotBlank(),
+                                    height = UiMetrics.compactControlHeight,
                                     colors = primaryActionColors(),
                                     modifier = Modifier.testTag("danmaku-search")) { Text("搜索") }
                             }

@@ -33,7 +33,7 @@ import org.junit.runner.RunWith
 class DetailSourceScrollTest {
     @get:Rule val compose = createComposeRule()
 
-    @Test fun switchingSourcesKeepsTheFocusedResourceAtTheSameViewportPosition() = checkSourceSwitch()
+    @Test fun switchingSourcesKeepsTheFocusedResourceAtTheSameViewportPosition() = checkSourceSwitch(grouped = true)
     @Test fun shorterSynopsisKeepsTheResourcePosition() = checkSourceSwitch(shortSynopsis = true)
     @Test fun failedSourceKeepsTheResourceFocusUntilRemoteNavigation() = checkSourceSwitch(failDetail = true)
     @Test fun lateSourceResponseDoesNotUndoNewRemoteNavigation() = checkSourceSwitch(navigateWhileLoading = true)
@@ -45,9 +45,10 @@ class DetailSourceScrollTest {
 
     @Test fun rapidEpisodeNavigationKeepsFocusInLongLists() = checkSourceSwitch(rapidEpisodes = true)
 
-    private fun checkSourceSwitch(shortSynopsis: Boolean = false, failDetail: Boolean = false, navigateWhileLoading: Boolean = false, startsShort: Boolean = false, fontScale: Float = 1f, emptyEpisodes: Boolean = false, retryAgain: Boolean = false, navigateDuringRetry: Boolean = false, rapidEpisodes: Boolean = false) {
+    private fun checkSourceSwitch(shortSynopsis: Boolean = false, failDetail: Boolean = false, navigateWhileLoading: Boolean = false, startsShort: Boolean = false, fontScale: Float = 1f, emptyEpisodes: Boolean = false, retryAgain: Boolean = false, navigateDuringRetry: Boolean = false, rapidEpisodes: Boolean = false, grouped: Boolean = false) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val files = ConcurrentHashMap(mapOf("source" to """{"api_site":{"a":{"name":"🎬源甲","api":"https://a.test/api"},"b":{"name":"🎬源乙","api":"https://b.test/api"},"c":{"name":"🎬源丙","api":"https://c.test/api"}}}"""))
+        val recommendation = if (grouped) ""","recommendation":"ad_filter_verified"""" else ""
+        val files = ConcurrentHashMap(mapOf("source" to """{"api_site":{"a":{"name":"🎬源甲","api":"https://a.test/api"$recommendation},"b":{"name":"🎬源乙","api":"https://b.test/api"},"c":{"name":"🎬源丙","api":"https://c.test/api"}}}"""))
         val storage = object : Storage {
             override fun read(path: String) = files[path]
             override fun writeAtomic(path: String, text: String) { files[path] = text }
@@ -153,11 +154,15 @@ class DetailSourceScrollTest {
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN)
             compose.waitForIdle()
             compose.onNode(hasText("源甲") and hasClickAction()).assertIsFocused()
-            compose.onNodeWithText("源丙").assertIsDisplayed().assertIsNotEnabled()
-            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
+            if (grouped) {
+                compose.onNodeWithText("推荐资源").assertExists()
+                compose.onNodeWithText("其他资源").assertExists()
+            }
+            instrumentation.sendKeyDownUpSync(if (grouped) KeyEvent.KEYCODE_DPAD_DOWN else KeyEvent.KEYCODE_DPAD_RIGHT)
             compose.waitForIdle()
             val source = compose.onNode(hasText("源乙") and hasClickAction())
             source.assertIsFocused()
+            compose.onNodeWithText("源丙").assertIsDisplayed().assertIsNotEnabled()
             fun scrollPosition() = compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
                 .fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
             val before = source.fetchSemanticsNode().boundsInRoot

@@ -4,6 +4,7 @@ import { isIP } from 'node:net'
 import { object, parseJson, readBounded, readText } from '../common/http.ts'
 
 import { hotLimit, posterRoute } from '../common/douban.ts'
+import { isCatalogSource, sourceRecommendation, type SourceRecommendation } from '../common/source-config.ts'
 
 export const metadataPrefix = '/api/metadata/'
 const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15'
@@ -11,7 +12,7 @@ const categories = new Set(doubanCategories.map(({ collection }) => collection))
 const cardFields = ['vod_id', 'vod_name', 'vod_pic', 'vod_year', 'vod_remarks', 'type_name']
 const detailFields = [...cardFields, 'vod_content', 'vod_area', 'vod_play_from', 'vod_play_url']
 const operations = ['ac', 'wd', 'ids', 'pg', 'pagesize']
-type Site = { name: string; api: string; gateway: string }
+type Site = { name: string; api: string; gateway: string; recommendation?: SourceRecommendation }
 
 const trustedHttp = 'http://caiji.dyttzyapi.com/api.php/provide/vod'
 const trustedWrappers = new Set([
@@ -26,7 +27,7 @@ export function loadSources(raw: unknown, subset = '') {
   for (const [key, value] of Object.entries(object(object(raw).api_site))) {
     const { name, api, ...rest } = object(value)
     if ((selected.size && !selected.has(key)) || !/^[a-z0-9_.-]+$/i.test(key) ||
-      typeof name !== 'string' || !name.includes('🎬') || '_comment' in rest || typeof api !== 'string' || seen.has(api)) continue
+      typeof name !== 'string' || !isCatalogSource(name) || '_comment' in rest || typeof api !== 'string' || seen.has(api)) continue
     let url: URL | undefined
     try { url = new URL(api) } catch { /* Report rejected configured sources below. */ }
     const trusted = api === trustedHttp || trustedWrappers.has(api)
@@ -36,7 +37,8 @@ export function loadSources(raw: unknown, subset = '') {
       console.warn(`Unsupported metadata source: ${key}`)
       continue
     }
-    sites.set(key, { name, api, gateway: key })
+    const recommendation = sourceRecommendation(rest.recommendation)
+    sites.set(key, { name, api, gateway: key, ...(recommendation && { recommendation }) })
     seen.add(api)
   }
   if (!sites.size) throw new Error('No supported metadata sources configured')

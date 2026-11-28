@@ -16,9 +16,10 @@
   import ChoicePicker from './ChoicePicker.svelte'
 
   type Media = HTMLVideoElement | HlsJsVideoElement
-  let { selection, episode, settings, onBack, playbackEpisodes, onSelectEpisode, inherited }:
+  let { selection, episode, settings, onBack, onDanmakuSettings, playbackEpisodes, onSelectEpisode, inherited }:
     { selection: Selection; episode: Episode; settings: Settings; onBack: () => void; playbackEpisodes: Episode[];
-      onSelectEpisode: (index: number, options?: PlaybackOptions) => void; inherited?: PlaybackOptions } = $props()
+      onDanmakuSettings: () => void; onSelectEpisode: (index: number, options?: PlaybackOptions) => void;
+      inherited?: PlaybackOptions } = $props()
   let container = $state<TigerVideoSkin>()
   let player = $state<VideoPlayerElement>()
   let danmakuLayer = $state<HTMLDivElement>()
@@ -411,5 +412,9 @@
     <p class="muted picker-status" role="status">{danmaku.manualStatus}</p>
   {:else}
     <p class="muted">未设置弹幕服务地址</p>
+    <button type="button" class="primary mt-3" onclick={() => {
+      dialog?.close()
+      exit(onDanmakuSettings)
+    }}>前往设置</button>
   {/if}
 </dialog>

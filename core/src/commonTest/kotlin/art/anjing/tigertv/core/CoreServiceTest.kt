@@ -236,7 +236,9 @@ class CoreServiceTest {
     }
 
     @Test fun sharedRepositoryFixtures() = runTest {
-        assertEquals(2, parseConfig(contractFixtures.getValue("config.sample.json")).apiSite.size)
+        val sites = parseConfig(contractFixtures.getValue("config.sample.json")).apiSite.values
+        assertEquals(listOf("🎬-爱奇艺-" to "ad_filter_verified", "🎬金鹰点播" to null,
+            "🎬抽样来源" to "no_gambling_in_samples"), sites.map { it.name to it.recommendation?.code })
         val search = wireJson.decodeFromString<art.anjing.tigertv.domain.SearchResponse>(contractFixtures.getValue("search.sample.json"))
         val fetch = wireJson.decodeFromString<art.anjing.tigertv.domain.FetchResponse>(contractFixtures.getValue("fetch.sample.json"))
         assertEquals(1, search.works.first().sources.first().vodId)

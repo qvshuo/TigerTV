@@ -42,6 +42,7 @@ import art.anjing.tigertv.domain.EpisodeLink
 import art.anjing.tigertv.domain.FetchResponse
 import art.anjing.tigertv.domain.SearchResult
 import art.anjing.tigertv.domain.displaySourceName
+import art.anjing.tigertv.domain.isCatalogSource
 import art.anjing.tigertv.ui.components.UiSpacing
 import art.anjing.tigertv.ui.components.UiMetrics
 import art.anjing.tigertv.ui.components.ScreenTitle
@@ -158,33 +159,38 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                         val matched = sources.groupBy { it.site }.mapValues { (_, matches) ->
                             matches.firstOrNull { it.coverKey == result?.coverKey } ?: matches.first()
                         }
-                        val sites = (viewModel.configuredSites + sources.map { it.site }).distinct()
+                        val (recommended, other) = viewModel.configuredSites.partition { it.recommendation != null }
+                        val otherNames = if (viewModel.configuredSites.isEmpty()) matched.keys.filter(::isCatalogSource)
+                            else other.map { it.name }
                         Column(verticalArrangement = Arrangement.spacedBy(UiSpacing.choiceRow)) {
-                            SectionTitle("资源")
-                            val columns = 6
-                            sites.chunked(columns).forEach { row ->
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ChoiceGap)) {
-                                    row.forEach { site ->
-                                        key(site) {
-                                            val source = matched[site]
-                                            val active = source != null && source.coverKey == result?.coverKey
-                                            val busy = if (source == null) viewModel.isSiteSearching(site)
-                                                else (viewModel.isFetching && active) || viewModel.isDetailLoading(source)
-                                            ResourceChoice(displaySourceName(site), active,
-                                                loading = busy, enabled = source != null && !isEmpty(source),
-                                                modifier = Modifier.weight(1f).then(
-                                                    if (source != null && source.coverKey == focusSource?.coverKey) Modifier.focusRequester(sourceFocus) else Modifier
-                                                )) {
-                                                if (source != null && !active) {
-                                                    restoreRetryFocus = false
-                                                    sourceViewport = gridState.layoutInfo.visibleItemsInfo
-                                                        .firstOrNull { it.key == "sources" }?.let { it.index to -it.offset.y }
-                                                    viewModel.selectResult(source)
+                            for ((title, sites) in listOf("推荐资源" to recommended.map { it.name }, "其他资源" to otherNames)) {
+                                if (sites.isEmpty()) continue
+                                SectionTitle(title)
+                                val columns = 6
+                                sites.chunked(columns).forEach { row ->
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ChoiceGap)) {
+                                        row.forEach { site ->
+                                            key(site) {
+                                                val source = matched[site]
+                                                val active = source != null && source.coverKey == result?.coverKey
+                                                val busy = if (source == null) viewModel.isSiteSearching(site)
+                                                    else (viewModel.isFetching && active) || viewModel.isDetailLoading(source)
+                                                ResourceChoice(displaySourceName(site), active,
+                                                    loading = busy, enabled = source != null && !isEmpty(source),
+                                                    modifier = Modifier.weight(1f).then(
+                                                        if (source != null && source.coverKey == focusSource?.coverKey) Modifier.focusRequester(sourceFocus) else Modifier
+                                                    )) {
+                                                    if (source != null && !active) {
+                                                        restoreRetryFocus = false
+                                                        sourceViewport = gridState.layoutInfo.visibleItemsInfo
+                                                            .firstOrNull { it.key == "sources" }?.let { it.index to -it.offset.y }
+                                                        viewModel.selectResult(source)
+                                                    }
                                                 }
                                             }
                                         }
+                                        repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                                     }
-                                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                                 }
                             }
                         }

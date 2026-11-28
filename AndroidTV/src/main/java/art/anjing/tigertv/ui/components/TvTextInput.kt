@@ -41,6 +41,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
@@ -57,6 +58,7 @@ internal fun TvTextInput(
     hint: String,
     imeAction: ImeAction = ImeAction.Search,
     focusedScale: Float = UiMetrics.focusedScale,
+    height: Dp = UiMetrics.controlHeight,
 ) {
     val state = rememberTextFieldState(initialText = value)
     val onChange by rememberUpdatedState(onValueChange)
@@ -78,7 +80,7 @@ internal fun TvTextInput(
     BasicTextField(
         state = state,
         modifier = modifier
-            .height(UiMetrics.controlHeight)
+            .height(height)
             .focusRequester(focusRequester)
             .onFocusChanged {
                 isFocused = it.isFocused

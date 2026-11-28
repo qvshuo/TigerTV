@@ -50,8 +50,10 @@ fun parseConfig(raw: String): SourceConfig {
         val site = value as? JsonObject ?: continue
         val name = site.text("name")
         val api = site.text("api")
-        if ("🎬" !in name || "_comment" in site || api.isEmpty() || api in selected) continue
-        selected[api] = SourceSite(name, api, site.text("detail"))
+        if (!isCatalogSource(name) || "_comment" in site || api.isEmpty() || api in selected) continue
+        val recommendation = site.text("recommendation")
+        selected[api] = SourceSite(name, api, site.text("detail"),
+            SourceRecommendation.entries.firstOrNull { it.code == recommendation })
     }
     check(selected.isNotEmpty()) { "未找到可用站点，请检查配置格式或过滤条件" }
     return SourceConfig(selected)
