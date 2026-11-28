@@ -230,6 +230,7 @@ class PlayerRemoteTest {
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         chooseDanmakuAction(4)
         compose.onNodeWithTag("danmaku-options").assertExists()
+        compose.onNodeWithText("未设置弹幕服务地址").assertExists()
         compose.onNodeWithText("完成").assertDoesNotExist()
         compose.onNodeWithText("提前 1 秒").assertDoesNotExist()
         compose.onNodeWithTag("danmaku-open-settings").assertIsFocused()
@@ -278,6 +279,13 @@ class PlayerRemoteTest {
         compose.onNodeWithTag("danmaku-save").performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.onNodeWithTag("danmaku-save").assertIsNotEnabled()
         assertEquals("https://fixture.test", instrumentation.targetContext.getSharedPreferences("danmaku", 0).getString("server", ""))
+        compose.onNodeWithTag("danmaku-server").performTextReplacement("invalid")
+        compose.onNodeWithTag("danmaku-save").assertIsNotEnabled()
+        compose.onNodeWithTag("danmaku-server").performTextReplacement("")
+        compose.onNodeWithTag("danmaku-save").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        assertEquals("", instrumentation.targetContext.getSharedPreferences("danmaku", 0).getString("server", null))
+        compose.onNodeWithTag("danmaku-server").performTextReplacement("https://fixture.test")
+        compose.onNodeWithTag("danmaku-save").performSemanticsAction(SemanticsActions.OnClick) { it() }
         remote(KeyEvent.KEYCODE_BACK)
         if (compose.onAllNodesWithTag("danmaku-server").fetchSemanticsNodes().isNotEmpty()) {
             remote(KeyEvent.KEYCODE_BACK) // The IME can consume the first Back on TV.

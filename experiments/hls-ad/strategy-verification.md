@@ -31,6 +31,8 @@
 
 以上结果只覆盖短窗口，播放稳定性结合既有[实播与取证](./top10-playback-2026-11-16.json)和下文解码记录评估。推荐状态以来源配置为准。
 
+爱奇艺已验证可去广告，但抽测中下载速度不足以满足实时播放要求，因此未进入推荐列表。
+
 [FlowScan 1.0.0](https://github.com/ddysdev/flowscan-/tree/91d917875755a68f04ce4cc5bee3bb10832cf5b6) 通过注入拦截请求，按断点与 CUE 等标记判断，并用 HEAD 或短 Range GET 探测。历史静态分析确认 Last-Modified 参与判断，未证实 ETag 和 Content-Length 参与删除决策。TigerTV 使用收到的清单做识别。
 
 ## 通用策略复验 · 2026-11-28

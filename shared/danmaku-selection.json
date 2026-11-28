@@ -1,5 +1,5 @@
 {
-  "render": {"lifetimeMs": 8000, "areaRatio": 0.2, "fontRatio": 0.037, "lineHeight": 1.5, "gapEm": 1, "stroke": 1, "lanes": 4, "visibleLimit": 12, "statusFontRatio": 0.75, "statusDurationMs": 4000},
+  "render": {"lifetimeMs": 8000, "areaRatio": 0.15, "fontRatio": 0.03, "lineHeight": 1.5, "gapEm": 1, "stroke": 1, "lanes": 3, "visibleLimit": 12, "statusFontRatio": 0.75, "statusDurationMs": 4000},
   "platformPriority": [
     [
       "iqiyi",

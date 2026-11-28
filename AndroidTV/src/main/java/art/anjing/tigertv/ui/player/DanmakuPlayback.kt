@@ -75,6 +75,7 @@ internal fun DanmakuPlayback(
                     verticalArrangement = Arrangement.spacedBy(UiSpacing.choiceRow)) {
                     item { Text("选择弹幕", style = MaterialTheme.typography.headlineSmall) }
                     if (!state.isConfigured) {
+                        item { Text("未设置弹幕服务地址") }
                         item {
                             ActionButton(onClick = onSettings, height = UiMetrics.compactControlHeight,
                                 modifier = Modifier.focusRequester(entry).testTag("danmaku-open-settings")) {

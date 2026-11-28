@@ -47,7 +47,7 @@ internal fun SettingsScreen() {
     }
     val focus = remember { FocusRequester() }
     val address = draft.trim().trimEnd('/')
-    val valid = address.toHttpUrlOrNull()?.let { it.query == null && it.fragment == null } == true
+    val valid = address.isEmpty() || address.toHttpUrlOrNull()?.let { it.query == null && it.fragment == null } == true
     LaunchedEffect(Unit) { requestFocusSafely(focus) }
 
     Surface(Modifier.fillMaxSize()) {
