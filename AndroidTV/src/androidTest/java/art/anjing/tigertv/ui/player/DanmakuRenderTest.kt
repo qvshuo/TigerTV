@@ -39,7 +39,7 @@ class DanmakuRenderTest {
         try {
             main {
                 media=Media3Controller(context)
-                media.load(file.toURI().toString(),0,"时钟测试",site="fixture",onStarted={},onPosition={},onError={error(it)})
+                media.load(file.toURI().toString(),0,"时钟测试",onStarted={},onPosition={},onError={error(it)})
             }
             compose.setContent { AndroidView(factory={DanmakuView(it).also { v -> view=v;v.bind(media.player,data,true){null} }},modifier=Modifier.fillMaxSize()) }
             compose.waitUntil(10_000){main{media.player.playbackState==androidx.media3.common.Player.STATE_READY}}
@@ -107,7 +107,7 @@ class DanmakuRenderTest {
             compose.runOnIdle {
                 assertFalse(media.hasVideoFrame)
                 assertNull(checkNotNull(overlay(root)).contentDescription)
-                media.load(file.toURI().toString(), 0, "测试", "fixture", {}, {}, { error(it) })
+                media.load(file.toURI().toString(), 0, "测试", {}, {}, { error(it) })
                 media.play()
             }
             compose.waitUntil(10_000) {

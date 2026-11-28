@@ -126,7 +126,6 @@ class ResultsRemoteTest {
                 }
             }
             compose.onNodeWithText("热门推荐").assertIsDisplayed()
-            compose.onNodeWithText("热门推荐").assertDoesNotExist()
             compose.onNodeWithText("小老虎爱看剧").assertIsDisplayed()
             compose.onNodeWithText("继续观看").assertDoesNotExist()
             val recommendation = hasText("热门验收 (2026)") and hasClickAction()

@@ -22,8 +22,6 @@ fun configureClient(client: HttpClient) = client.config {
     install(HttpTimeout)
 }
 
-internal data class NetworkResponse(val url: String, val text: String, val domains: Set<String>)
-
 @Serializable
 internal data class NetworkTimeouts(
     val catalogRequestMs: Long, val searchSiteMs: Long, val recommendationRequestMs: Long, val configRequestMs: Long,
@@ -31,58 +29,43 @@ internal data class NetworkTimeouts(
 internal val networkTimeouts by lazy { Json.decodeFromString<NetworkTimeouts>(networkTimeoutsJson) }
 
 class Network(private val client: HttpClient) {
-    suspend fun get(url: String, timeoutMillis: Long = networkTimeouts.catalogRequestMs,
+    suspend fun get(
+        url: String, timeoutMillis: Long = networkTimeouts.catalogRequestMs,
         extraHeaders: Map<String, String> = emptyMap(), socketTimeoutMillis: Long = minOf(10_000, timeoutMillis),
-    ): String = response(url, timeoutMillis, extraHeaders, socketTimeoutMillis = socketTimeoutMillis).text
-
-    internal suspend fun response(
-        url: String, timeoutMillis: Long = networkTimeouts.catalogRequestMs, extraHeaders: Map<String, String> = emptyMap(),
-        skipMediaBody: Boolean = false, socketTimeoutMillis: Long = minOf(10_000, timeoutMillis),
-        connectTimeoutMillis: Long = minOf(5_000, timeoutMillis), headersOnly: Boolean = false, onRequest: suspend (String) -> Unit = {},
-        onRedirect: suspend (String) -> Unit = {},
-    ): NetworkResponse = withTimeoutOrNull(timeoutMillis) {
+    ): String = withTimeoutOrNull(timeoutMillis) {
         val socketDeadline = socketTimeoutMillis
+        val connectDeadline = minOf(5_000, timeoutMillis)
         var current = normalizeUrl(url)
-        val domains = mutableSetOf<String>()
         repeat(11) { hop ->
-            domains += domain(current)
-            onRequest(current)
             var redirect: String? = null
             val result = client.prepareRequest(current) {
                 header(HttpHeaders.UserAgent, USER_AGENT)
                 extraHeaders.forEach { (name, value) -> header(name, value) }
                 timeout {
                     requestTimeoutMillis = timeoutMillis
-                    this.connectTimeoutMillis = connectTimeoutMillis
+                    connectTimeoutMillis = connectDeadline
                     this.socketTimeoutMillis = socketDeadline
                 }
             }.execute { response ->
                 if (response.status.value in listOf(301, 302, 303, 307, 308)) {
                     redirect = resolveUrl(current, response.headers[HttpHeaders.Location] ?: error("Missing redirect location"))
-                    onRedirect(checkNotNull(redirect))
                     check(hop < 10) { "Too many redirects" }
                     null
                 } else {
                     check(response.status.isSuccess()) { "HTTP ${response.status.value}" }
-                    val type = response.headers[HttpHeaders.ContentType].orEmpty().substringBefore(';').lowercase()
-                    val media = skipMediaBody && (type.startsWith("video/") ||
-                        type.startsWith("audio/") && !type.contains("mpegurl"))
-                    if (headersOnly || media) NetworkResponse(current, "", domains.toSet())
-                    else {
-                        check((response.headers[HttpHeaders.ContentLength]?.toLongOrNull() ?: 0) <= MAX_RESPONSE_SIZE) { "Response exceeds 10 MiB limit" }
-                        val channel = response.bodyAsChannel()
-                        var bytes = ByteArray(8192)
-                        var size = 0
-                        while (true) {
-                            coroutineContext.ensureActive()
-                            if (size == bytes.size) bytes = bytes.copyOf(minOf(bytes.size * 2, MAX_RESPONSE_SIZE + 1))
-                            val read = channel.readAvailable(bytes, size, bytes.size - size)
-                            if (read == -1) break
-                            size += read
-                            check(size <= MAX_RESPONSE_SIZE) { "Response exceeds 10 MiB limit" }
-                        }
-                        NetworkResponse(current, bytes.decodeToString(0, size), domains.toSet())
+                    check((response.headers[HttpHeaders.ContentLength]?.toLongOrNull() ?: 0) <= MAX_RESPONSE_SIZE) { "Response exceeds 10 MiB limit" }
+                    val channel = response.bodyAsChannel()
+                    var bytes = ByteArray(8192)
+                    var size = 0
+                    while (true) {
+                        coroutineContext.ensureActive()
+                        if (size == bytes.size) bytes = bytes.copyOf(minOf(bytes.size * 2, MAX_RESPONSE_SIZE + 1))
+                        val read = channel.readAvailable(bytes, size, bytes.size - size)
+                        if (read == -1) break
+                        size += read
+                        check(size <= MAX_RESPONSE_SIZE) { "Response exceeds 10 MiB limit" }
                     }
+                    bytes.decodeToString(0, size)
                 }
             }
             if (result != null) return@withTimeoutOrNull result
@@ -116,7 +99,3 @@ fun apiUrl(api: String, parameters: Map<String, String>): String {
 fun resolveUrl(base: String, relative: String): String = URLBuilder(normalizeUrl(base)).apply {
     takeFrom(normalizeUrl(relative))
 }.buildString()
-
-fun domain(raw: String): String = Url(normalizeUrl(if ("://" in raw) raw else "http://$raw")).host
-
-fun percentDecode(raw: String): String = runCatching { raw.decodeURLPart() }.getOrDefault(raw)

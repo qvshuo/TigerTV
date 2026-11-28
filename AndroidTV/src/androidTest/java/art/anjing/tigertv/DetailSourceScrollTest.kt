@@ -69,7 +69,7 @@ class DetailSourceScrollTest {
             }
             val content = if (secondDetail) { if (shortSynopsis) "简短介绍" else longSynopsis } else synopsis
             if (secondDetail && failDetail) respond("""{"code":0,"msg":"fixture failure","list":[]}""")
-            else respond("""{"code":1,"list":[{"vod_id":1,"vod_name":"切源测试","vod_director":"导演甲","vod_actor":"主演甲","vod_content":"$content","vod_play_from":"主线","vod_play_url":"${if (secondDetail && emptyEpisodes) "" else episodes}"}]}""")
+            else respond("""{"code":1,"list":[{"vod_id":1,"vod_name":"切源测试","vod_year":"2026","vod_director":"导演甲","vod_actor":"主演甲","vod_content":"$content","vod_play_from":"主线","vod_play_url":"${if (secondDetail && emptyEpisodes) "" else episodes}"}]}""")
         })))
         val store = ViewModelStore()
         lateinit var model: TigerTVViewModel

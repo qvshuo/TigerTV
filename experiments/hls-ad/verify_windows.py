@@ -3,7 +3,7 @@
 import argparse,json,pathlib,re,subprocess
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('snapshot',type=pathlib.Path);p.add_argument('review',type=pathlib.Path);p.add_argument('source');p.add_argument('classpath');p.add_argument('start',type=int);p.add_argument('end',type=int);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('snapshot',type=pathlib.Path);p.add_argument('review',type=pathlib.Path);p.add_argument('classpath');p.add_argument('start',type=int);p.add_argument('end',type=int);a=p.parse_args()
     lines=a.snapshot.with_name('playlist.m3u8').read_text().splitlines();header=[];blocks=[];pending=[];key=None
     for line in lines:
         if line.startswith('#EXT-X-KEY:'):key=line
@@ -18,7 +18,8 @@ def main():
             previous=key
         out+=block;cache[block[-1]]=a.review/f'segment-{i}.ts'
     out.append('#EXT-X-ENDLIST');original=a.review/'original-private.m3u8';filtered=a.review/'filtered-private.m3u8';original.write_text('\n'.join(out)+'\n')
-    result=subprocess.run(['java','-cp',a.classpath,'FilterPlaylist',a.source,str(original),str(filtered)],capture_output=True,text=True,check=True)
+    base=json.loads(a.snapshot.read_text())['base']
+    result=subprocess.run(['java','-cp',a.classpath,'FilterPlaylist',base,str(original),str(filtered)],capture_output=True,text=True,check=True)
     assert result.stdout.strip()!='unchanged','Expected reviewed complete group to match'
     localized=[]
     for line in filtered.read_text().splitlines():

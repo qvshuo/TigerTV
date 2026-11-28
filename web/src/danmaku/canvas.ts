@@ -5,7 +5,7 @@ const render = selectionRules.render
 const lifetime = render.lifetimeMs / 1000
 type Active = { comment: Comment; text: string; width: number; lane: number }
 type Layout = {
-  track: Track; width: number; height: number; time: number; cursor: number;
+  track: Track; width: number; height: number; font: number; time: number; cursor: number;
   widths: Map<string, number>; active: Active[]; lanes: (Active | undefined)[]
 }
 const layouts = new WeakMap<HTMLCanvasElement, Layout>()
@@ -17,7 +17,7 @@ export function fitsDanmaku(width: number, previous: number, incoming: number, e
     width - (1 - phase) * (width + incoming) >= gap
 }
 
-export function drawComments(canvas: HTMLCanvasElement, track: Track | undefined, time: number, reset = false) {
+export function drawComments(canvas: HTMLCanvasElement, track: Track | undefined, time: number, font: number, reset = false) {
   const width = canvas.clientWidth
   const height = canvas.clientHeight
   const scale = Math.min(2, devicePixelRatio)
@@ -27,13 +27,12 @@ export function drawComments(canvas: HTMLCanvasElement, track: Track | undefined
   if (!ctx) return Infinity
   ctx.setTransform(scale, 0, 0, scale, 0, 0)
   ctx.clearRect(0, 0, width, height)
-  if (!track || !width || !height) { layouts.delete(canvas); return Infinity }
-  const font = height / render.areaRatio * render.fontRatio
+  if (!track || !width || !height || !font) { layouts.delete(canvas); return Infinity }
   const row = font * render.lineHeight
   const lanes = Math.max(1, Math.min(render.lanes, Math.floor(height / row)))
   ctx.font = `700 ${font}px system-ui, sans-serif`
   let layout = layouts.get(canvas)
-  if (!layout || layout.track !== track || layout.width !== width || layout.height !== height ||
+  if (!layout || layout.track !== track || layout.width !== width || layout.height !== height || layout.font !== font ||
       reset || time < layout.time || time - layout.time > 1.5) {
     let low = 0
     let high = track.comments.length
@@ -42,8 +41,8 @@ export function drawComments(canvas: HTMLCanvasElement, track: Track | undefined
       if (track.comments[mid].time < time - 2 * lifetime) low = mid + 1
       else high = mid
     }
-    const widths = layout?.height === height ? layout.widths : new Map<string, number>()
-    layout = { track, width, height, time, cursor: low, widths, active: [], lanes: Array(lanes) }
+    const widths = layout?.font === font ? layout.widths : new Map<string, number>()
+    layout = { track, width, height, font, time, cursor: low, widths, active: [], lanes: Array(lanes) }
     layouts.set(canvas, layout)
   }
   const state = layout

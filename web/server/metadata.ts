@@ -44,7 +44,7 @@ export function loadSources(raw: unknown, subset = '') {
 }
 
 export async function configuredMetadata() {
-  const config = Bun.env.TIGERTV_CONFIG || new URL('../../skills/references/LunaTV-config.json', import.meta.url)
+  const config = Bun.env.TIGERTV_CONFIG || new URL('../../shared/LunaTV-config.json', import.meta.url)
   const sites = loadSources(await Bun.file(config).json(), Bun.env.TIGERTV_SITES)
   return createMetadata(sites, Bun.env.TIGERTV_WEB_ORIGIN)
 }

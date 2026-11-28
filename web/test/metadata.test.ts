@@ -96,7 +96,7 @@ test('serves only public Douban JPEG posters with the required referer', async (
 })
 
 test('default HTTP and nested metadata endpoints keep a fixed upstream', async () => {
-  const raw = await Bun.file(new URL('../../skills/references/LunaTV-config.json', import.meta.url)).json()
+  const raw = await Bun.file(new URL('../../shared/LunaTV-config.json', import.meta.url)).json()
   const sites = loadSources(raw)
   const expected = new Set(['dyttzyapi.com', 'bdzy1.com', 'lovedan.net'])
   const handle = createMetadata(sites, '', async (target, init) => {

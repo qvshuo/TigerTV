@@ -22,6 +22,8 @@
   let container = $state<TigerVideoSkin>()
   let player = $state<VideoPlayerElement>()
   let danmakuLayer = $state<HTMLDivElement>()
+  let windowedPlayerSize: { width: number; height: number } | undefined
+  let danmakuFontSize = 0
   let canvas = $state<HTMLCanvasElement>()
   let dialog = $state<HTMLDialogElement>()
   let episodeDialog = $state<HTMLDialogElement>()
@@ -29,7 +31,6 @@
   let duration = $state(0)
   let volume = $state(1)
   let muted = $state(false)
-  let speed = $state(1)
   let removed = $state.raw<Interval[]>([])
   const danmaku = danmakuSession(
     () => selection, () => settings.danmakuServer, () => inherited?.danmakuEnabled,
@@ -108,7 +109,7 @@
     const url = webUrl(link)
     duration = 0
     removed = []
-    speed = priorOptions?.speed ?? getSpeed(session.work.id, prefs.rememberSpeed)
+    let speed = getSpeed(session.work.id, prefs.rememberSpeed)
     const volumeSettings = priorOptions ?? getVolume(prefs.rememberVolume)
     volume = volumeSettings.volume
     muted = volumeSettings.muted
@@ -152,12 +153,22 @@
         const contentHeight = Math.min(height, width / aspect)
         overlay.style.width = `${contentWidth}px`
         overlay.style.blockSize = `${contentHeight * danmakuRules.render.areaRatio}px`
-        overlay.style.fontSize = `${contentHeight * danmakuRules.render.fontRatio * danmakuRules.render.statusFontRatio}px`
         overlay.style.left = `${(width - contentWidth) / 2}px`
         overlay.style.top = `${(height - contentHeight) / 2}px`
+        const fullscreen = document.fullscreenElement
+        if (!windowedPlayerSize || !fullscreen || !mount.contains(fullscreen)) {
+          windowedPlayerSize = { width: mount.clientWidth, height: mount.clientHeight }
+        }
+        const fontSize = Math.min(windowedPlayerSize.height, windowedPlayerSize.width / aspect) * danmakuRules.render.fontRatio
+        if (fontSize !== danmakuFontSize) {
+          danmakuFontSize = fontSize
+          overlay.style.fontSize = `${fontSize * danmakuRules.render.statusFontRatio}px`
+          wakeDanmaku(true)
+        }
       }
       const layout = new ResizeObserver(placeDanmaku)
       layout.observe(el)
+      layout.observe(mount)
       on('resize', placeDanmaku)
       for (const event of ['waiting', 'seeking']) on(event, () => { buffering = true; wakeDanmaku(event === 'seeking') })
       on('playing', () => { buffering = false; wakeDanmaku() })
@@ -182,7 +193,9 @@
       on('pause', save)
       on('seeked', save)
       on('ratechange', () => {
+        if (el.playbackRate === speed) return
         speed = el.playbackRate
+        el.defaultPlaybackRate = speed
         saveSpeed(session.work.id, speed, prefs.rememberSpeed)
       })
       on('volumechange', () => {
@@ -196,7 +209,7 @@
         savePosition(session, 0, 100)
         lastSaved = 0
         if (settings.autoNext && playbackEpisodes[session.index + 1]) onSelectEpisode(session.index + 1, {
-          speed: el.playbackRate, volume: el.volume, muted: el.muted, danmakuEnabled: danmaku.enabled,
+          volume: el.volume, muted: el.muted, danmakuEnabled: danmaku.enabled,
         })
       })
       on('error', () => {
@@ -238,16 +251,24 @@
       placeDanmaku()
       el.volume = volume
       el.muted = muted
+      el.defaultPlaybackRate = speed
       el.playbackRate = speed
       if (el instanceof HTMLVideoElement) el.src = url
       else {
+        const filtering = hlsLoader?.(intervals => {
+          if (active && media === el) {
+            const changed = removed.length !== intervals.length ||
+              removed.some(({ start, end }, index) => start !== intervals[index].start || end !== intervals[index].end)
+            removed = intervals
+            if (changed) wakeDanmaku(true)
+          }
+        })
+        if (filtering) el.addEventListener('loadedmetadata', () => {
+          if (el.engine) events.signal.addEventListener('abort', filtering.bind(el.engine), { once: true })
+        }, { once: true, signal: events.signal })
         el.source = {
           src: url, type: 'application/vnd.apple.mpegurl', preferPlayback: 'mse',
-          engine: hlsLoader ? { hlsJs: { pLoader: hlsLoader(intervals => {
-            if (active && media === el) {
-              removed = intervals
-            }
-          }) } } : undefined,
+          engine: filtering ? { hlsJs: { pLoader: filtering.pLoader } } : undefined,
         }
       }
     }
@@ -288,7 +309,7 @@
       frame = 0
       const el = media
       const time = el?.currentTime ?? 0
-      const next = drawComments(element!, selected, time, reset)
+      const next = drawComments(element!, selected, time, danmakuFontSize, reset)
       reset = false
       if (!selected || !el || el.paused || el.seeking || buffering || el.ended) return
       if (next === 0) frame = requestAnimationFrame(paint)

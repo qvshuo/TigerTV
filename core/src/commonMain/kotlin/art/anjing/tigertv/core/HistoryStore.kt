@@ -99,17 +99,18 @@ internal class HistoryStore(
         catch (e: Exception) { log("保存播放记录", e) }
     }
 
-    suspend fun history(): List<String> = historyMutex.withLock {
-        cacheRead { wireJson.decodeFromString<List<String>>(storage.read(historyPath) ?: "[]").take(productDefaults.searchHistoryLimit) }.orEmpty()
-    }
+    suspend fun history(): List<String> = historyMutex.withLock { readHistory() }
+
+    private fun readHistory(): List<String> =
+        cacheRead { wireJson.decodeFromString<List<String>>(storage.read(historyPath) ?: "[]") }
+            .orEmpty().take(productDefaults.searchHistoryLimit)
 
     suspend fun addHistory(item: String) = updateHistory { (listOf(item) + it).distinct() }
     suspend fun removeHistory(item: String) = updateHistory { it.filterNot { saved -> saved == item } }
     suspend fun clearHistory() = updateHistory { emptyList() }
 
     private suspend fun updateHistory(update: (List<String>) -> List<String>) = historyMutex.withLock {
-        val saved = cacheRead { wireJson.decodeFromString<List<String>>(storage.read(historyPath) ?: "[]") }
-            .orEmpty().take(productDefaults.searchHistoryLimit)
+        val saved = readHistory()
         try { storage.writeAtomic(historyPath, wireJson.encodeToString(update(saved).take(productDefaults.searchHistoryLimit))) }
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { log("保存搜索历史", e) }

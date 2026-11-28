@@ -8,7 +8,19 @@ val generateContractFixtures = tasks.register("generateContractFixtures") {
     inputs.dir(source)
     outputs.file(output)
     doLast {
-        fun literal(text: String) = "\"" + text.replace("\\", "\\").replace("\"", "\"").replace("\n", "\\n").replace("\r", "\\r").replace("$", "\\$") + "\""
+        fun literal(text: String) = buildString {
+            append('"')
+            for (char in text) when (char) {
+                '\\' -> append("\\\\")
+                '"' -> append("\\\"")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                '$' -> append("\\$")
+                else -> if (char.isISOControl()) append("\\u${char.code.toString(16).padStart(4, '0')}") else append(char)
+            }
+            append('"')
+        }
         output.get().asFile.apply {
             parentFile.mkdirs()
             writeText("package art.anjing.tigertv.core\ninternal val contractFixtures = mapOf(\n" + source.listFiles()!!.sortedBy { it.name }.joinToString(",\n") { literal(it.name) + " to " + literal(it.readText()) } + "\n)\n")

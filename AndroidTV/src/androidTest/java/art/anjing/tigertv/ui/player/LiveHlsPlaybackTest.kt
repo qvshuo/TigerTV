@@ -21,7 +21,7 @@ class LiveHlsPlaybackTest {
         assumeNotNull(url, site)
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val intent = Intent(context, SeekProbeActivity::class.java).setData(url!!.toUri())
-            .putExtra("site", site).putExtra("start_ms", 0L).putExtra("end_ms", 1L)
+            .putExtra("start_ms", 0L).putExtra("end_ms", 1L)
         ActivityScenario.launch<SeekProbeActivity>(intent).use { scenario ->
             fun <T> onPlayer(block: (Media3Controller) -> T): T {
                 var value: T? = null

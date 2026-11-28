@@ -7,7 +7,7 @@ class HlsAdFilterTest {
     @Test fun sharedWebFixturePreservesTheOriginalKeyAndRemovesTheSameInterval() {
         val fixture = Json.parseToJsonElement(contractFixtures.getValue("hls-filter.sample.json")).jsonObject
         val input = fixture.getValue("playlist").jsonPrimitive.content
-        val result = filterSmartHlsAds(input, fixture.getValue("host").jsonPrimitive.content)!!
+        val result = filterSmartHlsAds(input, "https://fixtures.example/video.m3u8")!!
         assertEquals(fixture.getValue("expected").jsonPrimitive.content, result.playlist)
         assertEquals(listOf(MediaInterval(fixture.getValue("startMs").jsonPrimitive.long,
             fixture.getValue("endMs").jsonPrimitive.long)), result.removed)
@@ -28,18 +28,25 @@ class HlsAdFilterTest {
         }
     }
 
-    @Test fun sharedSourceProfilesKeepUnknownAndOrdinaryContent() {
-        for (item in Json.parseToJsonElement(contractFixtures.getValue("hls-source-groups.sample.json")).jsonArray) {
+    @Test fun sharedStrategiesMatchIndependentlyOfPlaylistOrigin() {
+        for (item in Json.parseToJsonElement(contractFixtures.getValue("hls-strategies.sample.json")).jsonArray) {
             val fixture = item.jsonObject
             val name = fixture.getValue("name").jsonPrimitive.content
-            val result = filterSmartHlsAds(fixture.getValue("playlist").jsonPrimitive.content,
-                fixture.getValue("host").jsonPrimitive.content)
+            val playlist = fixture.getValue("playlist").jsonPrimitive.content
+            val base = fixture.getValue("base").jsonPrimitive.content
+            val mirror = "http://mirror.test:8800" + base.substringAfter("://").substringAfter('/', "").let { "/$it" }
             val intervals = fixture.getValue("removed").jsonArray.map {
                 MediaInterval(it.jsonArray[0].jsonPrimitive.long, it.jsonArray[1].jsonPrimitive.long)
             }
-            assertEquals(intervals, result?.removed.orEmpty(), name)
-            if (result != null) {
-                assertEquals(intervals.first().endMs, result.timeline.effectiveToVideo(intervals.first().startMs), name)
+            for (url in listOf(base, mirror)) {
+                val result = filterSmartHlsAds(playlist, url)
+                assertEquals(intervals, result?.removed.orEmpty(), name)
+                if (result != null) {
+                    assertEquals(intervals.first().endMs, result.timeline.effectiveToVideo(intervals.first().startMs), name)
+                    for (text in fixture["contains"]?.jsonArray.orEmpty()) {
+                        assertContains(result.playlist, text.jsonPrimitive.content, message = name)
+                    }
+                }
             }
         }
     }
@@ -53,7 +60,7 @@ class HlsAdFilterTest {
         }
         for (item in fixture.getValue("media").jsonArray) {
             val media = item.jsonObject
-            val result = filterSmartHlsAds(media.getValue("playlist").jsonPrimitive.content, media.getValue("host").jsonPrimitive.content)
+            val result = filterSmartHlsAds(media.getValue("playlist").jsonPrimitive.content, "https://fixtures.example/video.m3u8")
             val removed = media.getValue("removed").jsonArray.map {
                 MediaInterval(it.jsonArray[0].jsonPrimitive.long, it.jsonArray[1].jsonPrimitive.long)
             }

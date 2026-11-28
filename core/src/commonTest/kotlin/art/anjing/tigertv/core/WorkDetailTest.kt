@@ -73,9 +73,12 @@ class WorkDetailTest {
         val saved = wireJson.decodeFromString<SearchResponse>(contractFixtures.getValue("search-playback.sample.json"))
         assertEquals(PlaybackBookmark("0", "第02集"), saved.works.single().playback["🎬二"])
         assertEquals(754_000L, saved.works.single().playbackPositions["🎬二"]?.get("0")?.get("第02集"))
+        assertEquals(45_000L, saved.works.single().playbackPositions["🎬二"]?.get("2")?.get("第02集"))
         val search = wireJson.decodeFromString<SearchResponse>(contractFixtures.getValue("search.sample.json"))
         assertEquals(listOf(1, 99), search.works.single().sources.map { it.vodId })
+        assertEquals("🎬一", search.works.single().defaultSource.site)
         val detail = wireJson.decodeFromString<FetchResponse>(contractFixtures.getValue("fetch.sample.json"))
+        assertEquals("作品简介", detail.vodContent)
         assertEquals(listOf("0", "2"), detail.playSources.map { it.id })
         assertEquals(listOf(2, 1), detail.playSources.map { it.episodes.size })
     }
@@ -154,17 +157,16 @@ class WorkDetailTest {
         } finally { core.close() }
     }
 
-    @Test fun sourcePriorityUsesSuccessfulPlaybackAndRecommendationsWithoutLookingAtPosters() {
+    @Test fun sourcePriorityUsesSuccessfulPlaybackAndConfiguredOrderWithoutLookingAtPosters() {
         val first = SearchResult("普通资源", 1, "同一作品", vodYear = "2026", vodPic = "https://example.test/poster.jpg")
         val second = first.copy(site = "🎬360 资源", vodId = 2, vodPic = "")
         val third = second.copy(site = "🎬红牛资源", vodId = 3)
         val work = aggregateWorks(listOf(first, second, third)).single()
-        assertEquals(second, work.defaultSource)
-        assertEquals(second, work.copy(recentPlayedSite = first.site).defaultSource)
+        assertEquals(first, work.defaultSource)
+        assertEquals(second, work.copy(recentPlayedSite = second.site).defaultSource)
         assertEquals(third, work.copy(recentPlayedSite = third.site).defaultSource)
-        assertEquals(third, work.preferredSource(filterAds = false))
         assertEquals(first, work.copy(lastPlayedSourceKey = first.coverKey).defaultSource)
-        assertEquals(third, work.copy(lastPlayedSourceKey = second.coverKey).preferredSource(available = listOf(first, third)))
+        assertEquals(first, work.copy(lastPlayedSourceKey = second.coverKey).preferredSource(available = listOf(first, third)))
     }
 
     @Test fun qualifiedPositionsSeparateDuplicateNamesAndSameSiteWorks() {
@@ -207,7 +209,7 @@ class WorkDetailTest {
             assertEquals(2, requests)
             val unwatched = core.search("其他关键词").works.single()
             assertNull(unwatched.lastPlayedSite)
-            assertEquals("🎬A", unwatched.defaultSource.site)
+            assertEquals("🎬B", unwatched.defaultSource.site)
             core.recordPlayback(work.id, "🎬A", "2", "02", a, index = 1)
             core.recordPlaybackPosition(work.id, "🎬A", "2", "02", 12000, sourceKey = a.coverKey, index = 1)
             core.recordPlayback(work.id, "🎬A", "2", "03", a, index = 2)

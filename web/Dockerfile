@@ -11,8 +11,7 @@ WORKDIR /app/web
 COPY --from=build /app/web/dist/ dist/
 COPY web/server/ server/
 COPY web/common/ common/
-COPY shared/network-timeouts.json shared/douban-categories.json /app/shared/
-COPY skills/references/LunaTV-config.json /app/skills/references/
+COPY shared/network-timeouts.json shared/douban-categories.json shared/LunaTV-config.json /app/shared/
 USER bun
 EXPOSE 8080
 CMD ["bun", "server/index.ts"]

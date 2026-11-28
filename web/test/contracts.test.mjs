@@ -1,8 +1,9 @@
-import { test } from 'bun:test'
+import { spyOn, test } from 'bun:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import Hls from 'hls.js'
 import { integer, parseConfig, parseJson, parseLines, webUrl, workId } from '../src/api.ts'
-import { hlsVideoVariants } from '../src/hls-loader.ts'
+import { hlsVideoVariants, playlistLoader } from '../src/hls-loader.ts'
 import { filterPlaylist, effectiveTime, originalTime } from '../src/hls.ts'
 import { autoMatch, shouldUpgrade } from '../src/danmaku/selection.ts'
 import { DanmakuClient } from '../src/danmaku/client.ts'
@@ -38,8 +39,9 @@ test('MacCMS input, first-arrival identity, preserved parameters and playback gr
 })
 
 test('Android and Web remove the same interval and preserve the key and relative URLs', () => {
-  const { uris, host, playlist, expected, startMs, endMs } = json('hls-filter')
-  const result = filterPlaylist(playlist, host)
+  const { uris, playlist, expected, startMs, endMs } = json('hls-filter')
+  const base = 'https://fixtures.example/video.m3u8'
+  const result = filterPlaylist(playlist, base)
   assert.deepEqual(result, { text: expected, removed: [{ start: startMs / 1000, end: endMs / 1000 }] })
   assert.ok(Math.abs(originalTime(startMs / 1000, result.removed) - endMs / 1000) < 1e-9)
   assert.ok(Math.abs(effectiveTime(endMs / 1000, result.removed) - startMs / 1000) < 1e-9)
@@ -51,19 +53,67 @@ test('Android and Web remove the same interval and preserve the key and relative
     playlist.replace('IV=0x00000000000000000000000000000001', 'KEYFORMAT="drm"'),
     playlist.replace('#EXTINF:5,', '#EXT-X-MAP:URI="init.mp4",BYTERANGE="24"\n#EXTINF:5,'),
     playlist.replace('#EXTINF:5,', '#EXT-X-BYTERANGE:0@0\n#EXTINF:5,'),
-  ]) assert.equal(filterPlaylist(input, host), undefined)
+  ]) assert.equal(filterPlaylist(input, base), undefined)
 })
 
 test('shared adaptive HLS playlists retain initialization maps and original byte offsets', () => {
   const { masters, media } = json('hls-adaptive')
   for (const { playlist, base, variants } of masters)
     assert.deepEqual(Object.fromEntries(hlsVideoVariants(playlist, base)), variants)
-  for (const { playlist, host, removed, contains = [], excludes = [] } of media) {
-    const output = filterPlaylist(playlist, host)
+  for (const { playlist, removed, contains = [], excludes = [] } of media) {
+    const output = filterPlaylist(playlist, 'https://fixtures.example/video.m3u8')
     assert.deepEqual(output?.removed ?? [], removed.map(([start, end]) => ({ start: start / 1000, end: end / 1000 })))
     if (!removed.length) assert.equal(output, undefined)
     for (const text of contains) assert.ok(output.text.includes(text), text)
     for (const text of excludes) assert.ok(!output.text.includes(text), text)
+  }
+})
+
+test('only a known unfilterable video variant clears the active HLS intervals', () => {
+  const { playlist, expected, startMs, endMs } = json('hls-filter')
+  const base = "https://unrelated.example/"
+  const master = [
+    '#EXTM3U',
+    '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="audio",URI="audio.m3u8"',
+    '#EXT-X-STREAM-INF:BANDWIDTH=1000',
+    'video.m3u8',
+    '#EXT-X-STREAM-INF:BANDWIDTH=2000,AUDIO="audio"',
+    'external.m3u8',
+  ].join('\n')
+  const transport = spyOn(Hls.DefaultConfig.loader.prototype, 'load')
+    .mockImplementation((ctx, _config, { onSuccess }) => {
+      onSuccess({ url: ctx.url, data: ctx.type === 'manifest' ? master : playlist }, {}, ctx, null)
+    })
+  try {
+    const published = []
+    const { pLoader: Loader, bind } = playlistLoader(intervals => published.push(intervals))
+    function load(type, path) {
+      let data
+      new Loader(Hls.DefaultConfig).load({ type, url: base + path }, {}, {
+        onSuccess(response) { data = response.data },
+      })
+      return data
+    }
+    assert.equal(load('manifest', 'master.m3u8'), master)
+    assert.equal(load('level', 'video.m3u8'), expected)
+    assert.equal(load('audioTrack', 'audio.m3u8'), playlist)
+    assert.equal(load('level', 'unknown.m3u8'), playlist)
+    const intervals = [{ start: startMs / 1000, end: endMs / 1000 }]
+    assert.deepEqual(published, [[], intervals])
+    assert.equal(load('level', 'external.m3u8'), playlist)
+    assert.deepEqual(published.at(-1), [])
+    let switched
+    const engine = {
+      levels: ['video.m3u8', 'external.m3u8', 'unknown.m3u8'].map(path => ({ uri: base + path })),
+      on(event, listener) { assert.equal(event, Hls.Events.LEVEL_SWITCHED); switched = listener },
+      off() {},
+    }
+    const unbind = bind(engine)
+    for (const level of [0, 2, 1]) switched(Hls.Events.LEVEL_SWITCHED, { level })
+    assert.deepEqual(published, [[], intervals, [], intervals, []])
+    unbind()
+  } finally {
+    transport.mockRestore()
   }
 })
 
@@ -113,6 +163,12 @@ test('work-wide speed, volume settings, separate episode progress and recent ded
   savePosition(next, 4)
   savePosition(other, 2)
   assert.deepEqual([getPosition(episode), getPosition(next), getPosition(other)], [15.23, 4, 2])
+  savePosition(other, 3, 25)
+  savePosition(episode, 16)
+  assert.equal(getRecent()[0].progress, 25)
+  savePosition(other, 4)
+  assert.equal(getPosition(other), 4)
+  assert.equal(Object.hasOwn(getRecent()[0], 'progress'), false)
   saveVolume(0.42, true, true)
   assert.deepEqual(getVolume(true), { volume: 0.42, muted: true })
   assert.deepEqual(getVolume(false), { volume: 1, muted: false })
@@ -122,11 +178,19 @@ test('unverified playlist signals never remove a segment', () => {
   for (const { name, playlist } of json('hls-smart')) assert.equal(filterPlaylist(playlist), undefined, name)
 })
 
-test('source profiles match a splice across changed asset URIs and keep negative controls', () => {
-  for (const { name, host, playlist, removed } of json('hls-source-groups')) {
-    const result = filterPlaylist(playlist, host)
-    assert.deepEqual(result?.removed ?? [], removed.map(([start, end]) => ({ start: start / 1000, end: end / 1000 })), name)
-    if (result) assert.equal(originalTime(removed[0][0] / 1000, result.removed), removed[0][1] / 1000, name)
+test('shared strategies match independently of playlist origin', () => {
+  for (const { name, base, playlist, removed, contains = [] } of json('hls-strategies')) {
+    const mirror = new URL(base)
+    mirror.protocol = 'http:'
+    mirror.host = 'mirror.test:8800'
+    for (const url of [base, mirror.href]) {
+      const result = filterPlaylist(playlist, url)
+      assert.deepEqual(result?.removed ?? [], removed.map(([start, end]) => ({ start: start / 1000, end: end / 1000 })), name)
+      if (result) {
+        assert.ok(Math.abs(originalTime(removed[0][0] / 1000, result.removed) - removed[0][1] / 1000) < 1e-9, name)
+        for (const text of contains) assert.ok(result.text.includes(text), name)
+      }
+    }
   }
 })
 
@@ -229,11 +293,14 @@ test('lane collision checks entry and catch-up, and a seek redraws the active wi
       { time: 7.1, mode: 5, text: '固定', color: 0xffffff },
       { time: 40, mode: 1, text: '空窗后', color: 0xffffff },
     ] }
-    assert.equal(drawComments(canvas, track, 16), 40)
-    assert.equal(drawComments(canvas, track, 14.9, true), 0)
+    const fontSize = 13.32
+    assert.equal(drawComments(canvas, track, 16, fontSize), 40)
+    assert.equal(drawComments(canvas, track, 14.9, fontSize, true), 0)
     assert.deepEqual(painted, ['滚动'])
     canvas.clientWidth = 300
-    assert.equal(drawComments(canvas, track, 14.9), 0)
+    canvas.clientHeight = 144
+    assert.equal(drawComments(canvas, track, 14.9, fontSize), 0)
+    assert.equal(context.font, `700 ${fontSize}px system-ui, sans-serif`)
     assert.deepEqual(painted, ['滚动'])
   } finally {
     if (savedDpr === undefined) delete globalThis.devicePixelRatio

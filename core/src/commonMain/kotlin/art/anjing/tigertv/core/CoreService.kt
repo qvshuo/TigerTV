@@ -6,8 +6,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.*
 import kotlinx.serialization.json.*
 
-const val CONFIG_CDN_URL = "https://cdn.jsdelivr.net/gh/qvshuo/TigerTV@main/skills/references/LunaTV-config.json"
-const val CONFIG_RAW_URL = "https://raw.githubusercontent.com/qvshuo/TigerTV/refs/heads/main/skills/references/LunaTV-config.json"
+const val CONFIG_CDN_URL = "https://cdn.jsdelivr.net/gh/qvshuo/TigerTV@main/shared/LunaTV-config.json"
+const val CONFIG_RAW_URL = "https://raw.githubusercontent.com/qvshuo/TigerTV/refs/heads/main/shared/LunaTV-config.json"
 
 class CoreService(
     private val directory: String,
@@ -15,7 +15,7 @@ class CoreService(
     private val storage: Storage = platformStorage(),
     private val client: HttpClient = platformHttpClient(),
     private val clock: () -> Long = ::nowMillis,
-    private val logger: Logger = FileLogger(storage, "$directory/tigertv-cli.log"),
+    private val logger: Logger = FileLogger(storage, "$directory/tigertv.log"),
     private val searchCacheTtlMillis: Long = 600_000,
     private val configUrls: List<Pair<String, Long>> = listOf(CONFIG_CDN_URL to networkTimeouts.configRequestMs, CONFIG_RAW_URL to 5_000L),
     historyDirectory: String = directory
@@ -32,7 +32,7 @@ class CoreService(
     private val searchCache = linkedMapOf<String, Pair<Long, SearchResponse>>()
     private val coverCache = linkedMapOf<String, Pair<Long, String>>()
     private var coverCacheLoaded = false
-    private val configPath = "$directory/tigertv-cli-config-cache.json"
+    private val configPath = "$directory/source-config-cache.json"
     private val coverPath = "$directory/cover-fallback-cache.json"
     private val historyStore = HistoryStore(historyDirectory, storage, clock, ::log)
 
@@ -284,9 +284,6 @@ class CoreService(
     suspend fun addHistory(item: String) = historyStore.addHistory(item)
     suspend fun removeHistory(item: String) = historyStore.removeHistory(item)
     suspend fun clearHistory() = historyStore.clearHistory()
-
-    suspend fun collectQuanxDomains(keyword: String): QuanxDomains =
-        QuanxCollector(network, ::log).collect(loadConfig().apiSite.values.toList(), keyword)
 
     fun close() = client.close()
 

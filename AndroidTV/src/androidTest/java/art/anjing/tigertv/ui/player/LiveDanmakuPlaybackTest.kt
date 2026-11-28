@@ -12,6 +12,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.media3.common.Player
 import androidx.media3.ui.PlayerView
 import androidx.test.platform.app.InstrumentationRegistry
+import art.anjing.tigertv.PlaybackPreferencesBackup
 import art.anjing.tigertv.core.*
 import art.anjing.tigertv.data.TigerTVRepository
 import art.anjing.tigertv.ui.theme.TigerTVTheme
@@ -21,12 +22,14 @@ import io.ktor.client.engine.mock.*
 import org.junit.*
 import org.junit.Assert.*
 import org.junit.Assume.assumeNotNull
+import org.junit.rules.TestRule
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 /** Opt-in full production PlayerScreen: real HLS and real danmu_api; only catalog metadata is injected. */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class LiveDanmakuPlaybackTest {
+    @get:Rule(order = 0) val preferencesBackup: TestRule = PlaybackPreferencesBackup()
     @get:Rule val compose = createComposeRule()
     private fun <T : View> find(view: View, type: Class<T>): T? {
         if (type.isInstance(view)) return type.cast(view)
@@ -178,7 +181,7 @@ class LiveDanmakuPlaybackTest {
             bitmap.recycle()
             throw failure
         } finally {
-            compose.runOnIdle { store.clear(); preferences.edit().clear().apply() }
+            compose.runOnIdle { store.clear() }
             liveHttp.close()
         }
     }

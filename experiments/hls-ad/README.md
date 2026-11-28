@@ -4,7 +4,7 @@
 
 离线工具：
 
-- `source_audit.py`：仅调用既有 Kotlin Native CLI 完成搜索/详情；Python 做有界媒体采样。并发最多 4、只允许公网或已授权 Quantumult X 地址；文本 10 MiB、单请求时间预算、重定向上限。私有输出不得提交。
+- `source_audit.py`：调用 Kotlin Native CLI 的 `search` 和 `fetch`，Python 做有界媒体采样。并发最多 4，允许公网地址及本地代理的 `198.18.0.0/15` 映射地址。限制文本大小、单次请求耗时及重定向次数。私有输出不得提交。
 - `review_window.py`：限定片段范围离线下载，单片 8 MiB / 窗口 48 MiB；FFmpeg 提取音频，支持普通显式 IV AES-128，不支持 DRM、MAP、BYTERANGE。WhisperKit 另外调用，不进入产品。
 - `FilterPlaylist.java`：离线调用真实 Kotlin 规则，没有另一套业务实现。
 - `verify_windows.py`：用当前捕获清单生成小窗口，调用 Kotlin 后复用已下载媒体解码。

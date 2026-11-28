@@ -4,7 +4,7 @@ import { sourceIdentity, type Source, type Work } from './api.ts'
 export const defaults = { autoNext: productDefaults.autoNext, rememberSpeed: productDefaults.rememberSpeed,
   rememberVolume: true, filterAds: productDefaults.filterAds, danmakuServer: '' }
 export type Settings = typeof defaults
-export type PlaybackOptions = { speed: number; volume: number; muted: boolean; danmakuEnabled: boolean }
+export type PlaybackOptions = { volume: number; muted: boolean; danmakuEnabled: boolean }
 export type Selection = { work: Work; source: Source; line: string; episode: string; index: number }
 export type Bookmark = Pick<Selection, 'line' | 'episode' | 'index'>
 export type Recent = Selection & { at: number; progress?: number }
@@ -58,7 +58,7 @@ export function savePosition(s: Selection, position: number, progress?: number) 
   write(positionKey(s), position)
   const records = read<Record<string, Recent>>('recent', {})
   const recent = records[s.work.id]
-  if (progress !== undefined && recent && positionKey(recent) === positionKey(s) && recent.progress !== progress) {
+  if (recent && positionKey(recent) === positionKey(s) && recent.progress !== progress) {
     write('recent', { ...records, [s.work.id]: { ...recent, progress } })
   }
 }

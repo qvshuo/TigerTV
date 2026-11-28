@@ -20,6 +20,9 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import art.anjing.tigertv.core.USER_AGENT
 import art.anjing.tigertv.core.normalizeUrl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.hls.HlsManifest
+import androidx.media3.exoplayer.source.MediaLoadData
 
 data class PlayerSnapshot(
     val positionMillis: Long = 0,
@@ -35,6 +38,8 @@ data class PlayerSnapshot(
 
 @androidx.annotation.OptIn(UnstableApi::class)
 class Media3Controller(context: Context) {
+    private interface PlaybackListener : Player.Listener, AnalyticsListener
+
     private val appContext = context.applicationContext
     @Volatile private var hlsSession: HlsPlaybackSession? = null
     private val upstream = DefaultDataSource.Factory(appContext, DefaultHttpDataSource.Factory().setUserAgent(USER_AGENT))
@@ -54,7 +59,7 @@ class Media3Controller(context: Context) {
     private var resumeOnForeground = false
     private var inBackground = false
     private var pendingLoad: (() -> Unit)? = null
-    private var listener: Player.Listener? = null
+    private var listener: PlaybackListener? = null
     private var onPosition: ((Long) -> Unit)? = null
     private var lastSavedPosition: Long? = null
     private var didStart = false
@@ -62,11 +67,11 @@ class Media3Controller(context: Context) {
     private var ended = false
     private var closed = false
 
-    fun load(url: String, positionMillis: Long, title: String, site: String, onStarted: () -> Unit, onPosition: (Long) -> Unit, onError: (String) -> Unit, filterAds: Boolean = productDefaults.filterAds, speed: Float = 1f) {
+    fun load(url: String, positionMillis: Long, title: String, onStarted: () -> Unit, onPosition: (Long) -> Unit, onError: (String) -> Unit, filterAds: Boolean = productDefaults.filterAds, speed: Float = 1f) {
         if (closed) return
         unload()
         if (inBackground) {
-            pendingLoad = { load(url, positionMillis, title, site, onStarted, onPosition, onError, filterAds, speed) }
+            pendingLoad = { load(url, positionMillis, title, onStarted, onPosition, onError, filterAds, speed) }
             return
         }
         val uri = normalizeUrl(url).toUri()
@@ -80,13 +85,20 @@ class Media3Controller(context: Context) {
             return
         }
         val mayFilter = filterAds && mayFilterHls(uri)
-        val currentSession = HlsPlaybackSession(uri, site, filterAds)
+        val currentSession = HlsPlaybackSession(uri, filterAds)
         player.setPlaybackSpeed(speed)
         hlsSession = currentSession
         this.onPosition = onPosition
         restoring = true
-        listener = object : Player.Listener {
+        listener = object : PlaybackListener {
             override fun onEvents(player: Player, events: Player.Events) { if (listener === this) refresh() }
+
+            override fun onDownstreamFormatChanged(eventTime: AnalyticsListener.EventTime, mediaLoadData: MediaLoadData) {
+                if (listener !== this || mediaLoadData.trackType == C.TRACK_TYPE_AUDIO) return
+                val manifest = player.currentManifest as? HlsManifest ?: return
+                val variant = manifest.multivariantPlaylist.variants.firstOrNull { it.format == mediaLoadData.trackFormat }
+                if (variant != null) currentSession.selectVideoVariant(variant.url)
+            }
 
             override fun onRenderedFirstFrame() {
                 if (listener === this) hasVideoFrame = true
@@ -127,7 +139,10 @@ class Media3Controller(context: Context) {
                 savePosition()
                 onError(error.message ?: "播放失败")
             }
-        }.also(player::addListener)
+        }.also {
+            player.addListener(it)
+            if (mayFilter) player.addAnalyticsListener(it)
+        }
         try {
             val metadata = MediaMetadata.Builder().setTitle(title).build()
             player.setMediaItem(MediaItem.Builder().setUri(uri).setMediaMetadata(metadata).build(), if (mayFilter) 0 else positionMillis.coerceAtLeast(0))
@@ -215,7 +230,10 @@ class Media3Controller(context: Context) {
         if (closed) return
         pendingLoad = null
         savePosition()
-        listener?.let(player::removeListener)
+        listener?.let {
+            player.removeListener(it)
+            player.removeAnalyticsListener(it)
+        }
         listener = null
         onPosition = null
         lastSavedPosition = null

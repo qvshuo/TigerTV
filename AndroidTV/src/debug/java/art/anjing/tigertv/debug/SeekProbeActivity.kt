@@ -48,7 +48,7 @@ class SeekProbeActivity : Activity() {
                 status.text = "状态 $playbackState；位置 ${player.currentPosition}ms；请检查画面和声音"
             }
         })
-        media.load(url, intent.getLongExtra("resume_ms", 0), "实验", intent.getStringExtra("site") ?: "🎬暴风资源", {}, {}, { status.text = "播放失败；请检查设备日志" })
+        media.load(url, intent.getLongExtra("resume_ms", 0), "实验", {}, {}, { status.text = "播放失败；请检查设备日志" })
     }
 
     override fun onStop() {

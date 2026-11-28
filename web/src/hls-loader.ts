@@ -32,28 +32,48 @@ export function hlsVideoVariants(text: string, base: string) {
   return variants
 }
 
-export function playlistLoader(publish: (intervals: Interval[]) => void): HlsConfig['pLoader'] {
+export function playlistLoader(publish: (intervals: Interval[]) => void) {
   let variants = new Map<string, boolean>()
+  const timelines = new Map<string, Interval[]>()
   // The stock loader also handles the playlist-specific context fields.
   const Base = Hls.DefaultConfig.loader as NonNullable<HlsConfig['pLoader']>
-  return class extends Base {
+  const pLoader = class extends Base {
     load(context: PlaylistLoaderContext, config: LoaderConfiguration, callbacks: LoaderCallbacks<PlaylistLoaderContext>) {
       const type = context.type
       super.load(context, config, {
         ...callbacks,
         onSuccess(response, stats, ctx, networkDetails) {
           const raw = response.data
-          if (typeof raw === 'string' && raw.length <= 10 * 1024 * 1024) {
-            if (type === 'manifest') variants = hlsVideoVariants(raw, response.url || ctx.url)
-            if (type === 'manifest' || (type === 'level' && variants.get(ctx.url) === true)) {
-              const filtered = filterPlaylist(raw, new URL(response.url || ctx.url).hostname)
-              publish(filtered?.removed ?? [])
-              if (filtered) response = { ...response, data: filtered.text }
-            }
+          const playlist = typeof raw === 'string' && raw.length <= 10 * 1024 * 1024 ? raw : undefined
+          const url = response.url || ctx.url
+          if (type === 'manifest') {
+            variants = playlist ? hlsVideoVariants(playlist, url) : new Map()
+            timelines.clear()
+          }
+          const variant = type === 'level' ? variants.get(ctx.url) : undefined
+          if (type === 'manifest' || variant !== undefined) {
+            const filtered = playlist && variant !== false ? filterPlaylist(playlist, url) : undefined
+            const intervals = filtered?.removed ?? []
+            if (variant !== undefined) timelines.set(ctx.url, intervals)
+            publish(intervals)
+            if (filtered) response = { ...response, data: filtered.text }
           }
           callbacks.onSuccess(response, stats, ctx, networkDetails)
         },
       })
     }
   }
+  function selectVideoVariant(url: string) {
+    const intervals = timelines.get(url)
+    if (intervals) publish(intervals)
+  }
+  function bind(engine: Hls) {
+    const switched = (_: typeof Hls.Events.LEVEL_SWITCHED, { level }: { level: number }) => {
+      const variant = engine.levels[level]
+      if (variant) selectVideoVariant(variant.uri)
+    }
+    engine.on(Hls.Events.LEVEL_SWITCHED, switched)
+    return () => engine.off(Hls.Events.LEVEL_SWITCHED, switched)
+  }
+  return { pLoader, bind }
 }

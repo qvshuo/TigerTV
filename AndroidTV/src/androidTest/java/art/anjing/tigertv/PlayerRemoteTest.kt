@@ -46,9 +46,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.rules.TestName
+import org.junit.rules.TestRule
 
 @RunWith(AndroidJUnit4::class)
 class PlayerRemoteTest {
+    @get:Rule(order = 0) val preferencesBackup: TestRule = PlaybackPreferencesBackup()
     @get:Rule val compose = createComposeRule()
     @get:Rule val testName = TestName()
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -82,7 +84,7 @@ class PlayerRemoteTest {
             override fun writeAtomic(path: String, text: String) { files[path] = text }
         }
         val mediaUrl = video.toURI().toString()
-        val response = """{"code":1,"list":[{"vod_id":1,"vod_name":"遥控器测试","vod_play_from":"主线${'$'}${'$'}${'$'}备用线路","vod_play_url":"第一集${'$'}$mediaUrl#第二集${'$'}$mediaUrl${'$'}${'$'}${'$'}第一集${'$'}$mediaUrl#第二集${'$'}$mediaUrl"}]}"""
+        val response = """{"code":1,"list":[{"vod_id":1,"vod_name":"遥控器测试","vod_year":"2026","vod_play_from":"主线${'$'}${'$'}${'$'}备用线路","vod_play_url":"第一集${'$'}$mediaUrl#第二集${'$'}$mediaUrl${'$'}${'$'}${'$'}第一集${'$'}$mediaUrl#第二集${'$'}$mediaUrl"}]}"""
         val core = CoreService("cache", "source", storage, configureClient(HttpClient(MockEngine { request ->
             if (request.url.encodedPath.startsWith("/api/v2/")) {
                 assertEquals("Only the saved API address may be used", "fixture.test", request.url.host)
@@ -149,11 +151,12 @@ class PlayerRemoteTest {
     }
 
 
-    @Test fun naturalEndAutoAdvancesAndKeepsPlaybackOptions() {
+    @Test fun naturalEndAutoAdvancesAtTheRememberedWorkSpeed() {
         val prefs = instrumentation.targetContext.getSharedPreferences("playback", 0)
         compose.runOnIdle {
+            PlaybackPreferences(instrumentation.targetContext).saveSpeed(model.works.single().id, 1.5f)
             val player = findPlayerView(rootView)!!.player!!
-            player.setPlaybackSpeed(1.5f)
+            player.setPlaybackSpeed(1.25f)
             player.seekTo(player.duration - 300)
         }
         compose.waitUntil(10_000) { model.selectedEpisodeIndex == 1 }
@@ -217,9 +220,11 @@ class PlayerRemoteTest {
         compose.runOnIdle { model.selectEpisode(1) }
         compose.waitUntil(10_000) { model.selectedEpisodeIndex == 1 }
         compose.runOnIdle { findPlayerView(rootView)!!.player!!.pause() }
+        remote(KeyEvent.KEYCODE_DPAD_UP)
         compose.onNodeWithTag("player-danmaku").assertContentDescriptionEquals("弹幕已开启")
         compose.runOnIdle { model.selectEpisode(0) }
         compose.runOnIdle { findPlayerView(rootView)!!.player!!.pause() }
+        remote(KeyEvent.KEYCODE_DPAD_UP)
         compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("弹幕已关闭").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("player-danmaku").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -292,8 +297,8 @@ class PlayerRemoteTest {
         panel.performScrollToNode(hasTestTag("danmaku-episode-11"))
         val firstEpisode = compose.onNodeWithTag("danmaku-episode-11").fetchSemanticsNode().boundsInRoot
         val secondEpisode = compose.onNodeWithTag("danmaku-episode-12").fetchSemanticsNode().boundsInRoot
-        assertEquals(firstEpisode.top, secondEpisode.top)
-        assertTrue(firstEpisode.right < secondEpisode.left)
+        assertEquals(firstEpisode.left, secondEpisode.left)
+        assertTrue(firstEpisode.bottom <= secondEpisode.top)
         for ((id, title) in listOf(
             11 to "第1集：再见朋友！出发前…",
             12 to "第 2 集",
@@ -460,7 +465,7 @@ class PlayerRemoteTest {
     }
 
     @Test fun detailResourceAndEpisodeFocusRemainConnected() {
-        compose.runOnIdle { detailShown.value = true }
+        compose.runOnIdle { model.clearPlayback(); detailShown.value = true }
         compose.onNode(hasText("播放 · 第一集", substring = true) and hasClickAction()).assertIsFocused()
         remote(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNode(hasText("测试") and hasClickAction()).assertIsFocused()
@@ -526,7 +531,7 @@ class PlayerRemoteTest {
         fun nearby(referenceMs: Long) = comments.filter { kotlin.math.abs(it.first - referenceMs) < 2_000 }.map { it.second }
         compose.runOnIdle {
             controller = Media3Controller(instrumentation.targetContext)
-            controller.load(video.toURI().toString(), 30_000, "时间轴测试", site = "fixture",
+            controller.load(video.toURI().toString(), 30_000, "时间轴测试",
                 onStarted = { started = true }, onPosition = {}, onError = { error(it) })
             controller.play()
         }
@@ -575,7 +580,7 @@ class PlayerRemoteTest {
         var starts = 0
         compose.runOnIdle {
             controller = Media3Controller(instrumentation.targetContext)
-            controller.load(video.toURI().toString(), 30_000, "原生播放器测试", site = "fixture",
+            controller.load(video.toURI().toString(), 30_000, "原生播放器测试",
                 onStarted = { starts++ }, onPosition = { positions += it }, onError = { error(it) })
             controller.play()
         }
@@ -588,7 +593,7 @@ class PlayerRemoteTest {
                 assertFalse(controller.player.playWhenReady)
                 assertTrue(positions.last() >= 30_000)
                 controller.onBackground()
-                controller.load(video.toURI().toString(), 30_000, "后台完成的加载", site = "fixture",
+                controller.load(video.toURI().toString(), 30_000, "后台完成的加载",
                     onStarted = { starts++ }, onPosition = { positions += it }, onError = { error(it) })
                 controller.play()
                 assertEquals("Background loads must wait for foreground", 0, controller.player.mediaItemCount)

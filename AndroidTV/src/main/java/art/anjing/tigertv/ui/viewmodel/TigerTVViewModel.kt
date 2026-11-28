@@ -528,10 +528,10 @@ class TigerTVViewModel(
         return selectedWork?.positionFor(source, line, resumeEpisodeIndex) ?: 0
     }
 
-    fun selectRecommendedResult(result: SearchResult, filterAds: Boolean) {
+    fun selectPreferredResult(result: SearchResult) {
         val work = works.firstOrNull { result in it.sources }
         val available = work?.sources.orEmpty().filter { cachedDetail(it)?.playSources?.isEmpty() != true }
-        selectResult(work?.preferredSource(filterAds, available) ?: result)
+        selectResult(work?.preferredSource(available) ?: result)
     }
 
     fun selectResult(result: SearchResult, forceRefresh: Boolean = false) {

@@ -8,4 +8,3 @@ dependencyResolutionManagement {
 }
 rootProject.name = "TigerTV"
 include(":core", ":cli")
-if (providers.gradleProperty("archiveMacOS").orNull == "true") include(":nativeBridge")

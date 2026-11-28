@@ -108,8 +108,26 @@ function parseKey(text: string) {
 
 const encrypted = (segment: Segment) => Boolean(segment.key && segment.key !== '#EXT-X-KEY:METHOD=NONE')
 const range = (start: number, end: number) => Array.from({ length: end - start }, (_, index) => start + index)
+const uriPath = (uri: string) => uri.split(/[?#]/, 1)[0].replace(/^(?:[A-Za-z][A-Za-z0-9+.-]*:)?\/\/[^/]*/, '')
 
-function smartAdIndices(segments: Segment[], playlistHost: string) {
+function segmentPath(uri: string, baseDirectory: string) {
+  const path = uriPath(uri)
+  const absolute = path.startsWith('/') ? path : baseDirectory + path
+  const parts: string[] = []
+  for (const part of absolute.slice(1).split('/')) {
+    if (part === '..') parts.pop()
+    else if (part !== '.') parts.push(part)
+  }
+  return '/' + parts.join('/')
+}
+
+const strategies = heuristics.strategies.map(strategy => ({
+  ...strategy,
+  segmentPattern: new RegExp(`^(?:${strategy.segmentPath})$`),
+  contentPattern: strategy.contentPath ? new RegExp(`^(?:${strategy.contentPath})$`) : undefined,
+}))
+
+function smartAdIndices(segments: Segment[], playlistUrl: string) {
   const { minSeconds, maxSeconds } = heuristics.common
   const accepted = new Set<number>()
   function propose(start: number, end: number) {
@@ -120,28 +138,28 @@ function smartAdIndices(segments: Segment[], playlistHost: string) {
     for (const index of indices) accepted.add(index)
   }
 
-  const paths = segments.map(segment => segment.uri.split(/[?#]/, 1)[0])
+  const path = uriPath(playlistUrl)
+  const baseDirectory = path.slice(0, path.lastIndexOf('/') + 1) || '/'
+  const paths = segments.map(segment => segmentPath(segment.uri, baseDirectory))
   const spliceBoundaries = [...segments.flatMap((segment, index) => segment.discontinuity ? [index] : []), segments.length]
-  for (const profile of heuristics.sourceRules) {
-    if (!new RegExp(`^(?:${profile.manifestHost})$`).test(playlistHost)) continue
-    const segmentPattern = new RegExp(`^(?:${profile.segmentUri})$`)
-    const contentPattern = profile.contentUri ? new RegExp(`^(?:${profile.contentUri})$`) : undefined
+  for (const strategy of strategies) {
+    const { segmentPattern, contentPattern } = strategy
     const contentSide = (uri: string) => contentPattern ? contentPattern.test(uri) : !segmentPattern.test(uri)
     const matches = new Map<string, [number, number][]>()
     const seenDurations = new Set<number>()
-    const innerOffsets = profile.innerDiscontinuityOffsets
+    const innerOffsets = strategy.innerDiscontinuityOffsets
     const boundaryStep = innerOffsets?.length ? 2 : 1
     for (let index = 0; index + boundaryStep < spliceBoundaries.length; index++) {
       const start = spliceBoundaries[index]
       const end = spliceBoundaries[index + boundaryStep]
       if (innerOffsets?.length && !innerOffsets.includes(spliceBoundaries[index + 1] - start)) continue
-      if (!start || (end === segments.length && !profile.allowEnd) || !contentSide(paths[start - 1]) ||
+      if (!start || (end === segments.length && !strategy.allowEnd) || !contentSide(paths[start - 1]) ||
         (end !== segments.length && !contentSide(paths[end]))) continue
       const group = segments.slice(start, end)
       if (!group.every((segment, offset) => !encrypted(segment) && segmentPattern.test(paths[start + offset]))) continue
-      const durationIndex = profile.durationsMicros?.findIndex(durations => durations.length === group.length &&
+      const durationIndex = strategy.durationsMicros?.findIndex(durations => durations.length === group.length &&
         group.every((segment, offset) => segment.micros === durations[offset])) ?? -1
-      const windows = profile.durationWindowsMicros
+      const windows = strategy.durationWindowsMicros
       const matchesWindows = windows?.length === group.length && windows.every(([min, max], offset) =>
         group[offset].micros >= min && group[offset].micros <= max)
       if (durationIndex < 0 && !matchesWindows) continue
@@ -151,8 +169,8 @@ function smartAdIndices(segments: Segment[], playlistHost: string) {
       runs.push([start, end])
       matches.set(key, runs)
     }
-    if (profile.requireAllDurations && seenDurations.size !== profile.durationsMicros?.length) continue
-    for (const runs of matches.values()) if (!profile.repeated || runs.length > 1) {
+    if (strategy.requireAllDurations && seenDurations.size !== strategy.durationsMicros?.length) continue
+    for (const runs of matches.values()) if (!strategy.repeated || runs.length > 1) {
       for (const [start, end] of runs) propose(start, end)
     }
   }
@@ -160,11 +178,11 @@ function smartAdIndices(segments: Segment[], playlistHost: string) {
   return accepted
 }
 
-export function filterPlaylist(text: string, playlistHost = ''): { text: string; removed: Interval[] } | undefined {
+export function filterPlaylist(text: string, playlistUrl = ''): { text: string; removed: Interval[] } | undefined {
   const playlist = vod(text)
   if (!playlist) return
   const { segments } = playlist
-  const dropped = smartAdIndices(segments, playlistHost)
+  const dropped = smartAdIndices(segments, playlistUrl)
   if (!dropped.size || dropped.size === segments.length) return
   const output = [...playlist.headers]
   const removed: Interval[] = []

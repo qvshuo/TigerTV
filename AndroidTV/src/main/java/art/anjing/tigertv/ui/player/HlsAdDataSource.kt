@@ -14,12 +14,33 @@ import art.anjing.tigertv.core.HlsFilterResult
 import art.anjing.tigertv.core.filterSmartHlsAds
 import art.anjing.tigertv.core.hlsVideoVariants
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.ConcurrentHashMap
 
 internal fun mayFilterHls(uri: Uri): Boolean = uri.path?.endsWith(".m3u8", ignoreCase = true) == true
 
-internal class HlsPlaybackSession(val uri: Uri, val site: String, val filterAds: Boolean = productDefaults.filterAds) {
+internal class HlsPlaybackSession(val uri: Uri, val filterAds: Boolean = productDefaults.filterAds) {
     @Volatile var timeline: MediaTimeline? = null
+        private set
     @Volatile var videoVariants: Map<Uri, Boolean> = emptyMap()
+        private set
+    private val variantTimelines = ConcurrentHashMap<Uri, MediaTimeline>()
+
+    fun registerVideoVariants(variants: Map<Uri, Boolean>) {
+        variantTimelines.clear()
+        videoVariants = variants
+        timeline = null
+    }
+
+    fun updateTimeline(playlist: Uri, value: MediaTimeline?) {
+        if (videoVariants[playlist] == true) {
+            if (value == null) variantTimelines.remove(playlist) else variantTimelines[playlist] = value
+        }
+        timeline = value
+    }
+
+    fun selectVideoVariant(playlist: Uri) {
+        if (playlist in videoVariants) timeline = variantTimelines[playlist]
+    }
 }
 
 @OptIn(UnstableApi::class)
@@ -37,9 +58,16 @@ internal class HlsAdDataSource(
 
     override fun open(dataSpec: DataSpec): Long {
         val current = session
+        val variant = current?.videoVariants?.get(dataSpec.uri)
+        val fullRequest = dataSpec.position == 0L && dataSpec.length == C.LENGTH_UNSET.toLong()
         delegated = current == null || !current.filterAds || !mayFilterHls(current.uri) ||
-            (dataSpec.uri != current.uri && current.videoVariants[dataSpec.uri] != true) || dataSpec.position != 0L || dataSpec.length != C.LENGTH_UNSET.toLong()
-        if (delegated) return upstream.open(dataSpec)
+            (dataSpec.uri != current.uri && variant != true) || !fullRequest
+        if (delegated) {
+            val length = upstream.open(dataSpec)
+            if (variant == false && fullRequest) current.selectVideoVariant(dataSpec.uri)
+            return length
+        }
+        val playback = checkNotNull(current)
         upstream.open(dataSpec)
         resolved = upstream.uri ?: dataSpec.uri
         val collected = ByteArrayOutputStream()
@@ -54,7 +82,7 @@ internal class HlsAdDataSource(
             }
         } finally { upstream.close() }
         if (tooLarge) {
-            current!!.timeline = null
+            playback.updateTimeline(dataSpec.uri, null)
             delegated = true
             return upstream.open(dataSpec)
         }
@@ -62,16 +90,15 @@ internal class HlsAdDataSource(
         val original = collected.toByteArray()
         val text = original.toString(Charsets.UTF_8)
         val master = text.lineSequence().any { it.startsWith("#EXT-X-STREAM-INF:") }
-        if (master && dataSpec.uri == current!!.uri) {
-            current.videoVariants = hlsVideoVariants(text, resolved.toString()).mapKeys { Uri.parse(it.key) }
-            current.timeline = null
+        if (master && dataSpec.uri == playback.uri) {
+            playback.registerVideoVariants(hlsVideoVariants(text, resolved.toString()).mapKeys { Uri.parse(it.key) })
         }
         val filtered = try {
             if (master) null else if (filter != null) filter(text)
-            else filterSmartHlsAds(text, resolved?.host.orEmpty())
+            else filterSmartHlsAds(text, resolved.toString())
         } catch (_: IllegalArgumentException) { null }
-        android.util.Log.d("TigerTVHls", "source=${current!!.site} matched=${filtered != null} filterMs=${(android.os.SystemClock.elapsedRealtimeNanos() - filterStart) / 1_000_000.0}")
-        if (!master) current.timeline = filtered?.timeline
+        android.util.Log.d("TigerTVHls", "matched=${filtered != null} filterMs=${(android.os.SystemClock.elapsedRealtimeNanos() - filterStart) / 1_000_000.0}")
+        if (!master) playback.updateTimeline(dataSpec.uri, filtered?.timeline)
         bytes = filtered?.playlist?.toByteArray(Charsets.UTF_8) ?: original
         position = 0
         return bytes!!.size.toLong()

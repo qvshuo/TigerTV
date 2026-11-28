@@ -14,11 +14,6 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
 
-    def do_HEAD(self):
-        self.send_response(200)
-        self.send_header("Content-Type", "video/mp4")
-        self.end_headers()
-
     def do_GET(self):
         parsed = urlsplit(self.path)
         query = parse_qs(parsed.query)
@@ -30,20 +25,6 @@ class Handler(BaseHTTPRequestHandler):
         elif parsed.path == "/oversized":
             body = b"x" * (10 * 1024 * 1024 + 1)
             return self.send(body)
-        elif parsed.path == "/page":
-            return self.send(b'<script>var src="/master.m3u8?sign=a%2Fb%2Bc%3D";</script>')
-        elif parsed.path == "/master.m3u8":
-            return self.send(b"#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nchild.m3u8\n")
-        elif parsed.path == "/child.m3u8":
-            return self.send(f'#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="http://localhost:{self.server.server_port}/a.key"\n{host}/segment.ts\n'.encode())
-        elif parsed.path == "/segment.ts":
-            self.send_response(302)
-            self.send_header("Location", f"http://localhost:{self.server.server_port}/final.ts")
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return
-        elif parsed.path in ("/a.key", "/final.ts", "/one.mp4", "/two.mp4", "/cover.jpg"):
-            return self.send(b"")
         elif query.get("ids"):
             data = {"code": 1.0, "list": [{"vod_id": int(query["ids"][0]), "vod_name": "逐玉🎬", "vod_pic": host + "/cover.jpg", "vod_play_from": "主线$$$备用", "vod_down_from": "下载", "vod_play_url": f" 第一集 ${host}/page#第二集${host}/two.mp4$$$备用${host}/master.m3u8", "vod_down_url": f"第一集${host}/one.mp4"}]}
         else:
@@ -107,21 +88,6 @@ def main():
             assert [line["name"] for line in payload["play_sources"]] == ["主线", "备用"]
             assert [len(line["episodes"]) for line in payload["play_sources"]] == [2, 1]
             assert payload["download_sources"][0]["episodes"][0]["url"] == host + "/one.mp4"
-            quanx = run(native, ["quanx", "逐玉"])
-            assert quanx.returncode == 0 and "未完整扫描" in quanx.stderr, quanx
-            for rule in ("ip-cidr, 127.0.0.1/32, direct", "host, localhost, direct"):
-                assert quanx.stdout.splitlines().count(rule) == 1, quanx.stdout
-            assert "资源站 API 域名" in quanx.stderr and "m3u8 域名" in quanx.stderr, quanx
-            assert quanx.stdout.split("\n\n") == [
-                "; 资源站 API 域名\nip-cidr, 127.0.0.1/32, direct", "; m3u8 域名\nhost, localhost, direct\n"], quanx.stdout
-            previous = Path(temp) / "previous.list"
-            previous.write_text("; QX 关键词：上次\nhost, previous.example, direct\nhost-suffix, localhost, direct\n", encoding="utf-8")
-            merged = run(native, ["quanx", "--merge", str(previous), "这次"])
-            assert merged.returncode == 0 and "host, previous.example, direct" in merged.stdout, merged
-            assert merged.stdout.splitlines().count("host, localhost, direct") == 1 and "host-suffix" not in merged.stdout, merged
-            assert [line for line in merged.stdout.splitlines() if line.startswith("; ")] == [
-                "; 资源站 API 域名", "; m3u8 域名", "; 历史规则"], merged.stdout
-            assert all(line.endswith(", direct") for line in merged.stdout.splitlines() if line and not line.startswith("; ")), merged
             for arguments, code in [
                 (["logs", "--full", "--full"], 2),
                 (["logs", "--clear", "--clear"], 2),
@@ -141,7 +107,7 @@ def main():
                 (["search", ""], 2),
                 (["search", "--keyword", "逐玉"], 2),
                 (["search", "--query", "逐玉"], 2),
-                (["quanx", "--query", "逐玉"], 2),
+                (["quanx", "逐玉"], 2),
                 (["search", "a", "b"], 2),
                 (["--source", str(source), "search", "逐玉"], 2),
                 (["fetch", "--site", "🎬站点", "--video-id", "0"], 2),
@@ -153,17 +119,20 @@ def main():
             literal_help = run(native, ["search", "--", "--help"])
             assert literal_help.returncode == 0, literal_help
             assert json.loads(literal_help.stdout)["query"] == "--help"
-            for command in ("search", "fetch", "quanx", "logs"):
+            for command in ("search", "fetch", "logs"):
                 help_result = run(native, [command, "--help"], False)
                 assert help_result.returncode == 0 and help_result.stdout and not help_result.stderr
             assert run(native, ["--version"], False).returncode == 0
-            assert run(native, ["--help"], False).returncode == 0
+            help_result = run(native, ["--help"], False)
+            assert help_result.returncode == 0 and help_result.stdout and not help_result.stderr
+            default = run(native, [], False)
+            assert (default.returncode, default.stdout, default.stderr) == (0, help_result.stdout, "")
             assert run(native, ["logs"], False).returncode == 0
             closed_pipe = subprocess.Popen(native + ["--config", str(source), "search", "fixture"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             closed_pipe.stdout.close()
             assert closed_pipe.wait(timeout=45) == 0
             assert not closed_pipe.stderr.read()
-            print("Native CLI contract passed: search, fetch, quanx, grouping, named playback/download lines, Unicode, proxy URLs, response cap, errors, help/version/logs, closed pipe; PATH has no JVM/Python.")
+            print("Native CLI contract passed: search, fetch, grouping, named playback/download lines, Unicode, proxy URLs, response cap, errors, help/version/logs, closed pipe; PATH has no JVM/Python.")
     finally:
         server.shutdown()
         server.server_close()

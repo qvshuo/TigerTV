@@ -1,6 +1,5 @@
 <script lang="ts">
   import productDefaults from '../../shared/product-defaults.json' with { type: 'json' }
-  import sourceEvidence from '../../shared/hls-heuristics.json' with { type: 'json' }
   import { onMount, tick, untrack } from 'svelte'
   import { catalogDetails, sourceKey } from './catalog-details.svelte.ts'
   import Poster from './Poster.svelte'
@@ -225,12 +224,6 @@
     write('work-posters', workPosters)
   }
 
-  function isRecommended(site: Site, filterAds = productDefaults.filterAds) {
-    const name = displaySourceName(site.name)
-    return sourceEvidence.noGamblingInSamples.includes(name) ||
-      (filterAds && sourceEvidence.sourceRules.some(rule => rule.sites.includes(name)))
-  }
-
   async function runSearch(value = query) {
     const keyword = value.trim()
     if (!keyword) { searchInput?.focus(); return }
@@ -333,11 +326,10 @@
       const key = sourceKey(item)
       return details.state(key) !== 'empty' && details.state(key) !== 'failed' && details.cached(key)?.lines.length !== 0
     })
-    const recommended = (item: Source) => isRecommended(item.site, settings.filterAds)
     const last = getRecent()[0]
     const choice = (previous && (resume ? work.sources : available).find(item => sameSource(item, previous.source))) ??
-      (last && available.find(item => item.site.name === last.source.site.name && recommended(item))) ??
-      available.find(recommended) ?? available[0] ?? work.sources[0]
+      (last && available.find(item => item.site.name === last.source.site.name)) ??
+      available[0] ?? work.sources[0]
     show('detail')
     if (choice) void loadDetail(choice, resume)
   }
@@ -508,29 +500,23 @@
     </div>
     <section class="detail-section" aria-labelledby="source-heading">
       <h2 id="source-heading">资源</h2>
-      {#each [true, false] as recommended (recommended)}
-        {@const group = detailSites.filter(site => isRecommended(site) === recommended)}
-        {#if group.length}
-          <h3 class="source-group-title">{recommended ? '推荐资源' : '其他资源'}</h3>
-          <div class="source-grid">
-            {#each group as site (site.name)}
-              {@const item = matchedSources.get(site.name)}
-              {@const active = !!item && sameSource(item, source)}
-              {@const key = item ? sourceKey(item) : ''}
-              {@const cached = item && details.cached(key)}
-              {@const busy = item ? (active && detailBusy) || (!cached && !details.state(key))
-                : detailFromResults && searchBusy && !settledSearchSites.has(site.name)}
-              <button class="choice source-choice" aria-pressed={active}
-                aria-busy={busy}
-                disabled={!item || (cached ? !cached.lines.length : details.state(key) === 'empty')}
-                onclick={() => { if (item && !active) void loadDetail(item) }}>
-                <span>{displaySourceName(site.name)}</span>
-                {#if busy}<span class="spinner" aria-hidden="true"></span>{/if}
-              </button>
-            {/each}
-          </div>
-        {/if}
-      {/each}
+      <div class="source-grid">
+        {#each detailSites as site (site.name)}
+          {@const item = matchedSources.get(site.name)}
+          {@const active = !!item && sameSource(item, source)}
+          {@const key = item ? sourceKey(item) : ''}
+          {@const cached = item && details.cached(key)}
+          {@const busy = item ? (active && detailBusy) || (!cached && !details.state(key))
+            : detailFromResults && searchBusy && !settledSearchSites.has(site.name)}
+          <button class="choice source-choice" aria-pressed={active}
+            aria-busy={busy}
+            disabled={!item || (cached ? !cached.lines.length : details.state(key) === 'empty')}
+            onclick={() => { if (item && !active) void loadDetail(item) }}>
+            <span>{displaySourceName(site.name)}</span>
+            {#if busy}<span class="spinner" aria-hidden="true"></span>{/if}
+          </button>
+        {/each}
+      </div>
     </section>
     <section class="detail-section" aria-labelledby="episode-heading">
       <h2 id="episode-heading">选集</h2>

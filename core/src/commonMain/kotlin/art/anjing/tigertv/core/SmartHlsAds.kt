@@ -6,40 +6,49 @@ import kotlinx.serialization.json.Json
 
 @Serializable
 private data class HlsHeuristics(
-    val common: CommonAdRules, val sourceRules: List<SourceAdGroup>, val noGamblingInSamples: Set<String>,
+    val common: CommonAdRules, val strategies: List<AdStrategy>,
 )
 
 @Serializable
 private data class CommonAdRules(val minSeconds: Double, val maxSeconds: Double)
 
 @Serializable
-private data class SourceAdGroup(
-    val sites: Set<String>,
-    val manifestHost: String, val segmentUri: String, val durationsMicros: List<List<Long>> = emptyList(),
+private data class AdStrategy(
+    val id: String, val segmentPath: String, val durationsMicros: List<List<Long>> = emptyList(),
     val durationWindowsMicros: List<List<Long>> = emptyList(),
-    val repeated: Boolean = false, val allowEnd: Boolean = false, val contentUri: String? = null,
+    val repeated: Boolean = false, val allowEnd: Boolean = false, val contentPath: String? = null,
     val requireAllDurations: Boolean = false, val innerDiscontinuityOffsets: Set<Int> = emptySet(),
 ) {
-    @Transient val hostPattern = Regex(manifestHost)
-    @Transient val segmentPattern = Regex(segmentUri)
-    @Transient val contentPattern = contentUri?.let(::Regex)
+    @Transient val segmentPattern = Regex(segmentPath)
+    @Transient val contentPattern = contentPath?.let(::Regex)
 
     fun contentSide(path: String): Boolean = contentPattern?.matches(path) ?: !segmentPattern.matches(path)
 }
 
 private val heuristics by lazy { Json.decodeFromString<HlsHeuristics>(hlsHeuristicsJson) }
-fun isRecommendedSource(site: String, filterAds: Boolean = productDefaults.filterAds): Boolean {
-    val name = site.replace("🎬", "").trim()
-    return name in heuristics.noGamblingInSamples ||
-        filterAds && heuristics.sourceRules.any { name in it.sites }
+private val uriAuthority = Regex("^(?:[A-Za-z][A-Za-z0-9+.-]*:)?//[^/]*")
+private fun uriPath(uri: String) = uri.substringBefore('?').substringBefore('#').replaceFirst(uriAuthority, "")
+
+private fun segmentPath(uri: String, baseDirectory: String): String {
+    val path = uriPath(uri)
+    val absolute = if (path.startsWith('/')) path else baseDirectory + path
+    val parts = mutableListOf<String>()
+    for (part in absolute.drop(1).split('/')) {
+        when (part) {
+            "." -> Unit
+            ".." -> if (parts.isNotEmpty()) parts.removeAt(parts.lastIndex)
+            else -> parts.add(part)
+        }
+    }
+    return "/" + parts.joinToString("/")
 }
 
-fun filterSmartHlsAds(playlist: String, playlistHost: String = ""): HlsFilterResult? {
+fun filterSmartHlsAds(playlist: String, playlistUrl: String = ""): HlsFilterResult? {
     val vod = parseHlsVod(playlist) ?: return null
-    return rewriteHlsVod(vod, smartAdIndices(vod, playlistHost))
+    return rewriteHlsVod(vod, smartAdIndices(vod, playlistUrl))
 }
 
-private fun smartAdIndices(vod: HlsVod, playlistHost: String): Set<Int> {
+private fun smartAdIndices(vod: HlsVod, playlistUrl: String): Set<Int> {
     val params = heuristics
     val segments = vod.segments
     val accepted = mutableSetOf<Int>()
@@ -50,32 +59,32 @@ private fun smartAdIndices(vod: HlsVod, playlistHost: String): Set<Int> {
         accepted.addAll(start until end)
     }
 
-    val paths = segments.map { it.uri.substringBefore('?').substringBefore('#') }
+    val baseDirectory = uriPath(playlistUrl).substringBeforeLast('/', "") + "/"
+    val paths = segments.map { segmentPath(it.uri, baseDirectory) }
     val spliceBoundaries = segments.indices.filter { segments[it].discontinuity } + segments.size
-    for (profile in params.sourceRules) {
-        if (!profile.hostPattern.matches(playlistHost)) continue
-        val hasInnerBoundary = profile.innerDiscontinuityOffsets.isNotEmpty()
+    for (strategy in params.strategies) {
+        val hasInnerBoundary = strategy.innerDiscontinuityOffsets.isNotEmpty()
         val candidates = spliceBoundaries.windowed(if (hasInnerBoundary) 3 else 2).mapNotNull { boundaries ->
             val start = boundaries.first()
             val end = boundaries.last()
-            if (hasInnerBoundary && boundaries[1] - start !in profile.innerDiscontinuityOffsets) return@mapNotNull null
+            if (hasInnerBoundary && boundaries[1] - start !in strategy.innerDiscontinuityOffsets) return@mapNotNull null
             val group = segments.subList(start, end)
-            val matches = start > 0 && (end != segments.size || profile.allowEnd) &&
-                (group.map { it.micros } in profile.durationsMicros ||
-                    group.size == profile.durationWindowsMicros.size && group.indices.all { index ->
-                        val (min, max) = profile.durationWindowsMicros[index]
+            val matches = start > 0 && (end != segments.size || strategy.allowEnd) &&
+                (group.map { it.micros } in strategy.durationsMicros ||
+                    group.size == strategy.durationWindowsMicros.size && group.indices.all { index ->
+                        val (min, max) = strategy.durationWindowsMicros[index]
                         group[index].micros in min..max
                     }) &&
-                (start until end).all { !segments[it].encrypted && profile.segmentPattern.matches(paths[it]) } &&
-                profile.contentSide(paths[start - 1]) &&
-                (end == segments.size || profile.contentSide(paths[end]))
+                (start until end).all { !segments[it].encrypted && strategy.segmentPattern.matches(paths[it]) } &&
+                strategy.contentSide(paths[start - 1]) &&
+                (end == segments.size || strategy.contentSide(paths[end]))
             if (matches) start to end else null
         }
-        if (profile.requireAllDurations) {
+        if (strategy.requireAllDurations) {
             val found = candidates.map { (start, end) -> segments.subList(start, end).map { it.micros } }.toSet()
-            if (!found.containsAll(profile.durationsMicros)) continue
+            if (!found.containsAll(strategy.durationsMicros)) continue
         }
-        val matching = if (profile.repeated) {
+        val matching = if (strategy.repeated) {
             candidates.groupBy { (start, end) -> (start until end).map { paths[it] to segments[it].byteRange } }.values
                 .filter { it.size > 1 }.flatten()
         } else candidates

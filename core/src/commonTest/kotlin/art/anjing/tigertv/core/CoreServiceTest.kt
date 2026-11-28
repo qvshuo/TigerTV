@@ -186,6 +186,9 @@ class CoreServiceTest {
     @Test fun fetchPreservesRawPlaybackAddressesWithoutProbingThem() = runTest {
         val expected = wireJson.decodeFromString<art.anjing.tigertv.domain.FetchResponse>(contractFixtures.getValue("fetch-playback.sample.json"))
         val episodes = expected.playSources.single().episodes
+        assertEquals(listOf("HLS", "MP4", "HTML", ""), episodes.map { it.name })
+        assertEquals("https://media.example/中文/index.m3u8?sign=a%2Fb%2Bc%3D&literal=a+b", episodes.first().url)
+        assertEquals("https://page.example/player?id=42&sign=a%2Fb%2Bc%3D", episodes[2].url)
         val item = buildJsonObject {
             put("vod_id", 1)
             put("vod_play_url", episodes.joinToString("#") { "${it.name}${'$'}${it.url}" })
@@ -204,27 +207,23 @@ class CoreServiceTest {
         } finally { core.close() }
     }
 
-    @Test fun cancellingSearchAndQuanxPropagatesWithoutPublishingResults() = runTest {
-        for (quanx in listOf(false, true)) {
-            val started = CompletableDeferred<Unit>()
-            var cancelled = false
-            var updates = 0
-            val core = CoreService("cache", "source", MemoryStorage().apply { files["source"] = config },
-                configureClient(HttpClient(testEngine {
-                    started.complete(Unit)
-                    try { awaitCancellation() } finally { cancelled = true }
-                })))
-            try {
-                val request = async {
-                    if (quanx) core.collectQuanxDomains("test") else core.search("test") { updates++ }
-                }
-                started.await()
-                request.cancelAndJoin()
-                assertTrue(cancelled)
-                assertTrue(request.isCancelled)
-                assertEquals(0, updates)
-            } finally { core.close() }
-        }
+    @Test fun cancellingSearchPropagatesWithoutPublishingResults() = runTest {
+        val started = CompletableDeferred<Unit>()
+        var cancelled = false
+        var updates = 0
+        val core = CoreService("cache", "source", MemoryStorage().apply { files["source"] = config },
+            configureClient(HttpClient(testEngine {
+                started.complete(Unit)
+                try { awaitCancellation() } finally { cancelled = true }
+            })))
+        try {
+            val request = async { core.search("test") { updates++ } }
+            started.await()
+            request.cancelAndJoin()
+            assertTrue(cancelled)
+            assertTrue(request.isCancelled)
+            assertEquals(0, updates)
+        } finally { core.close() }
     }
 
     @Test fun logRolloverKeepsExactlyTheLatestTwoThousandLines() {
@@ -242,10 +241,6 @@ class CoreServiceTest {
         val fetch = wireJson.decodeFromString<art.anjing.tigertv.domain.FetchResponse>(contractFixtures.getValue("fetch.sample.json"))
         assertEquals(1, search.works.first().sources.first().vodId)
         assertTrue(fetch.playSources.isNotEmpty())
-        for (fixture in listOf("quanx-html-absolute.sample.html", "quanx-html-relative.sample.html", "quanx-html-escaped.sample.html", "quanx-urlencoded.sample.html")) {
-            assertTrue(extractM3u8("https://page.example/player", contractFixtures.getValue(fixture)).first().startsWith("https://"))
-        }
-        assertEquals("https://cdn.example.com/playlist/index.m3u8?sign=a%2Fb%2Bc%3D", extractM3u8("https://page.example/player", contractFixtures.getValue("quanx-urlencoded.sample.html")).first())
     }
 
     @Test fun filteringAndUpstreamIntegerValidation() {
@@ -272,15 +267,7 @@ class CoreServiceTest {
 
     @Test fun parsingPreservesEpisodeNamesAndSignedUrls() {
         assertEquals("第一集", parsePlaybackSources(" 第一集 ${'$'}https://a.test/a?x=1+2#二${'$'}u${'$'}${'$'}${'$'}三${'$'}v", "").first().episodes.first().name)
-        assertEquals("https://a.test/path/a.m3u8?sign=a+b", extractM3u8("https://a.test/path/page", "'a.m3u8?sign=a+b'").single())
         assertEquals("https://a.test/%E4%B8%AD%E6%96%87/%20?a=+", normalizeUrl("https://a.test/中文/%20?a=+"))
-    }
-
-    @Test fun signedPlaybackQueriesSurviveHtmlAndWrappedUrls() = runTest {
-        val signed = "https://cdn.test/video.m3u8?sign=a%2Fb%2Bc%3D&part=1"
-        assertEquals(signed, extractM3u8("https://page.test/", "<video src=\"${signed.replace("&", "&amp;")}\">").single())
-        val wrapped = "https%3A%2F%2Fcdn.test%2Fvideo.m3u8%3Fsign%3Da%252Fb%252Bc%253D%26part%3D1"
-        assertEquals(signed, extractM3u8("https://page.test/", "'$wrapped'").single())
     }
 
     @Test fun apiOperationsClearOldSearchAndFetchParameters() {
@@ -327,7 +314,7 @@ class CoreServiceTest {
     }
 
     @Test fun staleCacheFallbackAndHistoryLimit() = runTest {
-        val store = MemoryStorage().apply { files["cache/tigertv-cli-config-cache.json"] = """{"fetchedAtMillis":0,"config":$config}""" }
+        val store = MemoryStorage().apply { files["cache/source-config-cache.json"] = """{"fetchedAtMillis":0,"config":$config}""" }
         val core = CoreService("cache", storage = store, client = configureClient(HttpClient(testEngine { error("offline") })), clock = { 99 * CoreService.DAY })
         try {
             assertEquals(1, core.loadConfig().apiSite.size)
@@ -348,7 +335,7 @@ class CoreServiceTest {
             assertEquals(1, core.loadConfig().apiSite.size)
             assertEquals(1, core.loadConfig().apiSite.size)
             assertEquals(2, requests)
-            assertTrue(store.files.getValue("cache/tigertv-cli-config-cache.json").contains("disabled"))
+            assertTrue(store.files.getValue("cache/source-config-cache.json").contains("disabled"))
         } finally { core.close() }
     }
 
@@ -394,235 +381,6 @@ class CoreServiceTest {
         } finally { core.close() }
     }
 
-    @Test fun quanxTraversesAllVariantsAndCollectsKeyAndMediaDomains() = runTest {
-        val store = MemoryStorage().apply { files["source"] = config }
-        val requested = mutableListOf<String>()
-        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine { request ->
-            requested += request.url.toString()
-            respond(when {
-                request.url.parameters["ac"] == "list" -> """{"code":1,"list":[{"vod_id":1}]}"""
-                request.url.parameters["ac"] == "detail" -> """{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://media.test/master.m3u8"}]}"""
-                request.url.encodedPath == "/master.m3u8" -> "#EXTM3U\n" + (1..4).joinToString("\n") { "#EXT-X-STREAM-INF:BANDWIDTH=$it\nchild$it.m3u8" }
-                else -> "#EXTM3U\n#EXT-X-KEY:URI=\"https://key.test/key\"\n#EXT-X-MEDIA:URI=\"https://audio.test/a.m3u8\"\nhttps://segments.test/1.ts"
-            })
-        })))
-        try {
-            val result = core.collectQuanxDomains("test")
-            assertTrue(result.m3u8.containsAll(listOf("key.test", "audio.test", "segments.test")))
-            assertTrue(requested.any { "child4" in it })
-        } finally { core.close() }
-    }
-
-    @Test fun quanxReadsRawManifestWithoutPlaylistExtension() = runTest {
-        val core = CoreService("cache", "source", MemoryStorage().apply { files["source"] = config },
-            configureClient(HttpClient(testEngine { request ->
-                respond(when {
-                    request.url.parameters["ac"] == "list" -> """{"code":1,"list":[{"vod_id":1}]}"""
-                    request.url.parameters["ac"] == "detail" -> """{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://media.test/raw"}]}"""
-                    else -> contractFixtures.getValue("quanx-extm3u-content.sample.txt")
-                })
-            })))
-        try {
-            val domains = core.collectQuanxDomains("test")
-            assertTrue(domains.incompleteSites.isEmpty())
-            assertTrue("cdn.test" in domains.m3u8)
-        } finally { core.close() }
-    }
-
-    @Test fun quanxFetchesSharedPlaylistsOnce() = runTest {
-        val store = MemoryStorage().apply { files["source"] = config }
-        val requested = mutableListOf<String>()
-        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine { request ->
-            requested += request.url.encodedPath
-            respond(when {
-                request.url.parameters["ac"] == "list" -> """{"code":1,"list":[{"vod_id":1}]}"""
-                request.url.parameters["ac"] == "detail" -> """{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://media.test/root.m3u8"}]}"""
-                request.url.encodedPath == "/root.m3u8" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nbranch.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=2\nshared.m3u8"
-                request.url.encodedPath == "/branch.m3u8" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nshared.m3u8"
-                request.url.encodedPath == "/shared.m3u8" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nleaf.m3u8"
-                else -> "#EXTM3U\nhttps://segments.test/1.ts"
-            })
-        })))
-        try {
-            val result = core.collectQuanxDomains("test")
-            assertTrue("segments.test" in result.m3u8)
-            assertEquals(1, requested.count { it == "/shared.m3u8" })
-            assertEquals(1, requested.count { it == "/leaf.m3u8" })
-        } finally { core.close() }
-    }
-
-    @Test fun quanxFollowsFirstEpisodePerLineAndMediaRedirects() = runTest {
-        val store = MemoryStorage().apply { files["source"] = config }
-        val requested = mutableListOf<String>()
-        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine { request ->
-            requested += "${request.method.value} ${request.url}"
-            when {
-                request.url.parameters["ac"] == "list" -> respond("""{"code":1,"list":[{"vod_id":1},{"vod_id":2}]}""")
-                request.url.parameters["ids"] == "1" -> respond("""{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://entry.test/start#二${'$'}https://skip.test/two.m3u8${'$'}${'$'}${'$'}一${'$'}https://backup.test/one.m3u8","vod_down_url":"一${'$'}https://download.test/file.zip#二${'$'}https://skip.test/two.zip"}]}""")
-                request.url.parameters["ids"] == "2" -> respond("""{"code":1,"list":[{"vod_id":2,"vod_play_url":"一${'$'}https://file.test/video.mp4"}]}""")
-                request.url.host == "entry.test" -> respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://page.test/player"))
-                request.url.host == "page.test" -> respond("""<video src="https://final.test/path/master.m3u8?sign=a%2Fb%2Bc%3D&amp;literal=a+b"><source src="https://html-mp4.test/v.mp4"></video>""")
-                request.url.host == "backup.test" -> respond("#EXTM3U\nhttps://backup-segments.test/1.ts")
-                request.url.encodedPath.endsWith("master.m3u8") -> respond("#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=1\nvideo.m3u8")
-                request.url.encodedPath.endsWith("audio.m3u8") -> respond("#EXTM3U\nhttps://audio-segments.test/a.aac")
-                request.url.encodedPath.endsWith("video.m3u8") -> respond(buildString {
-                    appendLine("#EXTM3U")
-                    appendLine("#EXT-X-MAP:URI=\"https://init.test/init.mp4\"")
-                    appendLine("#EXT-X-KEY:URI=\"https://key.test/key\"")
-                    appendLine("#EXT-X-I-FRAME-STREAM-INF:URI=\"iframe.m3u8\"")
-                    appendLine("#EXT-X-RENDITION-REPORT:URI=\"report.m3u8\"")
-                    appendLine("https://segments.test/1.ts")
-                    repeat(1100) { appendLine("https://later-segments.test/$it.ts") }
-                })
-                request.url.encodedPath.endsWith("iframe.m3u8") || request.url.encodedPath.endsWith("report.m3u8") -> respond("#EXTM3U\nhttps://extra-segments.test/1.ts")
-                request.url.host == "segments.test" -> respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://redirected-segments.test/1.ts"))
-                request.url.host == "redirected-segments.test" && request.headers[HttpHeaders.Range] != null ->
-                    respond("", HttpStatusCode.RequestedRangeNotSatisfiable)
-                request.url.host == "file.test" -> {
-                    assertEquals(HttpMethod.Get, request.method)
-                    assertEquals("bytes=0-0", request.headers[HttpHeaders.Range])
-                    respond("", headers = headersOf(HttpHeaders.ContentType, "video/mp4"))
-                }
-                request.url.host in setOf("audio-segments.test", "init.test", "key.test", "extra-segments.test",
-                    "redirected-segments.test", "backup-segments.test", "download.test", "html-mp4.test") -> respond("")
-                else -> error("Unexpected request: ${request.url}")
-            }
-        })))
-        try {
-            val domains = core.collectQuanxDomains("test")
-            assertTrue(domains.incompleteSites.isEmpty())
-            assertTrue(domains.m3u8.containsAll(listOf("entry.test", "page.test", "final.test", "audio-segments.test", "init.test", "key.test", "extra-segments.test", "segments.test", "file.test",
-                "backup.test", "backup-segments.test", "redirected-segments.test", "html-mp4.test", "download.test")))
-            assertTrue(requested.any { "master.m3u8?sign=a%2Fb%2Bc%3D&literal=a+b" in it })
-            assertTrue(requested.none { "skip.test" in it })
-            assertFalse("skip.test" in domains.urls)
-            assertTrue("later-segments.test" in domains.m3u8)
-            assertTrue(requested.none { "later-segments.test" in it })
-            assertTrue(requested.any { "https://backup-segments.test/1.ts" in it })
-            assertTrue(requested.any { "https://final.test/path/audio.m3u8" in it })
-        } finally { core.close() }
-    }
-
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    @Test fun quanxCompletesSlowScansAndProbesDistinctHostsBeforeRepeats() = runTest {
-        var inFlight = 0
-        var peak = 0
-        var keys = 0
-        var keysBeforeOtherHost = -1
-        val core = CoreService("cache", "source", MemoryStorage().apply { files["source"] = config },
-            configureClient(HttpClient(testEngine { request ->
-                when {
-                    request.url.parameters["ac"] == "list" -> respond("""{"code":1,"list":[{"vod_id":1}]}""")
-                    request.url.parameters["ids"] == "1" -> respond("""{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://media.test/index.m3u8"}]}""")
-                    request.url.host == "media.test" -> respond(buildString {
-                        appendLine("#EXTM3U")
-                        repeat(60) { appendLine("#EXT-X-KEY:URI=\"https://segments.test/$it.key\"") }
-                        appendLine("https://other.test/a.ts")
-                    })
-                    request.url.host == "other.test" -> {
-                        keysBeforeOtherHost = keys
-                        respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://other-cdn.test/a.ts"))
-                    }
-                    else -> {
-                        if (request.url.host == "segments.test") keys++
-                        peak = maxOf(peak, ++inFlight)
-                        try { delay(1000) } finally { inFlight-- }
-                        respond("")
-                    }
-                }
-            })))
-        try {
-            val domains = core.collectQuanxDomains("test")
-            assertTrue(testScheduler.currentTime > 6000)
-            assertEquals(60, keys)
-            assertTrue(keysBeforeOtherHost in 0..5)
-            assertEquals(6, peak)
-            assertTrue("other-cdn.test" in domains.m3u8)
-            assertTrue(domains.incompleteReasons.isEmpty())
-        } finally { core.close() }
-    }
-
-    @Test fun quanxKeepsObservedRedirectHostWhenTheChildReturnsAnError() = runTest {
-        val core = CoreService("cache", "source", MemoryStorage().apply { files["source"] = config },
-            configureClient(HttpClient(testEngine { request ->
-                when {
-                    request.url.parameters["ac"] == "list" -> respond("""{"code":1,"list":[{"vod_id":1}]}""")
-                    request.url.parameters["ids"] == "1" -> respond("""{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://entry.test/index.m3u8"}]}""")
-                    request.url.host == "entry.test" -> respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://failed-cdn.test/rejected"))
-                    else -> respond("", HttpStatusCode.Forbidden)
-                }
-            })))
-        try {
-            val report = core.collectQuanxDomains("test")
-            assertTrue("failed-cdn.test" in report.m3u8)
-            assertEquals(listOf("🎬一"), report.incompleteSites)
-            assertEquals(listOf("HTTP 403"), report.incompleteReasons.values.single())
-        } finally { core.close() }
-    }
-
-    @Test fun quanxRendersExactHostsAndIpRulesAndMergesACumulativeFile() {
-        val scan = QuanxDomains(setOf("api.example", "[2001:0db8:0:0:0:0:0:1]"), setOf("API.EXAMPLE.", "127.0.0.1"),
-            setOf("api.example", "2001:db8::1"), listOf("资源站"))
-        val groups = scan.ruleGroups("""
-            ; QX 关键词：以前
-            host-suffix, previous.example, direct
-            ; m3u8 域名
-            host, segment.example, direct
-            host, api.example, direct
-            ip6-cidr, [2001:db8::0001]/128, direct
-            ip-cidr, 10.0.0.0/8, direct
-            host, unrelated.example, proxy
-        """.trimIndent())
-        assertEquals(listOf("资源站 API 域名", "播放/下载域名", "m3u8 域名", "历史规则"), groups.keys.toList())
-        assertEquals(listOf(
-            listOf("ip6-cidr, 2001:db8::1/128, direct", "host, api.example, direct"),
-            listOf("ip-cidr, 127.0.0.1/32, direct"),
-            listOf("host, segment.example, direct"),
-            listOf("host, previous.example, direct"),
-        ), groups.values.toList())
-        val empty = QuanxDomains(emptySet(), emptySet(), emptySet())
-        val exported = groups.values.joinToString("\n\n", postfix = "\n") { it.joinToString("\n") }
-        assertEquals(groups, empty.ruleGroups(exported))
-    }
-
-    @Test fun quanxKeepsBudgetForOtherSitesAndStillProbesEarlierWorks() = runTest {
-        val store = MemoryStorage().apply { files["source"] = config.replace("\"null\":null", "\"small\":{\"name\":\"🎬小站\",\"api\":\"https://small.test/api\"}") }
-        var requests = 0
-        var details = 0
-        var errors = 0
-        val core = CoreService("cache", "source", store, configureClient(HttpClient(testEngine { request ->
-            requests++
-            if (request.url.parameters["ac"] == "list" && request.url.host == "a.test") {
-                return@testEngine respond("", HttpStatusCode.Found,
-                    headersOf(HttpHeaders.Location, request.url.toString().replace("a.test", "redirected-api.test")))
-            }
-            respond(when {
-                request.url.host == "small.test" && request.url.parameters["ac"] == "list" ->
-                    """{"code":1,"list":[{"vod_id":1}]}"""
-                request.url.host == "small.test" ->
-                    """{"code":1,"list":[{"vod_id":1,"vod_play_url":"一${'$'}https://small-media.test/first.m3u8"}]}"""
-                request.url.parameters["ac"] == "list" -> """{"code":1,"list":[${(1..1500).joinToString(",") { """{"vod_id":$it}""" }}]}"""
-                request.url.parameters["ids"] != null -> {
-                    details++
-                    """{"code":1,"list":[{"vod_id":${request.url.parameters["ids"]},"vod_play_url":"一${'$'}https://media.test/first.m3u8"}]}"""
-                }
-                else -> "#EXTM3U\n#EXT-X-KEY:URI=\"data:text/plain;base64,AAAA\"\nhttps://segments.test/1.ts"
-            })
-        })), logger = Logger { _, _, _ -> errors++ })
-        try {
-            val result = core.collectQuanxDomains("test")
-            assertEquals(505, requests)
-            assertEquals(498, details)
-            assertEquals(1, errors)
-            assertEquals(listOf("🎬一"), result.incompleteSites)
-            assertTrue("redirected-api.test" in result.api)
-            assertTrue("segments.test" in result.m3u8)
-            assertTrue("small-media.test" in result.urls)
-            assertFalse(result.m3u8.any { "data:" in it })
-        } finally { core.close() }
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test fun networkDeadlineIsAnOperationFailureAndRedirectsShareTheBudget() = runTest {
         val client = configureClient(HttpClient(testEngine {
             delay(6_000)

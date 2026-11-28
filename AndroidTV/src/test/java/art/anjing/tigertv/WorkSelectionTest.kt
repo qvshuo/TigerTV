@@ -522,7 +522,7 @@ class WorkSelectionTest {
         coVerify(exactly = 1) { repository.recordPlayback(work.id, "A", "0", first.name, any(), any(), matchNullable { true }, any()) }
     }
 
-    @Test fun aNewWorkIgnoresAnUnrecommendedRecentSite() = runTest(dispatcher) {
+    @Test fun aNewWorkUsesARecentlyPlayedSiteThatIsAvailable() = runTest(dispatcher) {
         val otherA = a.copy(vodId = 10, vodName = "另一部剧", vodPic = "https://a.test/cover.jpg")
         val otherB = b.copy(vodId = 20, vodName = "另一部剧")
         coEvery { repository.search(any(), any()) } returns Result.Success(SearchResponse("剧", aggregateWorks(listOf(a, b, otherA, otherB))))
@@ -537,7 +537,7 @@ class WorkSelectionTest {
         advanceUntilIdle()
         val unwatched = viewModel.works.first { it.title == "另一部剧" }
         assertNull(unwatched.lastPlayedSite)
-        assertEquals("A", unwatched.defaultSource.site)
+        assertEquals("B", unwatched.defaultSource.site)
         assertEquals(otherA, unwatched.orderedSources.first { it.vodPic.isNotBlank() })
         coVerify(exactly = 0) { repository.recordPlayback(unwatched.id, any(), any(), any(), any(), any(), matchNullable { true }, any()) }
     }

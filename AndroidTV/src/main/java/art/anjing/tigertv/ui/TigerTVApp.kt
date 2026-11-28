@@ -1,7 +1,6 @@
 package art.anjing.tigertv.ui
 
 import art.anjing.tigertv.TigerTVApplication
-import art.anjing.tigertv.ui.player.PlaybackPreferences
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -71,7 +70,6 @@ internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostC
             SettingsScreen()
         }
         composable(Screen.Results.route) {
-            val context = LocalContext.current
             ResultsScreen(
                 viewModel = viewModel,
                 onSearch = {
@@ -88,7 +86,7 @@ internal fun TigerTVNavHost(viewModel: TigerTVViewModel, navController: NavHostC
                     viewModel.clearResults()
                 },
                 onSelectResult = { result ->
-                    viewModel.selectRecommendedResult(result, PlaybackPreferences(context).filterAds)
+                    viewModel.selectPreferredResult(result)
                     navController.navigate(Screen.Episodes.route)
                 }
             )

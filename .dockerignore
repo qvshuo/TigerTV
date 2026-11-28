@@ -6,6 +6,3 @@ web/dist
 web/.env*
 !shared/
 !shared/**
-!skills/
-!skills/references/
-!skills/references/LunaTV-config.json

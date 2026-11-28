@@ -187,9 +187,8 @@ fun PlayerScreen(
     LaunchedEffect(snapshot.ended) {
         if (!snapshot.ended || blocked || exiting || controls.seek != null) return@LaunchedEffect
         if (playbackPreferences.autoNext && viewModel.selectedEpisodeIndex in 0 until viewModel.episodes.lastIndex) {
-            val speed = snapshot.speed
             switchEpisode(1)
-            automaticOptions = AutomaticPlaybackOptions(viewModel.playbackRevision, speed, danmakuState.enabled)
+            automaticOptions = AutomaticPlaybackOptions(viewModel.playbackRevision, danmakuState.enabled)
         } else showControls(PlayerFocusArea.Actions)
     }
     LaunchedEffect(controls.lastInteractionMillis, controls.visible, controls.speedMenuOpen, controls.seek, snapshot.playWhenReady, blocked, danmakuMenu, danmakuQuick) {
@@ -213,12 +212,12 @@ fun PlayerScreen(
         val session = viewModel.playbackSession
         if (url != null && session != null) {
             val title = listOfNotNull(viewModel.fetchResponse?.vodName, session.episode).joinToString(" · ")
-            controller.load(url, session.positionMillis, title, session.site,
+            controller.load(url, session.positionMillis, title,
                 onStarted = { viewModel.playbackDidStart(session) },
                 onPosition = { viewModel.savePlaybackPosition(session, it, controller.playbackProgressPercent(it)) },
                 onError = viewModel::setPlaybackError,
                 filterAds = playbackPreferences.filterAds,
-                speed = inheritedOptions?.speed ?: playbackPreferences.speed(session.workId))
+                speed = playbackPreferences.speed(session.workId))
             controller.play()
         }
         onDispose { controller.unload() }
@@ -390,4 +389,4 @@ fun PlayerScreen(
     }
 }
 
-private data class AutomaticPlaybackOptions(val revision: Int, val speed: Float, val danmakuEnabled: Boolean)
+private data class AutomaticPlaybackOptions(val revision: Int, val danmakuEnabled: Boolean)

@@ -63,7 +63,6 @@ h2, .search-results-title { font-size: clamp(1.08rem, 2vw, 1.25rem); line-height
 .choice.source-choice { display: flex; align-items: center; justify-content: center; gap: .3rem; min-width: 0; padding-inline: .45rem; }
 .source-choice > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .source-choice .spinner { font-size: .75rem; }
-.source-group-title { display: flex; align-items: center; gap: .4rem; color: var(--muted); font-size: .875rem; margin: .9rem 0 .45rem; }
 .catalog-lead { display: flex; align-items: center; min-height: 44px; gap: .65rem; margin-bottom: 1rem; }
 .search-results-title > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .spinner { flex: none; display: inline-block; width: 1em; height: 1em; border: .13em solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
