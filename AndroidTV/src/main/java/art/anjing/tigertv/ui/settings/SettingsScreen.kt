@@ -13,7 +13,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.ListItem
+import androidx.tv.material3.DenseListItem
 import androidx.tv.material3.ListItemDefaults
 import art.anjing.tigertv.ui.player.PlaybackPreferences
 import androidx.tv.material3.Surface
@@ -84,12 +84,11 @@ internal fun SettingsScreen() {
 
 @Composable
 private fun PlaybackSetting(label: String, enabled: Boolean, onChange: (Boolean) -> Unit) {
-    ListItem(
+    DenseListItem(
         selected = enabled,
-        modifier = Modifier.heightIn(min = UiMetrics.controlHeight),
         scale = ListItemDefaults.scale(focusedScale = UiMetrics.quarterFocusScale),
         onClick = { onChange(!enabled) },
-        headlineContent = { Text(label) },
-        trailingContent = { Text(if (enabled) "开启" else "关闭") },
+        headlineContent = { Text(label, style = MaterialTheme.typography.titleMedium) },
+        trailingContent = { Text(if (enabled) "开启" else "关闭", style = MaterialTheme.typography.labelLarge) },
     )
 }
