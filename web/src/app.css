@@ -131,7 +131,7 @@ input::placeholder { color: #a9a9a9; }
 .synopsis { margin-top: .65rem; max-width: 68ch; white-space: pre-line; line-height: 1.7; color: #dddddd; overflow-wrap: anywhere; }
 .detail-section { padding-top: var(--space-4); margin-top: var(--space-4); border-top: 1px solid var(--line); }
 .detail-section h2 { margin-bottom: var(--space-2); }
-.source-group h3 { margin-bottom: var(--space-2); }
+.source-group h3 { margin-bottom: var(--space-2); font-size: 1rem; font-weight: 600; color: var(--muted); }
 .source-group + .source-group { margin-top: var(--space-4); }
 .settings-page .detail-section { border-top: 0; }
 .settings-page .detail-section:first-child { margin-block-start: 0; padding-block-start: 0; }
@@ -143,7 +143,7 @@ input::placeholder { color: #a9a9a9; }
 .video-surface > video, .video-surface > hlsjs-video { display: block; width: 100%; height: 100%; object-fit: contain; }
 .danmaku-layer { position: absolute; inset: 0 auto auto 0; width: 100%; block-size: 20%; z-index: 11; pointer-events: none; }
 .danmaku { position: absolute; inset: 0; width: 100%; height: 100%; }
-.danmaku-status { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; font: 700 1em system-ui, sans-serif; color: #fff; paint-order: stroke fill; -webkit-text-stroke: 2px #000; }
+.danmaku-status { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; font: 700 1em system-ui, sans-serif; color: #fff; paint-order: stroke fill; -webkit-text-stroke: var(--danmaku-stroke, 2px) #000; }
 .player-meta { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-top: .8rem; }
 .player-meta > div { min-width: 0; }
 .player-actions { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--space-1) var(--space-2); }

@@ -165,7 +165,7 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                         Column(verticalArrangement = Arrangement.spacedBy(UiSpacing.choiceRow)) {
                             SectionTitle("资源")
                             for ((title, sites) in listOf("推荐资源" to recommended.map { it.name }, "其他资源" to otherNames)) {
-                                SectionTitle(title)
+                                Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 val columns = 6
                                 sites.chunked(columns).forEach { row ->
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ChoiceGap)) {

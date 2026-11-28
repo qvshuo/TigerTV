@@ -22,7 +22,6 @@ internal class DanmakuView(context: Context) : View(context) {
         typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
         strokeWidth = render.stroke * resources.displayMetrics.density
     }
-    private val loadingPaint = Paint(paint).apply { textSize *= render.statusFontRatio }
     private data class Item(val comment: DanmakuComment, val text: String, val width: Float, val lane: Int)
     private val widths = LruCache<String, Float>(256)
     private val lastInLane = arrayOfNulls<Item>(render.lanes)
@@ -67,7 +66,7 @@ internal class DanmakuView(context: Context) : View(context) {
         val status = (loading?.label ?: message)?.takeIf { enabled }
         if (loadingLabel != status) {
             loadingLabel = status
-            loadingLabelWidth = status?.let(loadingPaint::measureText) ?: 0f
+            loadingLabelWidth = status?.let(paint::measureText) ?: 0f
             contentDescription = status
             changed = true
         }
@@ -75,7 +74,7 @@ internal class DanmakuView(context: Context) : View(context) {
         if (visibility != nextVisibility) { visibility = nextVisibility; if (visibility == GONE) drawnCount = 0; removeCallbacks(wake); changed = true }
         if (changed) invalidate()
     }
-    private fun drawOutlined(canvas: Canvas, text: String, x: Float, y: Float, color: Int, paint: Paint = this.paint) {
+    private fun drawOutlined(canvas: Canvas, text: String, x: Float, y: Float, color: Int) {
         paint.style = Paint.Style.STROKE
         paint.color = Color.BLACK
         canvas.drawText(text, x, y, paint)
@@ -116,8 +115,7 @@ internal class DanmakuView(context: Context) : View(context) {
         if (size != paint.textSize || contentWidthForLanes != contentWidth) {
             if (size != paint.textSize) widths.evictAll()
             paint.textSize = size
-            loadingPaint.textSize = size * render.statusFontRatio
-            loadingLabelWidth = loadingLabel?.let(loadingPaint::measureText) ?: 0f
+            loadingLabelWidth = loadingLabel?.let(paint::measureText) ?: 0f
             contentWidthForLanes = contentWidth
             active.clear(); lastInLane.fill(null); cursor = lowerBound(now - 2 * lifetime)
         }
@@ -125,8 +123,8 @@ internal class DanmakuView(context: Context) : View(context) {
         val top = (height - contentHeight) / 2
         loadingLabel?.let { label ->
             val x = (width - loadingLabelWidth) / 2
-            val y = top + danmakuHeight / 2 - (loadingPaint.ascent() + loadingPaint.descent()) / 2
-            drawOutlined(canvas, label, x, y, 0xFFFFFF, loadingPaint)
+            val y = top + danmakuHeight / 2 - (paint.ascent() + paint.descent()) / 2
+            drawOutlined(canvas, label, x, y, 0xFFFFFF)
             return
         }
         val laneHeight = paint.textSize * render.lineHeight

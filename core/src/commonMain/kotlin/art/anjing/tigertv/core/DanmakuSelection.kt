@@ -69,7 +69,7 @@ fun shouldUpgradeDanmaku(current: DanmakuTrack, next: DanmakuTrack,
 data class DanmakuRenderRules(
     val lifetimeMs: Long, val areaRatio: Float, val fontRatio: Float, val lineHeight: Float,
     val gapEm: Float, val stroke: Float, val lanes: Int, val visibleLimit: Int,
-    val statusFontRatio: Float, val statusDurationMs: Long,
+    val statusDurationMs: Long,
 ) {
     fun fits(width: Float, previous: Float, incoming: Float, elapsedMs: Long, gap: Float): Boolean {
         if (elapsedMs >= lifetimeMs) return true

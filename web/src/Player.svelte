@@ -163,7 +163,8 @@
         const fontSize = Math.min(windowedPlayerSize.height, windowedPlayerSize.width / aspect) * danmakuRules.render.fontRatio
         if (fontSize !== danmakuFontSize) {
           danmakuFontSize = fontSize
-          overlay.style.fontSize = `${fontSize * danmakuRules.render.statusFontRatio}px`
+          overlay.style.fontSize = `${fontSize}px`
+          overlay.style.setProperty('--danmaku-stroke', `${2 * danmakuRules.render.stroke}px`)
           wakeDanmaku(true)
         }
       }
