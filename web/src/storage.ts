@@ -1,5 +1,5 @@
 import productDefaults from '../../shared/product-defaults.json' with { type: 'json' }
-import { type Source, type Work } from './api.ts'
+import { sourceIdentity, type Source, type Work } from './api.ts'
 
 export const defaults = { autoNext: productDefaults.autoNext, rememberSpeed: productDefaults.rememberSpeed,
   rememberVolume: true, filterAds: productDefaults.filterAds, danmakuServer: '' }
@@ -27,24 +27,28 @@ export const getSettings = (): Settings => ({ ...defaults, ...read('settings', {
 export function getRecent(): Recent[] {
   return Object.values(read<Record<string, Recent>>('recent', {})).sort((a, b) => b.at - a.at)
 }
-const bookmarkKey = (work: string, source: Source) => 'bookmark:' + JSON.stringify([work, source.site.name, source.id])
+const bookmarkKey = (work: string, source: Source) => 'bookmark:' + JSON.stringify([work, ...sourceIdentity(source)])
 export const getBookmark = (work: string, source: Source) =>
   read<Bookmark | undefined>(bookmarkKey(work, source), undefined)
 export function recordStarted(selection: Selection, at = Date.now()) {
   const { line, episode, index } = selection
   write(bookmarkKey(selection.work.id, selection.source), { line, episode, index })
-  const records = Object.fromEntries(getRecent().map(item => [item.work.id, item]))
+  const records = read<Record<string, Recent>>('recent', {})
   const previous = records[selection.work.id]
   records[selection.work.id] = { ...selection, at,
     progress: previous && positionKey(previous) === positionKey(selection) ? previous.progress : undefined,
     work: previous ? { ...selection.work, display: previous.work.display } : selection.work,
   }
-  const recent = Object.entries(records).sort(([, a], [, b]) => b.at - a.at).slice(0, 100)
-  write('recent', Object.fromEntries(recent))
+  const ids = Object.keys(records)
+  if (ids.length > 100) {
+    ids.sort((a, b) => records[b].at - records[a].at)
+    for (let i = 100; i < ids.length; i++) delete records[ids[i]]
+  }
+  write('recent', records)
 }
 export const episodeIdentity = (s: Selection) => [s.line, s.episode, s.index] as const
 export function positionKey(s: Selection) {
-  return 'position:' + JSON.stringify([s.work.id, s.source.site.name, s.source.id, ...episodeIdentity(s)])
+  return 'position:' + JSON.stringify([s.work.id, ...sourceIdentity(s.source), ...episodeIdentity(s)])
 }
 export function getPosition(s: Selection) {
   return read(positionKey(s), 0)

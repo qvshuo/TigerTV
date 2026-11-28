@@ -138,11 +138,11 @@ fun HomeScreen(viewModel: TigerTVViewModel, onSearch: () -> Unit, onSettings: ()
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 ScreenTitle(stringResource(R.string.app_name), Modifier.weight(1f))
-                IconButton(scale = IconButtonDefaults.scale(focusedScale = 1f), onClick = { returningFromSearch = true; onSearch() },
+                IconButton(scale = IconButtonDefaults.scale(focusedScale = UiMetrics.focusedScale), onClick = { returningFromSearch = true; onSearch() },
                     modifier = Modifier.size(UiMetrics.controlHeight).focusRequester(searchFocus).testTag("home-search")) {
                     Icon(Icons.Rounded.Search, contentDescription = "搜索")
                 }
-                IconButton(scale = IconButtonDefaults.scale(focusedScale = 1f), onClick = { entryFocusPending = false; onSettings() },
+                IconButton(scale = IconButtonDefaults.scale(focusedScale = UiMetrics.focusedScale), onClick = { entryFocusPending = false; onSettings() },
                     modifier = Modifier.size(UiMetrics.controlHeight).testTag("home-settings")) {
                     Icon(Icons.Rounded.Settings, contentDescription = "设置")
                 }
@@ -169,7 +169,7 @@ fun HomeScreen(viewModel: TigerTVViewModel, onSearch: () -> Unit, onSettings: ()
                     LazyRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(UiSpacing.choiceColumn),
                         contentPadding = PaddingValues(horizontal = UiMetrics.cardGridHorizontalPadding, vertical = UiSpacing.xs)) {
                         items(viewModel.hotSearchCategories, key = { it.id }) { category ->
-                            SelectionChip(selected = category.id == viewModel.selectedHotCategory,
+                            SelectionChip(selected = category.id == viewModel.selectedHotCategory, verticalPadding = UiSpacing.xs,
                                 onClick = { viewModel.selectHotSearchCategory(category.id) },
                                 modifier = Modifier
                                     .then(if (category.id == viewModel.selectedHotCategory) Modifier.focusRequester(contentFocus) else Modifier)) {
@@ -215,7 +215,7 @@ internal fun SearchScreen(viewModel: TigerTVViewModel, onResults: () -> Unit) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             TvTextInput(viewModel.keyword, viewModel::onKeywordChange, ::search, focus, Modifier.weight(1f),
-                hint = stringResource(R.string.search_hint))
+                hint = stringResource(R.string.search_hint), focusedScale = 1f)
             SearchButton(viewModel.isSearching, onClick = ::search)
         }
         viewModel.configErrorMessage?.let { error ->

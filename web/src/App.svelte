@@ -12,8 +12,9 @@
   const { searchHistoryLimit } = productDefaults
   type Page = 'home' | 'search' | 'detail' | 'play' | 'settings'
   let page = $state<Page>('home')
-  let settings = $state(getSettings())
-  let server = $state(getSettings().danmakuServer)
+  const initialSettings = getSettings()
+  let settings = $state(initialSettings)
+  let server = $state(initialSettings.danmakuServer)
   let savedAt = $state(0)
   $effect(() => {
     if (!savedAt) return
@@ -313,7 +314,7 @@
       }
     } finally { if (attempt === detailSelection) detailBusy = false }
   }
-  function sameSource(a: Source, b?: Source) { return a.site.name === b?.site.name && a.id === b.id }
+  function sameSource(a: Source, b?: Source) { return b !== undefined && sourceKey(a) === sourceKey(b) }
   function identifyEpisode(work: Work, source: Source, line: Detail['lines'][number], index: number): Selection {
     const episode = line.episodes[index].name
     return { work, source, line: line.id, episode, index }

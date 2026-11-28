@@ -1,6 +1,6 @@
 import selectionRules from '../../../shared/danmaku-selection.json' with { type: 'json' }
 import type { DanmakuClient, DanmakuEpisode, Title, Track } from './client.ts'
-import { matchingEpisode, season, titleCandidates } from './matching.ts'
+import { danmakuSearchKeyword, matchingEpisode, season, titleCandidates } from './matching.ts'
 
 export type DanmakuMatch = { title: Title; episode: DanmakuEpisode; episodes: DanmakuEpisode[] }
 export type SavedDanmakuEpisode = { title: number; id: number; titleItem?: Title; episodeItem?: DanmakuEpisode }
@@ -69,7 +69,7 @@ export async function autoMatch(client: DanmakuClient, query: string, year: stri
     if (match && track) { publish(track, match); return }
   }
   const seen = new Set(memory.title ? [memory.title] : [])
-  const normalized = titleParts(query).main
+  const normalized = danmakuSearchKeyword(query)
   for (const keyword of new Set([query, normalized].filter(Boolean))) {
     signal.throwIfAborted()
     if (!budget || blocked) break

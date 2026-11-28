@@ -27,9 +27,11 @@ fun SearchButton(isSearching: Boolean, onClick: () -> Unit) {
     ActionButton(
         onClick = onClick,
         enabled = !isSearching,
+        colors = primaryActionColors(),
         modifier = Modifier.semantics { stateDescription = if (isSearching) "正在搜索…" else "" },
         contentPadding = PaddingValues(horizontal = UiSpacing.lg, vertical = 0.dp)
     ) {
+        Spacer(Modifier.width(24.dp + UiSpacing.sm))
         Text(stringResource(R.string.search_button), style = MaterialTheme.typography.labelLarge)
         Spacer(Modifier.width(UiSpacing.sm))
         Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {

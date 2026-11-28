@@ -23,9 +23,11 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import art.anjing.tigertv.ui.components.SelectionChip
 import art.anjing.tigertv.ui.components.UiSpacing
+import art.anjing.tigertv.ui.components.UiMetrics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.window.DialogProperties
 import art.anjing.tigertv.ui.components.ActionButton
+import art.anjing.tigertv.ui.components.primaryActionColors
 import art.anjing.tigertv.ui.components.TvTextInput
 import art.anjing.tigertv.ui.requestFocusSafely
 
@@ -49,6 +51,7 @@ internal fun DanmakuPlayback(
         onRelease = { it.release() }, modifier = Modifier.fillMaxSize().testTag("danmaku-overlay"))
     if (!menuOpen) return
     val entry = remember { FocusRequester() }
+    val optionFocusScale = 1f + (UiMetrics.focusedScale - 1f) / 4f
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         var keyword by remember(title) { mutableStateOf(title) }
         val currentEpisode = state.selectedEpisode
@@ -69,7 +72,8 @@ internal fun DanmakuPlayback(
                 colors = SurfaceDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)) {
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = dialogHeight).testTag("danmaku-options")
                     .semantics { stateDescription = if (busy) "加载中" else "就绪" },
-                    contentPadding = PaddingValues(UiSpacing.lg), verticalArrangement = Arrangement.spacedBy(UiSpacing.choiceRow)) {
+                    contentPadding = PaddingValues(horizontal = 36.dp, vertical = UiSpacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(UiSpacing.choiceRow)) {
                     item { Text("选择弹幕", style = MaterialTheme.typography.headlineSmall) }
                     if (!state.isConfigured) {
                         item {
@@ -82,8 +86,9 @@ internal fun DanmakuPlayback(
                             Row(Modifier.fillMaxWidth().padding(vertical = UiSpacing.sm),
                                 horizontalArrangement = Arrangement.spacedBy(UiSpacing.choiceColumn), verticalAlignment = Alignment.CenterVertically) {
                                 TvTextInput(keyword, { keyword = it }, ::match, entry, Modifier.weight(1f).testTag("danmaku-query"),
-                                    hint = "作品名称")
+                                    hint = "作品名称", focusedScale = 1f)
                                 ActionButton(onClick = ::match, enabled = keyword.isNotBlank(),
+                                    colors = primaryActionColors(),
                                     modifier = Modifier.testTag("danmaku-search")) { Text("搜索") }
                             }
                         }
@@ -94,6 +99,7 @@ internal fun DanmakuPlayback(
                         }
                         items(titles, key = { "title-${it.id}" }) { result ->
                             SelectionChip(selected = state.selectedTitle == result, onClick = { state.select(result) },
+                                focusedScale = optionFocusScale,
                                 modifier = Modifier.fillMaxWidth().testTag("danmaku-title-${result.id}")) {
                                 Text(listOf(result.title, result.source).filter { it.isNotBlank() }.joinToString(" · "),
                                     modifier = Modifier.fillMaxWidth(), maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -104,6 +110,7 @@ internal fun DanmakuPlayback(
                         }
                         items(state.episodes, key = { "episode-${it.id}" }) { episode ->
                             SelectionChip(selected = currentEpisode == episode, onClick = { state.select(episode, onClose) },
+                                focusedScale = optionFocusScale,
                                 modifier = Modifier.fillMaxWidth()
                                     .testTag("danmaku-episode-${episode.id}")) {
                                 Text(episode.title.ifBlank {

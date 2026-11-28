@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -17,9 +16,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import art.anjing.tigertv.ui.components.ActionButton
 import art.anjing.tigertv.ui.components.UiMetrics
+import art.anjing.tigertv.ui.components.UiSpacing
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.InputChip
-import androidx.tv.material3.InputChipDefaults
+import art.anjing.tigertv.ui.components.SelectionChip
 import androidx.tv.material3.Text
 import art.anjing.tigertv.R
 
@@ -52,12 +51,11 @@ fun SearchHistoryRow(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
         ) {
             items(history) { item ->
-                InputChip(
-                    scale = InputChipDefaults.scale(focusedScale = 1f),
+                SelectionChip(
                     selected = false,
+                    verticalPadding = UiSpacing.xs,
                     onClick = { onSelect(item) },
                     onLongClick = { onRemove(item) },
-                    modifier = Modifier.heightIn(min = UiMetrics.compactControlHeight),
                 ) {
                     Text(item, maxLines = 1)
                 }

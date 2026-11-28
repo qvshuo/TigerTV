@@ -2,11 +2,13 @@ import doubanCategories from '../../shared/douban-categories.json' with { type: 
 import networkTimeouts from '../../shared/network-timeouts.json' with { type: 'json' }
 import { object, parseJson, readText } from '../common/http.ts'
 import { hotLimit, posterKey } from '../common/douban.ts'
+import { foldWidth } from './common/text.ts'
 export { object, parseJson }
 
 export type Site = { name: string; api: string; gateway?: string }
 export const displaySourceName = (name: string) => name.replaceAll("🎬", "").trim()
 export type Source = { site: Site; id: number; title: string; year: string; poster: string; remarks: string; category?: string; area?: string }
+export const sourceIdentity = (source: Source) => [source.site.name, source.id] as const
 export type Work = { id: string; display: Source; sources: Source[] }
 export type Episode = { name: string; url: string }
 export type Line = { id: string; name: string; episodes: Episode[] }
@@ -97,9 +99,6 @@ function sourceFrom(site: Site, value: unknown): Source {
 function workIdentity(title: string, year: string, source: Source) {
   const text = title.replace(/[\s\u001c-\u001f]/gu, '').toLowerCase()
   return JSON.stringify(text && year ? [text, year] : [null, `${source.site.name}-${source.id}`])
-}
-export function foldWidth(text: string) {
-  return text.replace(/[\u3000\uff01-\uff5e]/g, char => char === '\u3000' ? ' ' : String.fromCharCode(char.charCodeAt(0) - 0xfee0))
 }
 export function workId(source: Source) {
   const title = foldWidth(source.title).trim()

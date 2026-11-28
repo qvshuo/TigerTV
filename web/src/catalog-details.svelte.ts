@@ -1,6 +1,6 @@
-import { getDetail, type Detail, type Source } from './api.ts'
+import { getDetail, sourceIdentity, type Detail, type Source } from './api.ts'
 
-export const sourceKey = (item: Source) => JSON.stringify([item.site.name, item.id])
+export const sourceKey = (item: Source) => JSON.stringify(sourceIdentity(item))
 
 export function catalogDetails() {
   const detailCache = new Map<string, { expires: number; value: Detail }>()

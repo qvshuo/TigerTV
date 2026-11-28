@@ -86,7 +86,7 @@ fun ResultsScreen(
             ) {
                 ScreenTitle("${stringResource(R.string.results_title)}: ${viewModel.submittedKeyword}", Modifier.weight(1f))
                 IconButton(onClick = onSearch, enabled = !viewModel.isSearching, modifier = Modifier.size(UiMetrics.controlHeight),
-                    scale = IconButtonDefaults.scale(focusedScale = 1f)) {
+                    scale = IconButtonDefaults.scale(focusedScale = UiMetrics.focusedScale)) {
                     if (viewModel.isSearching) LoadingIndicator(Modifier.size(UiMetrics.compactLoadingIndicator))
                     else Icon(Icons.Rounded.Search, contentDescription = "搜索")
                 }

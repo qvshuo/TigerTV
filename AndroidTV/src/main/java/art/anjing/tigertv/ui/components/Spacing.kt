@@ -21,6 +21,8 @@ object UiSpacing {
 }
 
 object UiMetrics {
+    const val focusedScale = 1.1f
+    val choiceHeight = 36.dp
     val pageHorizontalPadding = 48.dp
     val pageVerticalPadding = 20.dp
     val cardGridHorizontalPadding = 12.dp

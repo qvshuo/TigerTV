@@ -6,6 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.background
@@ -48,6 +49,7 @@ import art.anjing.tigertv.ui.components.ScreenTitle
 import art.anjing.tigertv.ui.components.SelectionChip
 import art.anjing.tigertv.ui.components.ErrorMessage
 import art.anjing.tigertv.ui.components.ActionButton
+import art.anjing.tigertv.ui.components.primaryActionColors
 import art.anjing.tigertv.ui.components.LoadingIndicator
 import art.anjing.tigertv.ui.requestFocusSafely
 import art.anjing.tigertv.ui.viewmodel.TigerTVViewModel
@@ -119,7 +121,10 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                 horizontalArrangement = Arrangement.spacedBy(UiSpacing.md)) {
                 ScreenTitle(overviewDetail?.vodName.orEmpty().ifBlank { result?.vodName.orEmpty() }, Modifier.weight(1f))
                 IconButton(onClick = onBack, modifier = Modifier.size(UiMetrics.controlHeight),
-                    scale = IconButtonDefaults.scale(focusedScale = 1f)) {
+                    colors = IconButtonDefaults.colors(focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedContentColor = MaterialTheme.colorScheme.onSurface),
+                    border = IconButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface))),
+                    scale = IconButtonDefaults.scale(focusedScale = UiMetrics.focusedScale)) {
                     Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
                 }
             }
@@ -240,9 +245,8 @@ private fun DetailOverview(result: SearchResult, detail: FetchResponse?, poster:
                 detail?.vodArea.orEmpty()).filter { it.isNotBlank() }
             if (metadata.isNotEmpty()) Text(metadata.joinToString(" · "), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             ActionButton(onClick = onPlay, enabled = canPlay,
-                height = 64.dp,
-                colors = ButtonDefaults.colors(containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary),
+                height = UiMetrics.compactControlHeight,
+                colors = primaryActionColors(),
                 contentPadding = PaddingValues(horizontal = UiSpacing.lg, vertical = 0.dp),
                 modifier = Modifier.padding(vertical = UiSpacing.sm).focusRequester(playFocus).onPreviewKeyEvent {
                     if (onResources != null && it.key == Key.DirectionDown && it.type == KeyEventType.KeyDown) {
@@ -255,6 +259,7 @@ private fun DetailOverview(result: SearchResult, detail: FetchResponse?, poster:
                 val action = if (hasResumePosition) "继续播放" else "播放"
                 Text(episode?.name?.takeIf { it.isNotBlank() }?.let { "$action · $it" } ?: action,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.width(24.dp + UiSpacing.sm))
             }
             if (!detail?.vodContent.isNullOrBlank()) {
                 Text(detail.vodContent, style = MaterialTheme.typography.bodyMedium,

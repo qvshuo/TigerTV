@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import kotlinx.coroutines.flow.drop
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
@@ -55,6 +56,7 @@ internal fun TvTextInput(
     modifier: Modifier = Modifier,
     hint: String,
     imeAction: ImeAction = ImeAction.Search,
+    focusedScale: Float = UiMetrics.focusedScale,
 ) {
     val state = rememberTextFieldState(initialText = value)
     val onChange by rememberUpdatedState(onValueChange)
@@ -82,6 +84,7 @@ internal fun TvTextInput(
                 isFocused = it.isFocused
                 if (!isFocused) keyboardRequested = false
             }
+            .scale(if (isFocused) focusedScale else 1f)
             .onPreviewKeyEvent { event ->
                 if (imeVisible) return@onPreviewKeyEvent false
                 when (event.key) {

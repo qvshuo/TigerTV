@@ -1,24 +1,20 @@
 package art.anjing.tigertv.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.FilterChip
-import androidx.tv.material3.FilterChipDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.ProvideTextStyle
+import androidx.tv.material3.SelectableSurfaceDefaults
+import androidx.tv.material3.Surface
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -27,22 +23,31 @@ internal fun SelectionChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    onLongClick: (() -> Unit)? = null,
+    verticalPadding: Dp = 6.dp,
+    focusedScale: Float = UiMetrics.focusedScale,
     content: @Composable () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    var focused by remember { mutableStateOf(false) }
-    val focusBorder = Border(BorderStroke(2.5.dp, colors.onSurface))
-    FilterChip(selected = selected, onClick = onClick,
-        modifier = modifier.heightIn(min = UiMetrics.controlHeight).onFocusChanged { focused = it.isFocused }, enabled = enabled,
-        colors = FilterChipDefaults.colors(
+    val focusBorder = Border(BorderStroke(2.dp, colors.onSurface))
+    Surface(
+        selected = selected, onClick = onClick, onLongClick = onLongClick, modifier = modifier, enabled = enabled,
+        shape = SelectableSurfaceDefaults.shape(MaterialTheme.shapes.medium),
+        colors = SelectableSurfaceDefaults.colors(
+            containerColor = colors.surfaceVariant, contentColor = colors.onSurface,
             selectedContainerColor = colors.inverseSurface, selectedContentColor = colors.inverseOnSurface,
-            focusedContainerColor = Color.Transparent, focusedContentColor = colors.onSurface,
+            focusedContainerColor = colors.surfaceVariant, focusedContentColor = colors.onSurface,
             focusedSelectedContainerColor = colors.inverseSurface, focusedSelectedContentColor = colors.inverseOnSurface,
         ),
-        border = FilterChipDefaults.border(focusedBorder = focusBorder, focusedSelectedBorder = focusBorder),
-        scale = FilterChipDefaults.scale(focusedScale = 1f),
+        border = SelectableSurfaceDefaults.border(
+            focusedBorder = focusBorder,
+            focusedSelectedBorder = Border(BorderStroke(2.dp, colors.inverseOnSurface), inset = 2.dp),
+        ),
+        scale = SelectableSurfaceDefaults.scale(focusedScale = focusedScale),
     ) {
-        if (focused) ProvideTextStyle(TextStyle(fontWeight = FontWeight.Bold), content)
-        else content()
+        Box(Modifier.heightIn(min = UiMetrics.choiceHeight).padding(horizontal = 12.dp, vertical = verticalPadding),
+            contentAlignment = Alignment.Center) {
+            ProvideTextStyle(MaterialTheme.typography.labelLarge, content)
+        }
     }
 }

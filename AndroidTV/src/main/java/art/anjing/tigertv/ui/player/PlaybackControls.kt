@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -83,12 +84,12 @@ fun PlaybackControls(
                     shape = MaterialTheme.shapes.extraLarge, tonalElevation = 3.dp) {
                     Column(Modifier.verticalScroll(rememberScrollState()).padding(12.dp).focusGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         ListItem(selected = false, onClick = { onDanmakuAction(DanmakuAction.Toggle) },
-                            scale = ListItemDefaults.scale(focusedScale = 1f),
+                            scale = ListItemDefaults.scale(focusedScale = UiMetrics.focusedScale),
                             shape = ListItemDefaults.shape(shape = MaterialTheme.shapes.large),
                             headlineContent = { Text(if (danmakuEnabled) "关闭弹幕" else "开启弹幕", style = MaterialTheme.typography.labelLarge) },
                             modifier = Modifier.fillMaxWidth().heightIn(min = UiMetrics.compactControlHeight).testTag("danmaku-action-0"))
                         ListItem(selected = false, onClick = { onDanmakuAction(DanmakuAction.Choose) },
-                            scale = ListItemDefaults.scale(focusedScale = 1f),
+                            scale = ListItemDefaults.scale(focusedScale = UiMetrics.focusedScale),
                             shape = ListItemDefaults.shape(shape = MaterialTheme.shapes.large),
                             headlineContent = { Text("选择弹幕", style = MaterialTheme.typography.labelLarge) },
                             modifier = Modifier.fillMaxWidth().heightIn(min = UiMetrics.compactControlHeight).testTag("danmaku-action-4").focusRequester(danmakuOption)
@@ -106,7 +107,7 @@ fun PlaybackControls(
                         verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         speeds.forEachIndexed { index, speed ->
                             ListItem(selected = snapshot.speed == speed, onClick = { onSpeed(speed) },
-                                scale = ListItemDefaults.scale(focusedScale = 1f),
+                                scale = ListItemDefaults.scale(focusedScale = UiMetrics.focusedScale),
                                 shape = ListItemDefaults.shape(shape = MaterialTheme.shapes.large),
                                 headlineContent = { Text("${speed}×", style = MaterialTheme.typography.labelLarge) },
                                 trailingContent = {
@@ -159,14 +160,14 @@ fun PlaybackControls(
                 }.onFocusChanged { if (it.isFocused) onFocus(PlayerFocusArea.Actions) }
                 Row(Modifier.align(if (stacked) Alignment.TopCenter else Alignment.Center), horizontalArrangement = Arrangement.spacedBy(20.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(scale = IconButtonDefaults.scale(focusedScale = 1f), onClick = onPrevious, enabled = canPrevious,
+                    IconButton(scale = IconButtonDefaults.scale(focusedScale = UiMetrics.focusedScale), onClick = onPrevious, enabled = canPrevious,
                         modifier = Modifier.testTag("player-previous").focusRequester(previousFocus).size(UiMetrics.controlHeight).then(actionModifier).focusProperties {
                             canFocus = canPrevious; left = FocusRequester.Cancel; right = playFocus
                         }) {
                         Icon(painterResource(R.drawable.player_skip_previous), contentDescription = "上一集", modifier = Modifier.size(24.dp))
                     }
                     val playTag = if (snapshot.ended) "player-replay" else if (snapshot.playWhenReady) "player-pause" else "player-play"
-                    IconButton(scale = IconButtonDefaults.scale(focusedScale = 1f), onClick = onTogglePlayback,
+                    IconButton(scale = IconButtonDefaults.scale(focusedScale = UiMetrics.focusedScale), onClick = onTogglePlayback,
                         modifier = Modifier.testTag(playTag).focusRequester(playFocus).size(UiMetrics.controlHeight).then(actionModifier).focusProperties {
                             left = if (canPrevious) previousFocus else FocusRequester.Cancel
                             right = if (canNext) nextFocus else speedFocus
@@ -175,7 +176,7 @@ fun PlaybackControls(
                         Icon(painterResource(icon), contentDescription = if (snapshot.ended) "重播" else if (snapshot.playWhenReady) "暂停" else "播放",
                             modifier = Modifier.size(if (snapshot.ended) 32.dp else 40.dp))
                     }
-                    IconButton(scale = IconButtonDefaults.scale(focusedScale = 1f), onClick = onNext, enabled = canNext,
+                    IconButton(scale = IconButtonDefaults.scale(focusedScale = UiMetrics.focusedScale), onClick = onNext, enabled = canNext,
                         modifier = Modifier.testTag("player-next").focusRequester(nextFocus).size(UiMetrics.controlHeight).then(actionModifier).focusProperties {
                             canFocus = canNext; left = playFocus; right = speedFocus
                         }) {
@@ -232,7 +233,7 @@ private fun PlaybackTimeline(
     }.onFocusChanged {
         focused = it.isFocused
         if (it.isFocused) onFocus(PlayerFocusArea.Timeline)
-    }.semantics {
+    }.scale(if (focused) UiMetrics.focusedScale else 1f).semantics {
         contentDescription = "播放进度"
         progressBarRangeInfo = ProgressBarRangeInfo(progress, 0f..1f)
         if (snapshot.seekable) setProgress { fraction ->

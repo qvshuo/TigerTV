@@ -87,7 +87,7 @@ private fun PlaybackSetting(label: String, enabled: Boolean, onChange: (Boolean)
     ListItem(
         selected = enabled,
         modifier = Modifier.heightIn(min = UiMetrics.controlHeight),
-        scale = ListItemDefaults.scale(focusedScale = 1f),
+        scale = ListItemDefaults.scale(focusedScale = UiMetrics.focusedScale),
         onClick = { onChange(!enabled) },
         headlineContent = { Text(label) },
         trailingContent = { Text(if (enabled) "开启" else "关闭") },

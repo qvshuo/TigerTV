@@ -1,5 +1,5 @@
 import selectionRules from '../../../shared/danmaku-selection.json' with { type: 'json' }
-import { foldWidth as fold } from '../api.ts'
+import { foldWidth as fold } from '../common/text.ts'
 import type { Title, DanmakuEpisode } from './client.ts'
 
 const textPatterns = selectionRules.textPatterns
@@ -80,6 +80,8 @@ function titleParts(raw: string) {
   const names = [main, ...aliases].map(key).filter(Boolean)
   return { main, key: key(main), names, year: Number(year?.[1] ?? year?.[2]) || undefined, season: season(main) }
 }
+
+export const danmakuSearchKeyword = (query: string) => titleParts(query).main
 
 function titleMatch(expected: ReturnType<typeof titleParts>, actual: ReturnType<typeof titleParts>, year: string, desiredSeason?: number) {
   const expectedYear = expected.year ?? (/^(19|20)\d{2}$/.test(year) ? Number(year) : undefined)
