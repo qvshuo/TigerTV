@@ -422,6 +422,26 @@
 
 <main class="shell page">
   {#if page === 'home'}
+    {#if recent.length}
+      <section aria-labelledby="recent-heading" class="mb-6">
+        <h2 id="recent-heading" class="catalog-lead">继续观看</h2>
+        <ul class="recent-strip">
+          {#each recent.slice(0, 4) as item (item.work.id)}
+            <li>
+              <button class="recent-card" onclick={() => open(item.work, item)}>
+                <Poster title={item.work.display.title} candidates={posterCandidates(item.work)} recent
+                  onShown={url => rememberPoster(item.work, url)} />
+                <span class="min-w-0">
+                  <strong>{item.work.display.title}</strong>
+                  <small>{item.episode || `第 ${item.index + 1} 集`}</small>
+                  <progress class="recent-progress" aria-label="观看进度" max="100" value={item.progress ?? 0}></progress>
+                </span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
     <section aria-labelledby="hot-heading">
       <h2 id="hot-heading" class="catalog-lead">热门推荐</h2>
       <div class="choices mb-3" aria-label="热门分类">
@@ -445,26 +465,6 @@
         <button class="quiet mt-4" onclick={() => { hotAttempt += 1 }}>重试</button>
       {/if}
     </section>
-    {#if recent.length}
-      <section aria-labelledby="recent-heading" class="mt-6">
-        <h2 id="recent-heading" class="catalog-lead">继续观看</h2>
-        <ul class="recent-strip">
-          {#each recent.slice(0, 4) as item (item.work.id)}
-            <li>
-              <button class="recent-card" onclick={() => open(item.work, item)}>
-                <Poster title={item.work.display.title} candidates={posterCandidates(item.work)} recent
-                  onShown={url => rememberPoster(item.work, url)} />
-                <span class="min-w-0">
-                  <strong>{item.work.display.title}</strong>
-                  <small>{item.episode || `第 ${item.index + 1} 集`}</small>
-                  <progress class="recent-progress" aria-label="观看进度" max="100" value={item.progress ?? 0}></progress>
-                </span>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      </section>
-    {/if}
   {:else if page === 'search'}
     {#if submitted}
       <h1 class="catalog-lead search-results-title" bind:this={resultsHeading} tabindex="-1">
