@@ -69,8 +69,8 @@
     const sites = new Map<string, Site>()
     for (const site of configuredSites) if (!sites.has(site.name)) sites.set(site.name, site)
     if (!sites.size) {
-      for (const { site: { name, api } } of visibleWork?.sources ?? []) {
-        if (isCatalogSource(name) && !sites.has(name)) sites.set(name, { name, api })
+      for (const { site } of visibleWork?.sources ?? []) {
+        if (isCatalogSource(site.name) && !sites.has(site.name)) sites.set(site.name, site)
       }
     }
     return [...sites.values()]
@@ -109,6 +109,7 @@
     if (next !== 'detail' && next !== 'play') details.leave()
     if (next === 'home') searchRequest?.abort()
     page = next
+    if (next === 'detail') void refreshCatalog()
     if (push) window.history.pushState({ tigerPage: next }, '', next === 'home' ? location.pathname : '#' + next)
     if (!returningWork) window.scrollTo({ top: 0 })
     void tick().then(() => {
@@ -513,10 +514,11 @@
         </button>
       </div>
     </div>
-    {#each sourceGroups as group, index (group.title)}
-      {#if group.sites.length}
-        <section class="detail-section" aria-labelledby={'source-heading-' + index}>
-          <h2 id={'source-heading-' + index}>{group.title}</h2>
+    <section class="detail-section" aria-labelledby="resources-heading">
+      <h2 id="resources-heading">资源</h2>
+      {#each sourceGroups as group (group.title)}
+        <div class="source-group">
+          <h3>{group.title}</h3>
           <div class="source-grid">
             {#each group.sites as site (site.name)}
               {@const item = matchedSources.get(site.name)}
@@ -534,9 +536,9 @@
               </button>
             {/each}
           </div>
-        </section>
-      {/if}
-    {/each}
+        </div>
+      {/each}
+    </section>
     <section class="detail-section" aria-labelledby="episode-heading">
       <h2 id="episode-heading">选集</h2>
       {#if !detailBusy && detailError}

@@ -131,6 +131,8 @@ input::placeholder { color: #a9a9a9; }
 .synopsis { margin-top: .65rem; max-width: 68ch; white-space: pre-line; line-height: 1.7; color: #dddddd; overflow-wrap: anywhere; }
 .detail-section { padding-top: var(--space-4); margin-top: var(--space-4); border-top: 1px solid var(--line); }
 .detail-section h2 { margin-bottom: var(--space-2); }
+.source-group h3 { margin-bottom: var(--space-2); }
+.source-group + .source-group { margin-top: var(--space-4); }
 .settings-page .detail-section { border-top: 0; }
 .settings-page .detail-section:first-child { margin-block-start: 0; padding-block-start: 0; }
 .settings-page .catalog-lead { margin-bottom: 1rem; }

@@ -163,8 +163,8 @@ fun DetailScreen(viewModel: TigerTVViewModel, onBack: () -> Unit, onPlay: (Int) 
                         val otherNames = if (viewModel.configuredSites.isEmpty()) matched.keys.filter(::isCatalogSource)
                             else other.map { it.name }
                         Column(verticalArrangement = Arrangement.spacedBy(UiSpacing.choiceRow)) {
+                            SectionTitle("资源")
                             for ((title, sites) in listOf("推荐资源" to recommended.map { it.name }, "其他资源" to otherNames)) {
-                                if (sites.isEmpty()) continue
                                 SectionTitle(title)
                                 val columns = 6
                                 sites.chunked(columns).forEach { row ->
