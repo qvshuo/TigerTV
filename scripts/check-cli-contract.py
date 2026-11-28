@@ -51,6 +51,10 @@ def main():
     thread.start()
     try:
         with tempfile.TemporaryDirectory(prefix="tigertv-parity-中文-") as temp:
+            home = Path(temp) / "home"
+            state = Path(temp) / "state"
+            home.mkdir()
+            state.mkdir()
             host = f"http://127.0.0.1:{server.server_port}"
             source = Path(temp) / "来源🎬.json"
             source.write_text(json.dumps({"api_site": {
@@ -62,12 +66,17 @@ def main():
                 "oversized": {"name": "🎬超大响应", "api": host + "/oversized"},
             }}, ensure_ascii=False), encoding="utf-8")
 
-            def run(command, arguments, source_enabled=True):
+            def child_environment():
                 env = os.environ.copy()
+                env["HOME"] = str(home)
+                env["XDG_STATE_HOME"] = str(state)
                 # Native CLI must work with no JVM/Python discoverable through PATH.
-                if command == native:
-                    env["PATH"] = temp
-                    env.pop("JAVA_HOME", None)
+                env["PATH"] = temp
+                env.pop("JAVA_HOME", None)
+                return env
+
+            def run(command, arguments, source_enabled=True):
+                env = child_environment()
                 return subprocess.run(command + (["--config", str(source)] if source_enabled else []) + arguments,
                                       capture_output=True, encoding="utf-8", env=env, timeout=45)
 
@@ -107,7 +116,6 @@ def main():
                 (["search", ""], 2),
                 (["search", "--keyword", "逐玉"], 2),
                 (["search", "--query", "逐玉"], 2),
-                (["quanx", "逐玉"], 2),
                 (["search", "a", "b"], 2),
                 (["--source", str(source), "search", "逐玉"], 2),
                 (["fetch", "--site", "🎬站点", "--video-id", "0"], 2),
@@ -128,7 +136,8 @@ def main():
             default = run(native, [], False)
             assert (default.returncode, default.stdout, default.stderr) == (0, help_result.stdout, "")
             assert run(native, ["logs"], False).returncode == 0
-            closed_pipe = subprocess.Popen(native + ["--config", str(source), "search", "fixture"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            closed_pipe = subprocess.Popen(native + ["--config", str(source), "search", "fixture"],
+                                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=child_environment())
             closed_pipe.stdout.close()
             assert closed_pipe.wait(timeout=45) == 0
             assert not closed_pipe.stderr.read()

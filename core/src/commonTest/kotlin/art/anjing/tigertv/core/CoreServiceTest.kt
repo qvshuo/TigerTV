@@ -381,6 +381,7 @@ class CoreServiceTest {
         } finally { core.close() }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test fun networkDeadlineIsAnOperationFailureAndRedirectsShareTheBudget() = runTest {
         val client = configureClient(HttpClient(testEngine {
             delay(6_000)

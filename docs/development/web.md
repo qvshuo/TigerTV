@@ -10,7 +10,7 @@ bun run start
 
 Vite 开发时复用生产元数据处理器。PWA 只缓存应用外壳。离线豆瓣快照用 `bun web/scripts/update-douban.mjs`（仓库根目录）更新。
 
-Web 默认读取仓库手动维护的 [LunaTV-config.json](../../shared/LunaTV-config.json)。修改默认名单后重新构建镜像。`TIGERTV_SITES` 可从名单中按配置键选取子集。
+Web 默认读取仓库手动维护的 [LunaTV-config.json](../../shared/LunaTV-config.json)。来源启用条件见[跨端契约](../contract.md#来源与搜索)。修改默认名单后重新构建镜像。`TIGERTV_SITES` 可从名单中按配置键选取子集。
 
 ## Compose
 

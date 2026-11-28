@@ -82,5 +82,7 @@ self.addEventListener('fetch', event => {
 
 export default defineConfig({
   base: './',
-  plugins: [svelte({ preprocess: vitePreprocess() }), tailwindcss(), appShell(), developmentMetadata()],
+  // The full HLS engine is loaded on demand and currently builds to 578 kB.
+  build: { chunkSizeWarningLimit: 600 },
+  plugins: [svelte({ configFile: false, preprocess: vitePreprocess() }), tailwindcss(), appShell(), developmentMetadata()],
 })

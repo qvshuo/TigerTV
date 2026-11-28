@@ -29,9 +29,9 @@ tigertv logs
 
 ## 来源维护
 
-直接编辑 [LunaTV-config.json](../shared/LunaTV-config.json)。只有名称带 `🎬` 的来源可启用。名称带 `🔞` 的条目留作备查。修改来源后检查 API 和详情返回的播放线路，失效来源直接删除。
+来源配置的启用条件见[跨端契约](contract.md#来源与搜索)。直接编辑 [LunaTV-config.json](../shared/LunaTV-config.json)，修改后检查 API 和详情返回的播放线路。历史检查记录见[默认来源检查](../experiments/source-config/validation-2026-11-28.md)。
 
-Core 从 GitHub 主分支读取该文件并缓存。迁移前的客户端仍请求旧地址，需要升级。Web 镜像打包这份文件，修改默认名单后重新构建镜像。CLI 指定 `--config` 时直接读取本地文件。
+Web 镜像打包这份文件，修改默认名单后重新构建镜像。CLI 指定 `--config` 时读取本地文件；Core 的远程加载与缓存行为见[跨端契约](contract.md#来源与搜索)。
 
 ## 开发命令
 

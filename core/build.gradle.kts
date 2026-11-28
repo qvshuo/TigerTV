@@ -2,28 +2,32 @@ plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
 }
+
+private object KotlinSource {
+    fun stringLiteral(text: String) = buildString {
+        append('"')
+        for (char in text) when (char) {
+            '\\' -> append("\\\\")
+            '"' -> append("\\\"")
+            '\n' -> append("\\n")
+            '\r' -> append("\\r")
+            '\t' -> append("\\t")
+            '$' -> append("\\$")
+            else -> if (char.isISOControl()) append("\\u${char.code.toString(16).padStart(4, '0')}") else append(char)
+        }
+        append('"')
+    }
+}
+
 val generateContractFixtures = tasks.register("generateContractFixtures") {
     val source = project.file("../docs/fixtures")
     val output = layout.buildDirectory.file("generated/fixtures/ContractFixtures.kt")
     inputs.dir(source)
     outputs.file(output)
     doLast {
-        fun literal(text: String) = buildString {
-            append('"')
-            for (char in text) when (char) {
-                '\\' -> append("\\\\")
-                '"' -> append("\\\"")
-                '\n' -> append("\\n")
-                '\r' -> append("\\r")
-                '\t' -> append("\\t")
-                '$' -> append("\\$")
-                else -> if (char.isISOControl()) append("\\u${char.code.toString(16).padStart(4, '0')}") else append(char)
-            }
-            append('"')
-        }
         output.get().asFile.apply {
             parentFile.mkdirs()
-            writeText("package art.anjing.tigertv.core\ninternal val contractFixtures = mapOf(\n" + source.listFiles()!!.sortedBy { it.name }.joinToString(",\n") { literal(it.name) + " to " + literal(it.readText()) } + "\n)\n")
+            writeText("package art.anjing.tigertv.core\ninternal val contractFixtures = mapOf(\n" + source.listFiles()!!.sortedBy { it.name }.joinToString(",\n") { KotlinSource.stringLiteral(it.name) + " to " + KotlinSource.stringLiteral(it.readText()) } + "\n)\n")
         }
     }
 }
@@ -42,7 +46,7 @@ val generateSharedConfig = tasks.register("generateSharedConfig") {
         output.get().asFile.apply {
             parentFile.mkdirs()
             writeText("package art.anjing.tigertv.core\n" + files.entries.joinToString("\n", postfix = "\n") { (name, file) ->
-                "internal const val $name = \"\"\"${file.readText().trim()}\"\"\""
+                "internal const val $name = ${KotlinSource.stringLiteral(file.readText().trim())}"
             })
         }
     }
